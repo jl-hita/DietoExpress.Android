@@ -204,8 +204,19 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val result = offline.readThrough(accountId, "messages", type) { PortalService.api.messages() }
             try { PortalService.api.markMessagesRead(UUID.randomUUID().toString(), emptyMap()) } catch (_: IOException) { /* Cached reads remain available; do not mark future unseen messages as read. */ }
             val draft = offline.messageDraft(accountId)
+            val queued = offline.allOperations(accountId).filter {
+                it.operationType == OfflineRepository.OP_SEND_PATIENT_MESSAGE
+            }
+            val pendingCount = queued.count { it.status == "PENDING" || it.status == "NEEDS_AUTH" }
+            val failedCount = queued.count { it.status == "FAILED" }
+            val syncMessage = when {
+                failedCount > 0 -> "Hay $failedCount mensaje(s) que no se pudieron enviar. Comprueba el contenido y vuelve a intentarlo."
+                pendingCount > 0 -> "Tienes $pendingCount mensaje(s) guardados y pendientes de confirmación."
+                result.fromCache -> "Sin conexión: se muestran los últimos mensajes guardados."
+                else -> null
+            }
             _state.value = _state.value.copy(messages = result.value, messagesLoaded = true, messageDraft = draft, section = "messages",
-                message = if (result.fromCache) "Sin conexión: se muestran los últimos mensajes guardados. El envío requiere conexión." else null, error = false)
+                message = syncMessage, error = failedCount > 0)
         }
     }
 
@@ -219,32 +230,65 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         val accountId = _state.value.profile?.clientId
         if (body.isBlank() || body.length > 5000 || _state.value.busy || accountId == null) return
         runRequest {
+            // Primero se persiste el payload cifrado y la clave UUID; solo después se intenta la red.
+            // Si la respuesta se pierde, WorkManager repetirá exactamente la misma operación lógica.
+            val operationId = offline.enqueueSendPatientMessage(accountId, body)
+            val request = SendPatientMessageRequest(body)
             try {
-                PortalService.api.sendMessage(SendPatientMessageRequest(body))
+                PortalService.api.sendMessage(operationId, request)
+                offline.completeOperation(operationId)
+                offline.saveMessageDraft(accountId, "")
+                _state.value = _state.value.copy(messageDraft = "", message = "Mensaje enviado.", error = false)
+                try {
+                    val type = TypeToken.getParameterized(List::class.java, PatientMessage::class.java).type
+                    val result = offline.readThrough(accountId, "messages", type) { PortalService.api.messages() }
+                    _state.value = _state.value.copy(
+                        messages = result.value, messagesLoaded = true, section = "messages",
+                        message = if (result.fromCache) "Mensaje enviado. El historial guardado puede estar desactualizado." else null,
+                        error = false
+                    )
+                } catch (_: IOException) {
+                    _state.value = _state.value.copy(
+                        message = "Mensaje enviado. No se pudo actualizar el historial; se actualizará cuando haya conexión.",
+                        error = false
+                    )
+                }
             } catch (_: IOException) {
+                // La petición puede haber llegado al servidor. No se borra la operación ni se genera otra clave.
+                offline.saveMessageDraft(accountId, "")
                 _state.value = _state.value.copy(
-                    message = "No se ha podido confirmar el envío. El borrador se conserva; comprueba los mensajes antes de volver a intentarlo.",
-                    error = true
-                )
-                return@runRequest
-            }
-
-            offline.saveMessageDraft(accountId, "")
-            _state.value = _state.value.copy(messageDraft = "", message = "Mensaje enviado.", error = false)
-            try {
-                val type = TypeToken.getParameterized(List::class.java, PatientMessage::class.java).type
-                val result = offline.readThrough(accountId, "messages", type) { PortalService.api.messages() }
-                try { PortalService.api.markMessagesRead(UUID.randomUUID().toString(), emptyMap()) } catch (_: IOException) { /* Do not defer a broad read receipt. */ }
-                _state.value = _state.value.copy(
-                    messages = result.value, messagesLoaded = true, section = "messages",
-                    message = if (result.fromCache) "Mensaje enviado. El historial mostrado está guardado localmente y puede estar desactualizado." else null,
+                    messageDraft = "",
+                    message = "Mensaje guardado de forma segura y pendiente de confirmación. Se reintentará automáticamente; no lo vuelvas a enviar.",
                     error = false
                 )
-            } catch (_: IOException) {
-                _state.value = _state.value.copy(
-                    message = "Mensaje enviado. No se pudo actualizar el historial; se actualizará cuando haya conexión.",
-                    error = false
-                )
+            } catch (ex: HttpException) {
+                when {
+                    ex.code() == 401 || ex.code() == 403 -> {
+                        offline.needsAuthentication(operationId)
+                        offline.saveMessageDraft(accountId, "")
+                        _state.value = _state.value.copy(
+                            messageDraft = "",
+                            message = "El mensaje está guardado en el dispositivo, pero necesita una sesión válida para enviarse.",
+                            error = false
+                        )
+                    }
+                    ex.code() >= 500 || ex.code() == 429 -> {
+                        offline.retryOperation(operationId, "El servidor rechazó temporalmente el envío.")
+                        offline.saveMessageDraft(accountId, "")
+                        _state.value = _state.value.copy(
+                            messageDraft = "",
+                            message = "Mensaje guardado de forma segura y pendiente de envío. Se reintentará automáticamente.",
+                            error = false
+                        )
+                    }
+                    else -> {
+                        offline.failOperation(operationId, "El servidor rechazó el mensaje (HTTP ${ex.code()}).")
+                        _state.value = _state.value.copy(
+                            message = "No se ha enviado el mensaje (HTTP ${ex.code()}). El borrador se conserva para corregirlo.",
+                            error = true
+                        )
+                    }
+                }
             }
         }
     }

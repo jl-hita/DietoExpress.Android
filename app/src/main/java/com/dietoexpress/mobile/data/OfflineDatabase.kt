@@ -42,6 +42,8 @@ interface OfflineDao {
     suspend fun enqueue(operation: PendingOperationEntity): Long
     @Query("SELECT * FROM pending_operations WHERE accountId = :accountId AND status IN ('PENDING', 'NEEDS_AUTH') ORDER BY createdAtEpochMs ASC")
     suspend fun pendingOperations(accountId: Int): List<PendingOperationEntity>
+    @Query("SELECT * FROM pending_operations WHERE accountId = :accountId ORDER BY createdAtEpochMs ASC")
+    suspend fun allOperations(accountId: Int): List<PendingOperationEntity>
     @Query("DELETE FROM pending_operations WHERE id = :id")
     suspend fun completeOperation(id: String)
     @Query("UPDATE pending_operations SET status = :status, attemptCount = attemptCount + 1, lastError = :error WHERE id = :id")
