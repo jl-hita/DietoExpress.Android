@@ -3,8 +3,11 @@ package com.dietoexpress.mobile.sync
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.dietoexpress.mobile.data.LocalPayloadCipher
 import com.dietoexpress.mobile.data.OfflineRepository
 import com.dietoexpress.mobile.data.PortalService
+import com.dietoexpress.mobile.data.SendPatientMessageRequest
+import com.google.gson.Gson
 import java.io.IOException
 import retrofit2.HttpException
 
@@ -14,30 +17,56 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
         if (accountId <= 0) return Result.failure()
         PortalService.initialize(applicationContext)
         val repository = OfflineRepository(applicationContext)
-        for (operation in repository.pendingOperations(accountId)) {
-            when (operation.operationType) {
-                OfflineRepository.OP_MARK_MESSAGES_READ -> try {
-                    PortalService.api.markMessagesRead(operation.id, emptyMap())
-                    repository.completeOperation(operation.id)
-                } catch (ex: HttpException) {
-                    when {
-                        ex.code() == 401 || ex.code() == 403 -> { repository.needsAuthentication(operation.id); return Result.success() }
-                        ex.code() >= 500 || ex.code() == 429 -> {
-                            repository.retryOperation(operation.id, "El servidor rechazó temporalmente la sincronización.")
-                            return Result.retry()
-                        }
-                        else -> repository.failOperation(operation.id, "El servidor rechazó la operación (HTTP ${ex.code()}).")
+        val operations = repository.pendingOperations(accountId)
+
+        // PortalService tiene una cookie compartida por instalación. Nunca enviar una operación
+        // de la cuenta A usando una sesión que ahora pertenece a la cuenta B.
+        if (!repository.activeAccountMatches(accountId)) {
+            operations.forEach { repository.needsAuthentication(it.id) }
+            return Result.success()
+        }
+
+        for (operation in operations) {
+            try {
+                when (operation.operationType) {
+                    OfflineRepository.OP_MARK_MESSAGES_READ -> {
+                        PortalService.api.markMessagesRead(operation.id, emptyMap())
                     }
-                } catch (_: IOException) {
-                    repository.retryOperation(operation.id, "Sin conexión; se volverá a intentar.")
-                    return Result.retry()
-                } catch (_: Exception) {
-                    repository.failOperation(operation.id, "No se ha podido sincronizar esta operación.")
+                    OfflineRepository.OP_SEND_PATIENT_MESSAGE -> {
+                        val json = LocalPayloadCipher.decrypt(operation.encryptedPayload)
+                        val request = Gson().fromJson(json, SendPatientMessageRequest::class.java)
+                            ?: throw IllegalArgumentException("El mensaje pendiente no contiene un cuerpo válido.")
+                        // operation.id se creó y persistió antes del primer envío; se reutiliza incluso
+                        // tras timeout, muerte del proceso o reintento de WorkManager.
+                        PortalService.api.sendMessage(operation.id, request)
+                    }
+                    else -> {
+                        repository.failOperation(operation.id, "Tipo de operación offline no reconocido.")
+                        continue
+                    }
                 }
-                else -> repository.failOperation(operation.id, "Tipo de operación offline no reconocido.")
+                repository.completeOperation(operation.id)
+            } catch (ex: HttpException) {
+                when {
+                    ex.code() == 401 || ex.code() == 403 -> {
+                        repository.needsAuthentication(operation.id)
+                        return Result.success()
+                    }
+                    ex.code() >= 500 || ex.code() == 429 -> {
+                        repository.retryOperation(operation.id, "El servidor rechazó temporalmente la sincronización.")
+                        return Result.retry()
+                    }
+                    else -> repository.failOperation(operation.id, "El servidor rechazó la operación (HTTP ${ex.code()}).")
+                }
+            } catch (_: IOException) {
+                repository.retryOperation(operation.id, "Sin conexión; se volverá a intentar.")
+                return Result.retry()
+            } catch (_: Exception) {
+                repository.failOperation(operation.id, "No se ha podido sincronizar esta operación.")
             }
         }
         return Result.success()
     }
+
     companion object { const val KEY_ACCOUNT_ID = "account_id" }
 }
