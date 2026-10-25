@@ -85,7 +85,7 @@ class OfflineRepository(context: Context) {
         key == "diet" -> DIET_TTL_MS
         key == "appointments" -> APPOINTMENTS_TTL_MS
         key == "documents" -> DOCUMENTS_TTL_MS
-        key == "shopping" -> SHOPPING_TTL_MS
+        key == "shopping" || key == "shopping-list" -> SHOPPING_TTL_MS
         key == "messages" -> MESSAGES_TTL_MS
         key == "training" -> TRAINING_TTL_MS
         key.startsWith("checkin") -> CHECKIN_TTL_MS
