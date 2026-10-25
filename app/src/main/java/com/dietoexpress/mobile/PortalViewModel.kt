@@ -157,6 +157,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     message = if (result.fromCache) "Sin conexión: se muestra la última dieta guardada. Comprueba su vigencia antes de seguirla." else null, error = false)
             } catch (ex: HttpException) {
                 if (ex.code() == 404) {
+                    offline.invalidate(_state.value.profile?.clientId ?: return@runRequest, "diet")
                     _state.value = _state.value.copy(
                         diet = null, dietLoaded = true,
                         message = "Tu nutricionista todavía no te ha asignado una dieta activa.",
@@ -408,7 +409,17 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 _state.value = _state.value.copy(message = message, error = true)
                 if (ex.code() == 401) {
                     PortalService.clearSessionCookies()
-                    _state.value = _state.value.copy(profile = null, diet = null, dietLoaded = false, section = "home")
+                    _state.value.profile?.clientId?.let(offline::clearActiveAccountId)
+                    _state.value = _state.value.copy(
+                        profile = null, diet = null, dietLoaded = false,
+                        appointments = emptyList(), appointmentsLoaded = false,
+                        documents = emptyList(), documentsLoaded = false,
+                        shoppingList = emptyList(), shoppingLoaded = false,
+                        messages = emptyList(), messagesLoaded = false,
+                        training = null, trainingLoaded = false,
+                        checkinEligibility = null, currentCheckin = null, checkinHistory = emptyList(), checkinLoaded = false,
+                        section = "home"
+                    )
                 }
             } catch (_: IOException) {
                 _state.value = _state.value.copy(message = "No se ha podido conectar. Comprueba tu conexión.", error = true)
