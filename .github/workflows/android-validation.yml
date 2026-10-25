@@ -10,12 +10,19 @@ on:
       - "**"
   workflow_dispatch:
 
+# Evita gastar runners en ejecuciones obsoletas del mismo PR o rama.
+# Una ejecución nueva cancela la anterior del mismo grupo.
+concurrency:
+  group: android-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   assemble-debug:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
