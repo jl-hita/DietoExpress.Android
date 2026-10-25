@@ -36,3 +36,10 @@ Esto incluye, como mínimo:
 3. Actualizar el contrato y las pruebas en el mismo cambio cuando sea viable; si son repos separados, enlazar ambos PRs.
 4. No desplegar un cambio incompatible antes de que la app publicada pueda tolerarlo, salvo que se haya acordado una migración coordinada.
 5. Registrar explícitamente la revisión incluso cuando la conclusión sea “sin impacto”.
+
+## Revisión de idempotencia (octubre de 2026)
+
+- `PATCH /api/messages/patient/read` mantiene la misma ruta y cuerpo; ahora acepta opcionalmente `Idempotency-Key` en el backend.
+- La outbox ya persiste un UUID por operación en `PendingOperationEntity.id`. El worker reutiliza ese mismo UUID como cabecera en cada reintento; no genera una clave nueva por intento.
+- Si el servidor no confirma la operación, el registro local conserva el mismo identificador. Solo se elimina de la outbox cuando la petición termina correctamente.
+- La protección efectiva depende de que el backend tenga desplegada la revisión que declara el endpoint con `[Idempotent]`; antes de ese despliegue, la cabecera se ignora y el endpoint sigue funcionando de forma compatible.
