@@ -55,10 +55,12 @@ class OfflineRepository(context: Context) {
     }
 
     /** Only idempotent operations may enter the automatic retry queue. */
-    suspend fun enqueueMarkMessagesRead(accountId: Int) {
-        dao.enqueue(PendingOperationEntity(UUID.randomUUID().toString(), accountId, OP_MARK_MESSAGES_READ,
+    suspend fun enqueueMarkMessagesRead(accountId: Int): String {
+        val id = UUID.randomUUID().toString()
+        dao.enqueue(PendingOperationEntity(id, accountId, OP_MARK_MESSAGES_READ,
             LocalPayloadCipher.encrypt("{}"), System.currentTimeMillis()))
         scheduleSync(accountId)
+        return id
     }
     suspend fun pendingOperations(accountId: Int) = dao.pendingOperations(accountId)
     suspend fun allOperations(accountId: Int): List<PendingOperationEntity> =
