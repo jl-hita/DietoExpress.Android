@@ -34,5 +34,14 @@ jobs:
       - name: Run unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
 
+      - name: Run instrumented outbox tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: gradle --no-daemon :app:connectedDebugAndroidTest
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
