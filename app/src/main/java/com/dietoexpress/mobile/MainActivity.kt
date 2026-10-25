@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -588,30 +589,119 @@ private fun AppointmentsContent(
     onBookAppointment: () -> Unit,
     onRequestAppointment: (com.dietoexpress.mobile.data.AppointmentSlot, String) -> Unit
 ) {
+    var selectedDate by remember(slots) { mutableStateOf(slots.firstOrNull()?.startsAt?.take(10)) }
+    var selectedSlotStart by remember(slots) { mutableStateOf<String?>(null) }
+    val slotsByDate = slots.groupBy { it.startsAt.take(10) }.toSortedMap()
+    val activeDate = selectedDate?.takeIf { slotsByDate.containsKey(it) } ?: slotsByDate.keys.firstOrNull()
+    val daySlots = slotsByDate[activeDate].orEmpty()
+    val selectedSlot = daySlots.firstOrNull { it.startsAt == selectedSlotStart }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!hasAssignedNutritionist) {
             EmptyCard("Sin nutricionista asignado", "Busca un profesional en el directorio para solicitar una primera consulta.", "Buscar nutricionista", onBookAppointment)
         } else {
             Text("Disponibilidad de tu nutricionista", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-            Text("Selecciona un horario para solicitar una cita con tu profesional asignado.", color = Muted)
+            Text("Elige primero el día y después una hora. Solo se muestran los horarios de ese día.", color = Muted)
             slotsError?.let { InfoBanner(it, true) }
-            if (busy && !loaded) LoadingCard("Cargando disponibilidad")
-            else if (slots.isEmpty() && slotsError == null) {
+            if (busy && !loaded) {
+                LoadingCard("Cargando disponibilidad")
+            } else if (slots.isEmpty() && slotsError == null) {
                 EmptyCard("No hay horarios disponibles", "Tu nutricionista todavía no tiene huecos libres configurados.", "Actualizar horarios", onRetry)
-            } else {
-                slots.take(60).forEach { slot ->
-                    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(dateLabel(slot.startsAt), fontWeight = FontWeight.Bold, color = Ink)
-                            Text(timeLabel(slot.startsAt), color = Forest, fontWeight = FontWeight.SemiBold)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { onRequestAppointment(slot, "in_person") }, enabled = !busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text("Presencial") }
-                                if (slot.onlineConsultationsAvailable) {
-                                    OutlinedButton(onClick = { onRequestAppointment(slot, "online") }, enabled = !busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text("Online") }
+            } else if (slots.isNotEmpty()) {
+                Text("Día de la cita", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = Ink)
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    slotsByDate.forEach { (date, dateSlots) ->
+                        val isSelected = date == activeDate
+                        if (isSelected) {
+                            Button(
+                                onClick = { selectedDate = date; selectedSlotStart = null },
+                                shape = RoundedCornerShape(14.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(dateLabel(dateSlots.first().startsAt), fontWeight = FontWeight.Bold)
+                                    Text("${dateSlots.size} horarios", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = { selectedDate = date; selectedSlotStart = null },
+                                shape = RoundedCornerShape(14.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(dateLabel(dateSlots.first().startsAt), fontWeight = FontWeight.SemiBold)
+                                    Text("${dateSlots.size} horarios", style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         }
                     }
+                }
+
+                if (daySlots.isNotEmpty()) {
+                    Text("Horas disponibles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = Ink)
+                    daySlots.chunked(3).forEach { rowSlots ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowSlots.forEach { slot ->
+                                val isSelected = slot.startsAt == selectedSlotStart
+                                Box(Modifier.weight(1f)) {
+                                    if (isSelected) {
+                                        Button(
+                                            onClick = { selectedSlotStart = slot.startsAt },
+                                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                                            shape = RoundedCornerShape(12.dp),
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                                        ) { Text(timeLabel(slot.startsAt), fontWeight = FontWeight.Bold) }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = { selectedSlotStart = slot.startsAt },
+                                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                                            shape = RoundedCornerShape(12.dp),
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                                        ) { Text(timeLabel(slot.startsAt), fontWeight = FontWeight.SemiBold) }
+                                    }
+                                }
+                            }
+                            repeat(3 - rowSlots.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+
+                selectedSlot?.let { slot ->
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Sage)
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Horario seleccionado", style = MaterialTheme.typography.labelLarge, color = ForestDark)
+                            Text("${dateLabel(slot.startsAt)} · ${timeLabel(slot.startsAt)}", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
+                            Text("¿Cómo prefieres la consulta?", color = Muted)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { onRequestAppointment(slot, "in_person") },
+                                    enabled = !busy,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) { Text("Presencial") }
+                                if (slot.onlineConsultationsAvailable) {
+                                    OutlinedButton(
+                                        onClick = { onRequestAppointment(slot, "online") },
+                                        enabled = !busy,
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) { Text("Online") }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text("Toca una hora para elegir la modalidad de la consulta.", color = Muted, style = MaterialTheme.typography.bodySmall)
                 }
             }
             OutlinedButton(onClick = onRetry, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Actualizar disponibilidad") }
