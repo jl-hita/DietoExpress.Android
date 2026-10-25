@@ -172,6 +172,11 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun refreshAppointments() {
+        _state.value = _state.value.copy(appointmentsLoaded = false, appointmentSlotsError = null)
+        loadAppointments()
+    }
+
     fun loadAppointments() {
         if (_state.value.busy || _state.value.appointmentsLoaded) return
         runRequest {
