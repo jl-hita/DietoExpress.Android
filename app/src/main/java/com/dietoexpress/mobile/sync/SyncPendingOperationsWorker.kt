@@ -21,12 +21,17 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
         val repository = OfflineRepository(applicationContext)
         val operations = repository.pendingOperations(accountId)
 
-        // PortalService tiene una cookie compartida por instalación. Nunca enviar una operación
-        // de la cuenta A usando una sesión que ahora pertenece a la cuenta B.
-        if (!repository.activeAccountMatches(accountId)) {
-            operations.forEach { repository.needsAuthentication(it.id) }
-            return Result.success()
+        // PortalService tiene una cookie compartida por instalación. La comprobación inicial
+        // también debe coordinarse con login/logout: si se hace fuera del lock, puede marcar
+        // operaciones como NEEDS_AUTH justo cuando la sesión correcta está terminando de activarse.
+        var initialSessionMismatch = false
+        SessionOperationLock.withLock {
+            if (!repository.activeAccountMatches(accountId)) {
+                operations.forEach { repository.needsAuthentication(it.id) }
+                initialSessionMismatch = true
+            }
         }
+        if (initialSessionMismatch) return Result.success()
 
         for (operation in operations) {
             try {
@@ -36,7 +41,10 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
                     // Revalidar dentro del mismo bloqueo que protege el inicio/cierre de sesión.
                     // Así, una operación de A nunca utiliza la cookie recién recibida para B.
                     if (!repository.activeAccountMatches(accountId)) {
-                        repository.needsAuthentication(operation.id)
+                        // La sesión pudo cambiar después de la comprobación inicial. Como seguimos
+                        // bajo el lock, aparcamos todas las operaciones de esta cuenta de forma
+                        // coherente antes de permitir que login/logout cambie de sesión.
+                        operations.forEach { repository.needsAuthentication(it.id) }
                         sessionMismatch = true
                     } else {
                         when (operation.operationType) {
