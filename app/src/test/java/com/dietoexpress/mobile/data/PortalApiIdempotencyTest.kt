@@ -15,20 +15,14 @@ import java.util.UUID
 
 class PortalApiIdempotencyTest {
     @Test
-    fun retryAfterLostResponseReusesIdempotencyKeyAndPayload() = runBlocking {
+    fun retryAfterLostMessageResponseReusesIdempotencyKeyAndPayload() = runBlocking {
         val server = MockWebServer()
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
         server.enqueue(successfulMessageResponse())
         server.start()
 
         try {
-            val api = Retrofit.Builder()
-                .baseUrl(server.url("/api/"))
-                .client(OkHttpClient.Builder().retryOnConnectionFailure(false).build())
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-                .create(PortalApi::class.java)
-
+            val api = createApi(server)
             val operationId = UUID.randomUUID().toString()
             val request = SendPatientMessageRequest("Mensaje que debe llegar una sola vez")
 
@@ -54,6 +48,46 @@ class PortalApiIdempotencyTest {
             server.shutdown()
         }
     }
+
+    @Test
+    fun retryAfterLostMarkReadResponseReusesIdempotencyKeyAndPayload() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
+        server.enqueue(MockResponse().setResponseCode(204))
+        server.start()
+
+        try {
+            val api = createApi(server)
+            val operationId = UUID.randomUUID().toString()
+
+            try {
+                api.markMessagesRead(operationId, emptyMap())
+                fail("La primera petición debía fallar al perderse la respuesta")
+            } catch (_: IOException) {
+                // La operación sigue pendiente y debe reintentarse con la misma clave.
+            }
+
+            val firstAttempt = server.takeRequest()
+            api.markMessagesRead(operationId, emptyMap())
+            val retryAttempt = server.takeRequest()
+
+            assertEquals("PATCH", firstAttempt.method)
+            assertEquals("/api/messages/patient/read", firstAttempt.path)
+            assertEquals(operationId, firstAttempt.getHeader("Idempotency-Key"))
+            assertEquals(operationId, retryAttempt.getHeader("Idempotency-Key"))
+            assertEquals(firstAttempt.body.readUtf8(), retryAttempt.body.readUtf8())
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    private fun createApi(server: MockWebServer): PortalApi =
+        Retrofit.Builder()
+            .baseUrl(server.url("/api/"))
+            .client(OkHttpClient.Builder().retryOnConnectionFailure(false).build())
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(PortalApi::class.java)
 
     private fun successfulMessageResponse() = MockResponse()
         .setResponseCode(200)
