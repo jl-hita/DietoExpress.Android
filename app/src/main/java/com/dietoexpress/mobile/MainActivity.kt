@@ -445,6 +445,14 @@ private fun HomeContent(
                     Text("Tu equipo de cuidado", fontWeight = FontWeight.SemiBold, color = Ink)
                     Text("Encuentra un profesional y solicita tu primera cita.", color = Muted, style = MaterialTheme.typography.bodySmall)
                     Button(onClick = onBookAppointment, shape = RoundedCornerShape(12.dp)) { Text("Buscar nutricionista y reservar") }
+                    if (isClinic) {
+                        OutlinedButton(
+                            onClick = onRequestClinicReassignment,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy && !hasPendingClinicReassignment,
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text(if (hasPendingClinicReassignment) "Reasignación solicitada" else "Solicitar reasignación en la clínica") }
+                    }
                 }
             }
         }
