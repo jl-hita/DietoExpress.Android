@@ -39,7 +39,9 @@ Esto incluye, como mínimo:
 
 ## Revisión de idempotencia (octubre de 2026)
 
-- `PATCH /api/messages/patient/read` mantiene la misma ruta y cuerpo; ahora acepta opcionalmente `Idempotency-Key` en el backend.
-- La outbox ya persiste un UUID por operación en `PendingOperationEntity.id`. El worker reutiliza ese mismo UUID como cabecera en cada reintento; no genera una clave nueva por intento.
-- Si el servidor no confirma la operación, el registro local conserva el mismo identificador. Solo se elimina de la outbox cuando la petición termina correctamente.
-- La protección efectiva depende de que el backend tenga desplegada la revisión que declara el endpoint con `[Idempotent]`; antes de ese despliegue, la cabecera se ignora y el endpoint sigue funcionando de forma compatible.
+- `PATCH /api/messages/patient/read` conserva ruta y cuerpo y admite `Idempotency-Key`.
+- `POST /api/messages/patient` conserva ruta y cuerpo y ahora recibe una clave idempotente en Android. La operación se guarda cifrada en Room antes de llamar al servidor; el mismo UUID se reutiliza en el envío inmediato y en WorkManager tras timeout o pérdida de respuesta.
+- El worker elimina una operación solo cuando el endpoint confirma éxito. Los errores temporales se reintentan; 401/403 dejan la operación pendiente de autenticación y los errores definitivos quedan marcados como fallidos.
+- El worker verifica que el ID de la cuenta activa coincide con la cuenta propietaria de la operación antes de usar la cookie de sesión compartida. No envía una cola de una cuenta con la sesión de otra.
+- El backend también protege `POST /api/portal/check-ins`, pero Android todavía no expone su formulario de envío. No se encola el check-in offline porque el servidor asigna la semana en el momento de recepción; antes de habilitarlo hay que definir una semántica segura para operaciones que crucen el límite semanal.
+- La clave de lectura y la de mensaje solo son efectivas si la versión del backend con `[Idempotent]` está desplegada. El encabezado sigue siendo opcional y compatible con el contrato anterior.
