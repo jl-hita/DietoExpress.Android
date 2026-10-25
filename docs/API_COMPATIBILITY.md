@@ -53,3 +53,11 @@ Esto incluye, como mínimo:
 - Esta prueba valida el contrato HTTP del cliente, no la persistencia de Room ni el comportamiento de WorkManager tras matar el proceso.
 - En el backend, `[Idempotent]` activa `IdempotencyMiddleware`: la clave se bloquea transaccionalmente en PostgreSQL, se guarda la huella de la petición y la respuesta 2xx, se reproduce la respuesta en reintentos y se devuelve 409 si se reutiliza la clave con otro cuerpo.
 - Sigue pendiente la prueba dinámica en emulador/dispositivo y una prueba de integración contra PostgreSQL para timeout tras commit, reinicio del proceso, concurrencia y cambio de cuenta. No se considera cerrada la prioridad P0 hasta validar esos escenarios.
+
+
+### Aislamiento de sesión y cancelación de sincronización
+
+- Los cambios de sesión (inicio y cierre) y cada envío de WorkManager comparten un bloqueo de sesión. El worker comprueba dentro de ese bloqueo que la cuenta activa sigue siendo la propietaria de la operación.
+- Las escrituras de mensajes y el marcado de lectura se guardan cifrados en Room antes del envío; la misma clave persistida se reutiliza tras timeout o pérdida de respuesta.
+- La cancelación de coroutines se propaga sin convertir operaciones pendientes en fallos definitivos. La operación sigue en Room para que WorkManager pueda reintentarla.
+- La prueba unitaria de SessionOperationLock verifica la exclusión mutua; siguen pendientes pruebas instrumentadas de reinicio, cambio de cuenta y pérdida de respuesta contra el backend desplegado.

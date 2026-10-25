@@ -7,8 +7,10 @@ import com.dietoexpress.mobile.data.LocalPayloadCipher
 import com.dietoexpress.mobile.data.OfflineRepository
 import com.dietoexpress.mobile.data.PortalService
 import com.dietoexpress.mobile.data.SendPatientMessageRequest
+import com.dietoexpress.mobile.data.SessionOperationLock
 import com.google.gson.Gson
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import retrofit2.HttpException
 
 class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -28,24 +30,41 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
 
         for (operation in operations) {
             try {
-                when (operation.operationType) {
-                    OfflineRepository.OP_MARK_MESSAGES_READ -> {
-                        PortalService.api.markMessagesRead(operation.id, emptyMap())
-                    }
-                    OfflineRepository.OP_SEND_PATIENT_MESSAGE -> {
-                        val json = LocalPayloadCipher.decrypt(operation.encryptedPayload)
-                        val request = Gson().fromJson(json, SendPatientMessageRequest::class.java)
-                            ?: throw IllegalArgumentException("El mensaje pendiente no contiene un cuerpo válido.")
-                        // operation.id se creó y persistió antes del primer envío; se reutiliza incluso
-                        // tras timeout, muerte del proceso o reintento de WorkManager.
-                        PortalService.api.sendMessage(operation.id, request)
-                    }
-                    else -> {
-                        repository.failOperation(operation.id, "Tipo de operación offline no reconocido.")
-                        continue
+                var sessionMismatch = false
+                var unknownOperation = false
+                SessionOperationLock.withLock {
+                    // Revalidar dentro del mismo bloqueo que protege el inicio/cierre de sesión.
+                    // Así, una operación de A nunca utiliza la cookie recién recibida para B.
+                    if (!repository.activeAccountMatches(accountId)) {
+                        repository.needsAuthentication(operation.id)
+                        sessionMismatch = true
+                    } else {
+                        when (operation.operationType) {
+                            OfflineRepository.OP_MARK_MESSAGES_READ -> {
+                                PortalService.api.markMessagesRead(operation.id, emptyMap())
+                            }
+                            OfflineRepository.OP_SEND_PATIENT_MESSAGE -> {
+                                val json = LocalPayloadCipher.decrypt(operation.encryptedPayload)
+                                val request = Gson().fromJson(json, SendPatientMessageRequest::class.java)
+                                    ?: throw IllegalArgumentException("El mensaje pendiente no contiene un cuerpo válido.")
+                                // operation.id se creó y persistió antes del primer envío; se reutiliza incluso
+                                // tras timeout, muerte del proceso o reintento de WorkManager.
+                                PortalService.api.sendMessage(operation.id, request)
+                            }
+                            else -> {
+                                repository.failOperation(operation.id, "Tipo de operación offline no reconocido.")
+                                unknownOperation = true
+                            }
+                        }
                     }
                 }
+                if (sessionMismatch) return Result.success()
+                if (unknownOperation) continue
                 repository.completeOperation(operation.id)
+            } catch (ex: CancellationException) {
+                // WorkManager puede cancelar el worker al sustituir o detener trabajo. No marcar
+                // como fallida una operación cuyo envío puede haber llegado al servidor.
+                throw ex
             } catch (ex: HttpException) {
                 when {
                     ex.code() == 401 || ex.code() == 403 -> {
