@@ -185,7 +185,7 @@ private fun DietScreen(diet: DietDetail) {
 private fun DietDayCard(day: DietDay) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Día ${day.dayIndex}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text("Día ${day.dayIndex + 1}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             if (day.meals.isEmpty()) {
                 Text("Sin comidas registradas.")
