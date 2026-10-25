@@ -633,20 +633,39 @@ private fun AppointmentsContent(
 ) {
     var selectedDate by remember(slots) { mutableStateOf(slots.firstOrNull()?.startsAt?.take(10)) }
     var selectedSlotStart by remember(slots) { mutableStateOf<String?>(null) }
+    var showingHistory by remember { mutableStateOf(false) }
+    var historyLimit by remember { mutableStateOf(10) }
     val slotsByDate = slots.groupBy { it.startsAt.take(10) }.toSortedMap()
     val activeDate = selectedDate?.takeIf { slotsByDate.containsKey(it) } ?: slotsByDate.keys.firstOrNull()
     val daySlots = activeDate?.let { slotsByDate[it] }.orEmpty()
     val selectedSlot = daySlots.firstOrNull { it.startsAt == selectedSlotStart }
-
-    val hasFutureAppointment = appointments.any { appointment ->
+    val now = java.time.Instant.now()
+    fun isUpcoming(appointment: PatientAppointment): Boolean =
         (appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)) &&
-            runCatching { java.time.Instant.parse(appointment.startsAt).isAfter(java.time.Instant.now()) }.getOrDefault(false)
+            runCatching { java.time.Instant.parse(appointment.startsAt).isAfter(now) }.getOrDefault(false)
+
+    val upcomingAppointments = appointments.filter(::isUpcoming).sortedBy { it.startsAt }
+    val historyAppointments = appointments.filterNot(::isUpcoming).sortedByDescending { it.startsAt }
+
+    if (showingHistory) {
+        AppointmentHistoryContent(
+            appointments = historyAppointments,
+            loaded = loaded,
+            busy = busy,
+            visibleLimit = historyLimit,
+            onShowMore = { historyLimit += 10 },
+            onBack = { showingHistory = false },
+            onRetry = onRetry
+        )
+        return
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (hasFutureAppointment) {
-            MyAppointmentsSection(appointments, loaded, busy, onRetry, upcomingFirst = true)
+        if (upcomingAppointments.isNotEmpty()) {
+            Text("Próximas citas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+            upcomingAppointments.forEach { appointment -> AppointmentCard(appointment) }
         }
+
         if (!hasAssignedNutritionist) {
             EmptyCard("Sin nutricionista asignado", "Busca un profesional en el directorio para solicitar una primera consulta.", "Buscar nutricionista", onBookAppointment)
         } else {
@@ -756,47 +775,66 @@ private fun AppointmentsContent(
             }
             OutlinedButton(onClick = onRetry, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Actualizar disponibilidad") }
         }
-        if (!hasFutureAppointment) {
-            MyAppointmentsSection(appointments, loaded, busy, onRetry, upcomingFirst = false)
+
+        if (loaded) {
+            OutlinedButton(
+                onClick = { showingHistory = true; historyLimit = 10 },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(if (historyAppointments.isEmpty()) "Historial de citas" else "Ver historial de citas (${historyAppointments.size})")
+            }
         }
     }
 }
 
 @Composable
-private fun MyAppointmentsSection(
+private fun AppointmentHistoryContent(
     appointments: List<PatientAppointment>,
     loaded: Boolean,
     busy: Boolean,
-    onRetry: () -> Unit,
-    upcomingFirst: Boolean
+    visibleLimit: Int,
+    onShowMore: () -> Unit,
+    onBack: () -> Unit,
+    onRetry: () -> Unit
 ) {
-    Text("Mis citas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-    when {
-        busy && !loaded -> LoadingCard("Cargando tus citas")
-        !loaded -> EmptyCard("Tu agenda", "Consulta aquí tus citas y su estado.", "Cargar citas", onRetry)
-        appointments.isEmpty() -> EmptyCard("Todavía no tienes citas", "Cuando tengas una cita con tu profesional, aparecerá aquí.")
-        else -> appointments
-            .let { list ->
-                if (upcomingFirst) list.sortedBy { it.startsAt } else list.sortedByDescending { it.startsAt }
-            }
-            .forEach { appointment ->
-                Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(dateLabel(appointment.startsAt), fontWeight = FontWeight.Bold, color = Ink)
-                                Text(timeLabel(appointment.startsAt), color = Forest, fontWeight = FontWeight.SemiBold)
-                            }
-                            StatusPill(appointment.status, appointment.endsAt)
-                        }
-                        Text(appointment.nutritionistName?.takeIf { it.isNotBlank() } ?: "Tu profesional", color = Muted, style = MaterialTheme.typography.bodyMedium)
-                        Text(if (appointment.modality.equals("online", true)) "Videoconsulta" else "Presencial", color = Muted, style = MaterialTheme.typography.bodySmall)
-                        if (appointment.status.equals("confirmed", true) && appointment.modality.equals("online", true)) {
-                            Text("El acceso a la videoconsulta estará disponible según el horario de tu cita.", color = Muted, style = MaterialTheme.typography.bodySmall)
-                        }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = onBack) { Text("← Volver a citas") }
+        Text("Historial de citas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+        Text("Aquí puedes consultar las citas anteriores y las solicitudes que ya no están pendientes.", color = Muted)
+        when {
+            busy && !loaded -> LoadingCard("Cargando tu historial")
+            !loaded -> EmptyCard("Historial no disponible", "Carga tus citas para consultar el historial.", "Actualizar citas", onRetry)
+            appointments.isEmpty() -> EmptyCard("Sin historial todavía", "Las citas pasadas, canceladas o finalizadas aparecerán aquí.")
+            else -> {
+                appointments.take(visibleLimit).forEach { appointment -> AppointmentCard(appointment) }
+                if (appointments.size > visibleLimit) {
+                    OutlinedButton(onClick = onShowMore, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                        Text("Mostrar más citas (${appointments.size - visibleLimit} restantes)")
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AppointmentCard(appointment: PatientAppointment) {
+    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(dateLabel(appointment.startsAt), fontWeight = FontWeight.Bold, color = Ink)
+                    Text(timeLabel(appointment.startsAt), color = Forest, fontWeight = FontWeight.SemiBold)
+                }
+                StatusPill(appointment.status, appointment.endsAt)
+            }
+            Text(appointment.nutritionistName?.takeIf { it.isNotBlank() } ?: "Tu profesional", color = Muted, style = MaterialTheme.typography.bodyMedium)
+            Text(if (appointment.modality.equals("online", true)) "Videoconsulta" else "Presencial", color = Muted, style = MaterialTheme.typography.bodySmall)
+            if (appointment.status.equals("confirmed", true) && appointment.modality.equals("online", true)) {
+                Text("El acceso a la videoconsulta estará disponible según el horario de tu cita.", color = Muted, style = MaterialTheme.typography.bodySmall)
+            }
+        }
     }
 }
 
