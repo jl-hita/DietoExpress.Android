@@ -204,7 +204,10 @@ interface PortalApi {
     suspend fun messages(): List<PatientMessage>
 
     @POST("messages/patient")
-    suspend fun sendMessage(@Body request: SendPatientMessageRequest): Map<String, Long>
+    suspend fun sendMessage(
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body request: SendPatientMessageRequest
+    ): Map<String, Long>
 
     @retrofit2.http.PATCH("messages/patient/read")
     suspend fun markMessagesRead(@Header("Idempotency-Key") idempotencyKey: String, @Body body: Map<String, String>)
