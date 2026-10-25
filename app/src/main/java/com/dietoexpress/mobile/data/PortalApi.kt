@@ -41,6 +41,45 @@ data class PatientProfile(
     val nutritionistName: String? = null
 )
 
+data class DietDetail(
+    val id: Int,
+    val name: String,
+    val targetKcal: Double? = null,
+    val targetProtein: Double? = null,
+    val targetCarbs: Double? = null,
+    val targetFat: Double? = null,
+    val dietType: String? = null,
+    val days: List<DietDay> = emptyList()
+)
+
+data class DietDay(
+    val id: Int,
+    val dayIndex: Int,
+    val meals: List<DietMeal> = emptyList()
+)
+
+data class DietMeal(
+    val id: Int,
+    val name: String,
+    val mealIndex: Int,
+    val items: List<DietMealItem> = emptyList()
+)
+
+data class DietMealItem(
+    val id: Int,
+    val foodId: Int? = null,
+    val foodName: String? = null,
+    val grams: Double? = null,
+    val kcal: Double? = null,
+    val protein: Double? = null,
+    val carbs: Double? = null,
+    val fat: Double? = null,
+    val recipeName: String? = null,
+    val recipeServings: Double? = null,
+    val exchangeGroupName: String? = null,
+    val exchangeCount: Double? = null
+)
+
 interface PortalApi {
     @POST("portal/auth")
     suspend fun authenticate(@Body request: PatientAuthRequest): PatientAuthResponse
@@ -50,6 +89,9 @@ interface PortalApi {
 
     @GET("portal/profile")
     suspend fun profile(): PatientProfile
+
+    @GET("portal/diet")
+    suspend fun activeDiet(): DietDetail
 
     @POST("portal/logout")
     suspend fun logout()
