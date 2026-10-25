@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -137,7 +140,14 @@ class MainActivity : ComponentActivity() {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("DIETOEXPRESS", color = Forest, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Image(
+                                                painter = painterResource(id = R.drawable.ic_dietoexpress_mark),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(28.dp).clip(RoundedCornerShape(8.dp))
+                                            )
+                                            Text("DIETOEXPRESS", color = Forest, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                                        }
                                         Text(sectionTitle(state.section), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink)
                                     }
                                     Box(
@@ -256,12 +266,11 @@ private fun LoginScreen(
             .padding(horizontal = 24.dp, vertical = 30.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            modifier = Modifier.size(64.dp).background(Forest, RoundedCornerShape(22.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("D", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-        }
+        Image(
+            painter = painterResource(id = R.drawable.ic_dietoexpress_mark),
+            contentDescription = "DietoExpress",
+            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(22.dp))
+        )
         Spacer(Modifier.height(24.dp))
         Text("DIETOEXPRESS", color = Forest, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.4.sp)
         Text("Cuida de ti,\nun día a la vez.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = Ink, lineHeight = 39.sp)
