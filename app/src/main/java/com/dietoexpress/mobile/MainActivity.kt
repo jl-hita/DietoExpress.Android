@@ -425,7 +425,7 @@ private fun HomeContent(
                         OutlinedButton(
                             onClick = onLeaveNutritionist,
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !busy,
+                            enabled = !busy && !hasPendingClinicReassignment,
                             shape = RoundedCornerShape(12.dp)
                         ) { Text("Buscar otro nutricionista") }
                         if (isClinic) {
