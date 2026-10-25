@@ -67,11 +67,14 @@ interface OfflineDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun enqueue(operation: PendingOperationEntity): Long
 
-    @Query("SELECT * FROM pending_operations WHERE accountId = :accountId AND status IN ('PENDING', 'NEEDS_AUTH') AND nextAttemptAtEpochMs <= :nowEpochMs ORDER BY createdAtEpochMs ASC")
-    suspend fun pendingOperations(accountId: Int, nowEpochMs: Long = System.currentTimeMillis()): List<PendingOperationEntity>
+    @Query("SELECT * FROM pending_operations WHERE accountId = :accountId AND status IN ('PENDING', 'NEEDS_AUTH') ORDER BY createdAtEpochMs ASC")
+    suspend fun pendingOperations(accountId: Int): List<PendingOperationEntity>
 
     @Query("SELECT * FROM pending_operations WHERE accountId = :accountId ORDER BY createdAtEpochMs ASC")
     suspend fun allOperations(accountId: Int): List<PendingOperationEntity>
+
+    @Query("SELECT * FROM pending_operations WHERE id = :id LIMIT 1")
+    suspend fun getOperation(id: String): PendingOperationEntity?
 
     @Query("DELETE FROM pending_operations WHERE id = :id")
     suspend fun completeOperation(id: String)
@@ -79,7 +82,7 @@ interface OfflineDao {
     @Query("UPDATE pending_operations SET status = :status, attemptCount = attemptCount + 1, lastAttemptAtEpochMs = :attemptAtEpochMs, lastError = :error, conflictDetails = NULL WHERE id = :id")
     suspend fun updateOperationStatus(id: String, status: String, error: String?, attemptAtEpochMs: Long = System.currentTimeMillis())
 
-    @Query("UPDATE pending_operations SET status = 'PENDING', nextAttemptAtEpochMs = :nextAttemptAtEpochMs, lastError = :error, lastAttemptAtEpochMs = :attemptAtEpochMs WHERE id = :id")
+    @Query("UPDATE pending_operations SET status = 'PENDING', attemptCount = attemptCount + 1, nextAttemptAtEpochMs = :nextAttemptAtEpochMs, lastError = :error, lastAttemptAtEpochMs = :attemptAtEpochMs WHERE id = :id")
     suspend fun scheduleRetry(id: String, nextAttemptAtEpochMs: Long, error: String, attemptAtEpochMs: Long = System.currentTimeMillis())
 
     @Query("UPDATE pending_operations SET status = 'CONFLICT', lastError = :error, conflictDetails = :details, lastAttemptAtEpochMs = :attemptAtEpochMs WHERE id = :id")
@@ -99,7 +102,6 @@ abstract class OfflineDatabase : RoomDatabase() {
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE cached_payloads ADD COLUMN expiresAtEpochMs INTEGER NOT NULL DEFAULT 9223372036854775807")
-                // Existing cache entries receive the same freshness horizon as a fresh profile/diet snapshot.
                 db.execSQL("UPDATE cached_payloads SET expiresAtEpochMs = updatedAtEpochMs + 86400000")
                 db.execSQL("ALTER TABLE pending_operations ADD COLUMN idempotencyKey TEXT NOT NULL DEFAULT ''")
                 db.execSQL("UPDATE pending_operations SET idempotencyKey = id WHERE idempotencyKey = ''")
@@ -145,6 +147,6 @@ internal object LocalPayloadCipher {
         require(bytes.size > IV_LENGTH)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, IV_LENGTH)))
-        return String(cipher.doFinal(bytes.copyOfRange(IV_LENGTH, bytes.size)), Charsets.UTF_8)
+        return String(cipher.doFinal(bytes, IV_LENGTH, bytes.size - IV_LENGTH), Charsets.UTF_8)
     }
 }
