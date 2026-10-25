@@ -593,7 +593,7 @@ private fun AppointmentsContent(
     var selectedSlotStart by remember(slots) { mutableStateOf<String?>(null) }
     val slotsByDate = slots.groupBy { it.startsAt.take(10) }.toSortedMap()
     val activeDate = selectedDate?.takeIf { slotsByDate.containsKey(it) } ?: slotsByDate.keys.firstOrNull()
-    val daySlots = slotsByDate[activeDate].orEmpty()
+    val daySlots = activeDate?.let { slotsByDate[it] }.orEmpty()
     val selectedSlot = daySlots.firstOrNull { it.startsAt == selectedSlotStart }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
