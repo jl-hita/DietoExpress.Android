@@ -1,8 +1,8 @@
 package com.dietoexpress.mobile.data
 
 import kotlinx.coroutines.runBlocking
-import mockwebserver3.MockResponse
-import mockwebserver3.MockWebServer
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import retrofit2.Retrofit
