@@ -103,6 +103,57 @@ data class PatientDocument(
     val originalFileName: String? = null
 )
 
+data class ShoppingCategory(
+    val category: String,
+    val items: List<ShoppingItem> = emptyList()
+)
+
+data class ShoppingItem(
+    val foodId: Int,
+    val foodName: String,
+    val category: String,
+    val totalGrams: Double,
+    val roundedGrams: Double,
+    val commercialDescription: String? = null,
+    val allergenTags: List<String> = emptyList(),
+    val traceTags: List<String> = emptyList(),
+    val allergenDataStatus: String? = null,
+    val allergenDataAvailable: Boolean = false,
+    val requiresAllergenCheck: Boolean = false
+)
+
+data class PatientMessage(
+    val id: Long,
+    val senderType: String,
+    val body: String,
+    val createdAt: String,
+    val readAt: String? = null
+)
+
+data class TrainingEnvelope(
+    val enabled: Boolean,
+    val sessions: List<TrainingSession> = emptyList()
+)
+
+data class TrainingSession(
+    val id: Int,
+    val planId: Int,
+    val scheduledDate: String,
+    val title: String,
+    val sessionType: String,
+    val durationMinutes: Int? = null,
+    val intensityTarget: String? = null,
+    val instructions: String? = null,
+    val status: String? = null,
+    val completedAt: String? = null,
+    val actualDurationMinutes: Int? = null,
+    val sessionRpe: Double? = null,
+    val recordNotes: String? = null,
+    val exercisePrescription: String? = null
+)
+
+data class SendPatientMessageRequest(val body: String)
+
 data class CheckinEligibility(
     val eligible: Boolean,
     val message: String? = null
@@ -142,6 +193,21 @@ interface PortalApi {
 
     @GET("portal/documents")
     suspend fun documents(): List<PatientDocument>
+
+    @GET("portal/shopping-list")
+    suspend fun shoppingList(): List<ShoppingCategory>
+
+    @GET("messages/patient")
+    suspend fun messages(): List<PatientMessage>
+
+    @POST("messages/patient")
+    suspend fun sendMessage(@Body request: SendPatientMessageRequest): Map<String, Long>
+
+    @retrofit2.http.PATCH("messages/patient/read")
+    suspend fun markMessagesRead()
+
+    @GET("portal/training/sessions")
+    suspend fun trainingSessions(): TrainingEnvelope
 
     @GET("portal/check-ins/eligibility")
     suspend fun checkinEligibility(): CheckinEligibility
