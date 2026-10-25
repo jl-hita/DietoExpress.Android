@@ -204,7 +204,7 @@ interface PortalApi {
     suspend fun sendMessage(@Body request: SendPatientMessageRequest): Map<String, Long>
 
     @retrofit2.http.PATCH("messages/patient/read")
-    suspend fun markMessagesRead()
+    suspend fun markMessagesRead(@Body body: Map<String, String>)
 
     @GET("portal/training/sessions")
     suspend fun trainingSessions(): TrainingEnvelope
