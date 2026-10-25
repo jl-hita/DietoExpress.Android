@@ -228,6 +228,8 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     when {
                         ex.code() == 401 || ex.code() == 403 ->
                             offline.needsAuthentication(operationId)
+                        ex.code() == 409 ->
+                            offline.conflictOperation(operationId, "Conflicto al marcar la conversación como leída.", ex.response()?.errorBody()?.string())
                         ex.code() >= 500 || ex.code() == 429 ->
                             offline.retryOperation(operationId, "El servidor rechazó temporalmente la lectura.")
                         else ->
@@ -318,6 +320,13 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                             messageDraft = "",
                             message = "El mensaje está guardado en el dispositivo, pero necesita una sesión válida para enviarse.",
                             error = false
+                        )
+                    }
+                    ex.code() == 409 -> {
+                        offline.conflictOperation(operationId, "El servidor detectó un conflicto al enviar el mensaje; no se repetirá automáticamente.", ex.response()?.errorBody()?.string())
+                        _state.value = _state.value.copy(
+                            message = "El servidor ha detectado un conflicto. El mensaje no se repetirá automáticamente; revisa el estado antes de volver a enviarlo.",
+                            error = true
                         )
                     }
                     ex.code() >= 500 || ex.code() == 429 -> {
