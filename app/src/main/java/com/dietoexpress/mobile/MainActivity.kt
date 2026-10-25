@@ -639,14 +639,8 @@ private fun AppointmentsContent(
     val selectedSlot = daySlots.firstOrNull { it.startsAt == selectedSlotStart }
 
     val hasFutureAppointment = appointments.any { appointment ->
-        appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)
-    } && appointments.any { appointment ->
-        appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)
-    }.let {
-        appointments.any { appointment ->
-            (appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)) &&
-                runCatching { java.time.Instant.parse(appointment.startsAt).isAfter(java.time.Instant.now()) }.getOrDefault(false)
-        }
+        (appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)) &&
+            runCatching { java.time.Instant.parse(appointment.startsAt).isAfter(java.time.Instant.now()) }.getOrDefault(false)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
