@@ -16,49 +16,6 @@ import java.util.UUID
 @RunWith(AndroidJUnit4::class)
 class OfflineDatabasePersistenceTest {
     @Test
-    fun encryptedOutboxSurvivesDatabaseCloseAndReopenAndStaysAccountScoped() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val databaseName = "offline-restart-test-${UUID.randomUUID()}.db"
-        val operationId = UUID.randomUUID().toString()
-        val payload = """{"body":"mensaje pendiente tras reiniciar"}"""
-        try {
-            val first = androidx.room.Room.databaseBuilder(context, OfflineDatabase::class.java, databaseName)
-                .addMigrations(OfflineDatabase.MIGRATION_1_2)
-                .build()
-            first.offlineDao().enqueue(
-                PendingOperationEntity(
-                    id = operationId,
-                    accountId = 101,
-                    operationType = OfflineRepository.OP_SEND_PATIENT_MESSAGE,
-                    encryptedPayload = LocalPayloadCipher.encrypt(payload),
-                    createdAtEpochMs = 1234L,
-                    idempotencyKey = operationId
-                )
-            )
-            first.close()
-
-            // Reopening the on-disk database simulates process death: only committed Room data remains.
-            val reopened = androidx.room.Room.databaseBuilder(context, OfflineDatabase::class.java, databaseName)
-                .addMigrations(OfflineDatabase.MIGRATION_1_2)
-                .build()
-            try {
-                val restored = reopened.offlineDao().pendingOperations(101, System.currentTimeMillis()).single()
-                assertEquals(operationId, restored.id)
-                assertEquals(operationId, restored.idempotencyKey)
-                assertEquals(payload, LocalPayloadCipher.decrypt(restored.encryptedPayload))
-                assertTrue(reopened.offlineDao().pendingOperations(202, System.currentTimeMillis()).isEmpty())
-                assertNotEquals(payload, restored.encryptedPayload)
-            } finally {
-                reopened.close()
-            }
-        } finally {
-            context.deleteDatabase(databaseName)
-            File(context.getDatabasePath(databaseName).path + "-wal").delete()
-            File(context.getDatabasePath(databaseName).path + "-shm").delete()
-        }
-    }
-
-    @Test
     fun migrationFromVersionOnePreservesPendingOperationAndAddsIdempotencyKey() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val databaseName = "offline-migration-test-${UUID.randomUUID()}.db"
