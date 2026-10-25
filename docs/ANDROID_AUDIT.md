@@ -76,3 +76,17 @@ Antes de producción: política de privacidad pública y accesible, declaracione
 ## Límites
 
 No se han ejecutado tests, build Android ni pruebas de API o seguridad dinámica. Verificar los endpoints contra el servidor de pruebas antes de dar por cerrada la auditoría.
+
+
+## P0 offline-first — primera implementación
+
+- Room almacena caché por ID de paciente y una outbox persistente.
+- Los payloads de caché y borradores se cifran con AES-GCM y una clave no exportable de Android Keystore.
+- Perfil, dieta, citas, documentos, lista de la compra, mensajes, entrenamiento y revisiones pueden mostrarse desde caché cuando falla la conexión; la UI advierte de que son datos posiblemente desactualizados.
+- WorkManager y la outbox persistente proporcionan la base para reintentos de operaciones idempotentes; no se encolan recibos de lectura de mensajes porque el endpoint actual puede marcar como leídos mensajes que el paciente aún no ha visto.
+- Los borradores de mensajes sobreviven a la navegación y a la muerte del proceso. Enviar mensajes sigue requiriendo conexión: no se reintenta automáticamente un POST no idempotente hasta que el backend aplique idempotencia.
+- La cookie de sesión se persiste cifrada con AES-GCM y Android Keystore; no se guardan contraseñas ni códigos de acceso. El ID de cuenta activa permite restaurar el perfil cacheado al reabrir la app. El backend puede invalidar la sesión y un 401 obliga a autenticarse de nuevo.
+- Al cerrar sesión se elimina la caché de ese paciente y se borra el ID de cuenta activa. Las operaciones de outbox están separadas por cuenta y nunca se envían a otra cuenta.
+
+### Validación pendiente
+CI de compilación y pruebas en dispositivo/emulador para modo avión, cierre forzado, reinicio, sesión caducada, recuperación de conectividad y errores de sincronización. Esta implementación inicial no equivale aún a una cola offline para todas las escrituras clínicas futuras ni incluye resolución interactiva de conflictos.
