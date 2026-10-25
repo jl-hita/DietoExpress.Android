@@ -184,7 +184,7 @@ class MainActivity : ComponentActivity() {
                                         appointments = state.appointments,
                                         slots = state.appointmentSlots,
                                         slotsError = state.appointmentSlotsError,
-                                        hasAssignedNutritionist = !state.profile?.nutritionistName.isNullOrBlank(),
+                                        hasAssignedNutritionist = state.nutritionistRelationship?.hasAssignedNutritionist ?: !state.profile?.nutritionistName.isNullOrBlank(),
                                         loaded = state.appointmentsLoaded,
                                         busy = state.busy,
                                         onRetry = { vm.refreshAppointments() },
@@ -229,7 +229,9 @@ class MainActivity : ComponentActivity() {
                                         name = state.profile?.fullName.orEmpty(),
                                         clinic = state.profile?.clinicName,
                                         hasDiet = state.profile?.hasActiveDiet == true,
-                                        nutritionist = state.profile?.nutritionistName,
+                                        nutritionist = state.nutritionistRelationship?.nutritionistName ?: state.profile?.nutritionistName,
+                                        isClinic = state.nutritionistRelationship?.isClinic == true,
+                                        hasPendingClinicReassignment = state.nutritionistRelationship?.hasPendingClinicReassignment == true,
                                         busy = state.busy,
                                         onDiet = { vm.openSection("diet") },
                                         onAppointments = { vm.openSection("appointments") },
@@ -239,7 +241,9 @@ class MainActivity : ComponentActivity() {
                                         onMessages = { vm.openSection("messages") },
                                         onTraining = { vm.openSection("training") },
                                         onProfile = { vm.openSection("profile") },
-                                        onBookAppointment = { if (!state.profile?.nutritionistName.isNullOrBlank()) vm.openSection("appointments") else publicRoute = "directory" }
+                                        onBookAppointment = { if (state.nutritionistRelationship?.hasAssignedNutritionist ?: !state.profile?.nutritionistName.isNullOrBlank()) vm.openSection("appointments") else publicRoute = "directory" },
+                                        onLeaveNutritionist = { vm.requestNutritionistChange("leave_and_find_new") },
+                                        onRequestClinicReassignment = { vm.requestNutritionistChange("clinic_reassignment") }
                                     )
                                 }
 
@@ -364,6 +368,8 @@ private fun HomeContent(
     clinic: String?,
     hasDiet: Boolean,
     nutritionist: String?,
+    isClinic: Boolean,
+    hasPendingClinicReassignment: Boolean,
     busy: Boolean,
     onDiet: () -> Unit,
     onAppointments: () -> Unit,
@@ -373,7 +379,9 @@ private fun HomeContent(
     onMessages: () -> Unit,
     onTraining: () -> Unit,
     onProfile: () -> Unit,
-    onBookAppointment: () -> Unit
+    onBookAppointment: () -> Unit,
+    onLeaveNutritionist: () -> Unit,
+    onRequestClinicReassignment: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Card(
@@ -397,7 +405,7 @@ private fun HomeContent(
                 ) { Text(if (hasDiet) "Consultar mi dieta  →" else "Consultar mi plan  →", fontWeight = FontWeight.SemiBold) }
             }
         }
-        if (!clinic.isNullOrBlank() || !nutritionist.isNullOrBlank()) {
+        if (!nutritionist.isNullOrBlank()) {
             Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Row(modifier = Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(42.dp).background(Sage, CircleShape), contentAlignment = Alignment.Center) {
@@ -414,6 +422,20 @@ private fun HomeContent(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         ) { Text("Reservar consulta") }
+                        OutlinedButton(
+                            onClick = onLeaveNutritionist,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy,
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text("Buscar otro nutricionista") }
+                        if (isClinic) {
+                            OutlinedButton(
+                                onClick = onRequestClinicReassignment,
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !busy && !hasPendingClinicReassignment,
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text(if (hasPendingClinicReassignment) "Reasignación solicitada" else "Solicitar reasignación en la clínica") }
+                        }
                     }
                 }
             }
