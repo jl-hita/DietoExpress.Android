@@ -108,6 +108,11 @@ class MainActivity : ComponentActivity() {
                                 Spacer(Modifier.height(8.dp))
                                 Text(state.message ?: "No tienes una dieta activa.")
                                 TextButton(onClick = vm::loadDiet, enabled = !state.busy) { Text("Volver a intentar") }
+                            } else if (!state.dietLoaded) {
+                                Text("Mi dieta", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.height(8.dp))
+                                Text("No se ha podido cargar la dieta.")
+                                TextButton(onClick = vm::loadDiet, enabled = !state.busy) { Text("Volver a intentar") }
                             } else {
                                 state.diet?.let { DietScreen(it) }
                             }
