@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
+import java.util.UUID
 
 data class PortalUiState(
     val emailOrPhone: String = "",
@@ -201,7 +202,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val type = TypeToken.getParameterized(List::class.java, PatientMessage::class.java).type
             val result = offline.readThrough(accountId, "messages", type) { PortalService.api.messages() }
-            try { PortalService.api.markMessagesRead(emptyMap()) } catch (_: IOException) { /* Cached reads remain available; do not mark future unseen messages as read. */ }
+            try { PortalService.api.markMessagesRead(UUID.randomUUID().toString(), emptyMap()) } catch (_: IOException) { /* Cached reads remain available; do not mark future unseen messages as read. */ }
             val draft = offline.messageDraft(accountId)
             _state.value = _state.value.copy(messages = result.value, messagesLoaded = true, messageDraft = draft, section = "messages",
                 message = if (result.fromCache) "Sin conexión: se muestran los últimos mensajes guardados. El envío requiere conexión." else null, error = false)
@@ -233,7 +234,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val type = TypeToken.getParameterized(List::class.java, PatientMessage::class.java).type
                 val result = offline.readThrough(accountId, "messages", type) { PortalService.api.messages() }
-                try { PortalService.api.markMessagesRead(emptyMap()) } catch (_: IOException) { /* Do not defer a broad read receipt. */ }
+                try { PortalService.api.markMessagesRead(UUID.randomUUID().toString(), emptyMap()) } catch (_: IOException) { /* Do not defer a broad read receipt. */ }
                 _state.value = _state.value.copy(
                     messages = result.value, messagesLoaded = true, section = "messages",
                     message = if (result.fromCache) "Mensaje enviado. El historial mostrado está guardado localmente y puede estar desactualizado." else null,
