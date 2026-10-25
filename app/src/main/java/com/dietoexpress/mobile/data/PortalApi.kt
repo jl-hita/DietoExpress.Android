@@ -399,5 +399,6 @@ object PortalService {
         .create(PortalApi::class.java)
 
     fun initialize(context: Context) { cookieJar = EncryptedCookieJar(context.applicationContext) }
+    fun authenticatedClient(): OkHttpClient = client
     fun clearSessionCookies() = cookieJar.clear()
 }
