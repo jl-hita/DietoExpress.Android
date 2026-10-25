@@ -95,6 +95,21 @@ data class PatientAppointment(
     val videoRoomUrl: String? = null
 )
 
+data class AppointmentSlot(
+    val startsAt: String,
+    val endsAt: String,
+    val nutritionistId: Int,
+    val nutritionistName: String? = null,
+    val onlineConsultationsAvailable: Boolean = false
+)
+
+data class CreatePatientAppointmentRequest(
+    val startsAt: String,
+    val durationMinutes: Int = 30,
+    val modality: String = "in_person",
+    val patientNotes: String? = null
+)
+
 data class PatientDocument(
     val id: Long,
     val name: String,
@@ -193,6 +208,12 @@ interface PortalApi {
 
     @GET("appointments/mine")
     suspend fun appointments(): List<PatientAppointment>
+
+    @GET("appointments/slots")
+    suspend fun appointmentSlots(@retrofit2.http.Query("days") days: Int = 30): List<AppointmentSlot>
+
+    @POST("appointments")
+    suspend fun requestAppointment(@Body request: CreatePatientAppointmentRequest): PatientAppointment
 
     @GET("portal/documents")
     suspend fun documents(): List<PatientDocument>
