@@ -19,7 +19,7 @@ data class CachedPayloadEntity(
     val encryptedPayload: String,
     val updatedAtEpochMs: Long,
     /** Freshness deadline, not a hard deletion deadline: stale data may be shown offline with a warning. */
-    val expiresAtEpochMs: Long = Long.MAX_VALUE
+    @ColumnInfo(defaultValue = "9223372036854775807") val expiresAtEpochMs: Long = Long.MAX_VALUE
 )
 
 @Entity(tableName = "pending_operations", indices = [Index(value = ["accountId", "status", "createdAtEpochMs"])])
@@ -33,8 +33,8 @@ data class PendingOperationEntity(
     val status: String = STATUS_PENDING,
     val lastError: String? = null,
     /** Stable idempotency key, persisted before the first network request. */
-    val idempotencyKey: String = id,
-    val nextAttemptAtEpochMs: Long = 0,
+    @ColumnInfo(defaultValue = "''") val idempotencyKey: String = id,
+    @ColumnInfo(defaultValue = "0") val nextAttemptAtEpochMs: Long = 0,
     val lastAttemptAtEpochMs: Long? = null,
     val conflictDetails: String? = null
 ) {
