@@ -182,10 +182,14 @@ class MainActivity : ComponentActivity() {
                                     )
                                     "appointments" -> AppointmentsContent(
                                         appointments = state.appointments,
+                                        slots = state.appointmentSlots,
+                                        slotsError = state.appointmentSlotsError,
+                                        hasAssignedNutritionist = !state.profile?.nutritionistName.isNullOrBlank(),
                                         loaded = state.appointmentsLoaded,
                                         busy = state.busy,
-                                        onRetry = { vm.openSection("appointments") },
-                                        onBookAppointment = { publicRoute = "directory" }
+                                        onRetry = { vm.refreshAppointments() },
+                                        onBookAppointment = { publicRoute = "directory" },
+                                        onRequestAppointment = vm::requestAppointment
                                     )
                                     "documents" -> DocumentsContent(
                                         documents = state.documents,
@@ -235,7 +239,7 @@ class MainActivity : ComponentActivity() {
                                         onMessages = { vm.openSection("messages") },
                                         onTraining = { vm.openSection("training") },
                                         onProfile = { vm.openSection("profile") },
-                                        onBookAppointment = { publicRoute = "directory" }
+                                        onBookAppointment = { if (!state.profile?.nutritionistName.isNullOrBlank()) vm.openSection("appointments") else publicRoute = "directory" }
                                     )
                                 }
 
@@ -543,32 +547,69 @@ private fun MealBlock(meal: DietMeal) {
 }
 
 @Composable
-private fun AppointmentsContent(appointments: List<PatientAppointment>, loaded: Boolean, busy: Boolean, onRetry: () -> Unit, onBookAppointment: () -> Unit) {
+private fun AppointmentsContent(
+    appointments: List<PatientAppointment>,
+    slots: List<com.dietoexpress.mobile.data.AppointmentSlot>,
+    slotsError: String?,
+    hasAssignedNutritionist: Boolean,
+    loaded: Boolean,
+    busy: Boolean,
+    onRetry: () -> Unit,
+    onBookAppointment: () -> Unit,
+    onRequestAppointment: (com.dietoexpress.mobile.data.AppointmentSlot, String) -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    Button(onClick = onBookAppointment, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("＋ Reservar consulta") }
-    when {
-        busy && !loaded -> LoadingCard("Cargando tus citas")
-        !loaded -> EmptyCard("Tu agenda", "Consulta aquí tus citas y su estado.", "Cargar citas", onRetry)
-        appointments.isEmpty() -> EmptyCard("Todavía no tienes citas", "Cuando tengas una cita con tu profesional, aparecerá aquí.")
-        else -> appointments.sortedByDescending { it.startsAt }.forEach { appointment ->
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(dateLabel(appointment.startsAt), fontWeight = FontWeight.Bold, color = Ink)
-                            Text(timeLabel(appointment.startsAt), color = Forest, fontWeight = FontWeight.SemiBold)
+        if (!hasAssignedNutritionist) {
+            EmptyCard("Sin nutricionista asignado", "Busca un profesional en el directorio para solicitar una primera consulta.", "Buscar nutricionista", onBookAppointment)
+        } else {
+            Text("Disponibilidad de tu nutricionista", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+            Text("Selecciona un horario para solicitar una cita con tu profesional asignado.", color = Muted)
+            slotsError?.let { InfoBanner(it, true) }
+            if (busy && !loaded) LoadingCard("Cargando disponibilidad")
+            else if (slots.isEmpty() && slotsError == null) {
+                EmptyCard("No hay horarios disponibles", "Tu nutricionista todavía no tiene huecos libres configurados.", "Actualizar horarios", onRetry)
+            } else {
+                slots.take(60).forEach { slot ->
+                    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(dateLabel(slot.startsAt), fontWeight = FontWeight.Bold, color = Ink)
+                            Text(timeLabel(slot.startsAt), color = Forest, fontWeight = FontWeight.SemiBold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { onRequestAppointment(slot, "in_person") }, enabled = !busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text("Presencial") }
+                                if (slot.onlineConsultationsAvailable) {
+                                    OutlinedButton(onClick = { onRequestAppointment(slot, "online") }, enabled = !busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text("Online") }
+                                }
+                            }
                         }
-                        StatusPill(appointment.status, appointment.endsAt)
                     }
-                    Text(appointment.nutritionistName?.takeIf { it.isNotBlank() } ?: "Tu profesional", color = Muted, style = MaterialTheme.typography.bodyMedium)
-                    Text(if (appointment.modality.equals("online", true)) "Videoconsulta" else "Presencial", color = Muted, style = MaterialTheme.typography.bodySmall)
-                    if (appointment.status.equals("confirmed", true) && appointment.modality.equals("online", true)) {
-                        Text("El acceso a la videoconsulta estará disponible según el horario de tu cita.", color = Muted, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            OutlinedButton(onClick = onRetry, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Actualizar disponibilidad") }
+        }
+        Text("Mis citas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+        when {
+            busy && !loaded -> LoadingCard("Cargando tus citas")
+            !loaded -> EmptyCard("Tu agenda", "Consulta aquí tus citas y su estado.", "Cargar citas", onRetry)
+            appointments.isEmpty() -> EmptyCard("Todavía no tienes citas", "Cuando tengas una cita con tu profesional, aparecerá aquí.")
+            else -> appointments.sortedByDescending { it.startsAt }.forEach { appointment ->
+                Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(dateLabel(appointment.startsAt), fontWeight = FontWeight.Bold, color = Ink)
+                                Text(timeLabel(appointment.startsAt), color = Forest, fontWeight = FontWeight.SemiBold)
+                            }
+                            StatusPill(appointment.status, appointment.endsAt)
+                        }
+                        Text(appointment.nutritionistName?.takeIf { it.isNotBlank() } ?: "Tu profesional", color = Muted, style = MaterialTheme.typography.bodyMedium)
+                        Text(if (appointment.modality.equals("online", true)) "Videoconsulta" else "Presencial", color = Muted, style = MaterialTheme.typography.bodySmall)
+                        if (appointment.status.equals("confirmed", true) && appointment.modality.equals("online", true)) {
+                            Text("El acceso a la videoconsulta estará disponible según el horario de tu cita.", color = Muted, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
         }
-    }
     }
 }
 
