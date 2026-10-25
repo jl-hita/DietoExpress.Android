@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DietoExpress" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#176B52</item>
+        <item name="android:statusBarColor">#F5F8F6</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">#F5F8F6</item>
+    </style>
+    <style name="Theme.DietoExpress.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#F5F8F6</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_dietoexpress_mark</item>
+        <item name="postSplashScreenTheme">@style/Theme.DietoExpress</item>
+    </style>
+</resources>
