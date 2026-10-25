@@ -33,6 +33,16 @@ data class PatientAuthResponse(
 data class AccessLinkRequest(val email: String)
 data class ApiMessage(val message: String? = null)
 
+data class NutritionistRelationship(
+    val hasAssignedNutritionist: Boolean,
+    val nutritionistId: Int? = null,
+    val nutritionistName: String? = null,
+    val isClinic: Boolean = false,
+    val hasPendingClinicReassignment: Boolean = false
+)
+data class NutritionistChangeRequest(val type: String, val reason: String? = null)
+data class NutritionistChangeResponse(val message: String? = null, val pending: Boolean? = null, val unassigned: Boolean? = null)
+
 data class PatientProfile(
     val clientId: Int,
     val fullName: String,
@@ -202,6 +212,12 @@ interface PortalApi {
 
     @GET("portal/profile")
     suspend fun profile(): PatientProfile
+
+    @GET("portal/nutritionist-relationship")
+    suspend fun nutritionistRelationship(): NutritionistRelationship
+
+    @POST("portal/nutritionist-change-requests")
+    suspend fun requestNutritionistChange(@Body request: NutritionistChangeRequest): NutritionistChangeResponse
 
     @GET("portal/diet")
     suspend fun activeDiet(): DietDetail
