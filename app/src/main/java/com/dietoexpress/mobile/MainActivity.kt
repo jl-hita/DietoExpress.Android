@@ -52,6 +52,9 @@ import com.dietoexpress.mobile.data.DietMeal
 import com.dietoexpress.mobile.data.PatientAppointment
 import com.dietoexpress.mobile.data.PatientCheckin
 import com.dietoexpress.mobile.data.PatientDocument
+import com.dietoexpress.mobile.data.PatientMessage
+import com.dietoexpress.mobile.data.ShoppingCategory
+import com.dietoexpress.mobile.data.TrainingEnvelope
 
 private val Forest = Color(0xFF176B52)
 private val ForestDark = Color(0xFF104B3B)
@@ -166,6 +169,13 @@ class MainActivity : ComponentActivity() {
                                         busy = state.busy,
                                         onRetry = { vm.openSection("documents") }
                                     )
+                                    "shopping" -> ShoppingPortalContent(state.shoppingList, state.shoppingLoaded, state.busy) { vm.openSection("shopping") }
+                                    "messages" -> PatientMessagesContent(
+                                        messages = state.messages, loaded = state.messagesLoaded, draft = state.messageDraft,
+                                        busy = state.busy, onDraftChange = vm::updateMessageDraft,
+                                        onSend = vm::sendMessage, onRetry = { vm.openSection("messages") }
+                                    )
+                                    "training" -> TrainingPortalContent(state.training, state.trainingLoaded, state.busy) { vm.openSection("training") }
                                     "progress" -> ProgressContent(
                                         eligibilityMessage = state.checkinEligibility?.message,
                                         eligible = state.checkinEligibility?.eligible,
@@ -197,6 +207,9 @@ class MainActivity : ComponentActivity() {
                                         onAppointments = { vm.openSection("appointments") },
                                         onProgress = { vm.openSection("progress") },
                                         onDocuments = { vm.openSection("documents") },
+                                        onShopping = { vm.openSection("shopping") },
+                                        onMessages = { vm.openSection("messages") },
+                                        onTraining = { vm.openSection("training") },
                                         onProfile = { vm.openSection("profile") }
                                     )
                                 }
@@ -324,6 +337,9 @@ private fun HomeContent(
     onAppointments: () -> Unit,
     onProgress: () -> Unit,
     onDocuments: () -> Unit,
+    onShopping: () -> Unit,
+    onMessages: () -> Unit,
+    onTraining: () -> Unit,
     onProfile: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -372,6 +388,11 @@ private fun HomeContent(
             ShortcutCard("Seguimiento", "Tu evolución", "↗", Modifier.weight(1f), onProgress)
             ShortcutCard("Documentos", "Archivos y consentimientos", "▤", Modifier.weight(1f), onDocuments)
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ShortcutCard("Lista de compra", "Ingredientes del plan", "✓", Modifier.weight(1f), onShopping)
+            ShortcutCard("Mensajes", "Habla con tu profesional", "✉", Modifier.weight(1f), onMessages)
+        }
+        ShortcutCard("Entrenamiento", "Tus sesiones deportivas", "⌁", Modifier.fillMaxWidth(), onTraining)
         OutlinedButton(onClick = onProfile, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), enabled = !busy) {
             Text("Ver mi perfil")
         }
@@ -693,6 +714,9 @@ private fun sectionTitle(section: String): String = when (section) {
     "diet" -> "Mi dieta"
     "appointments" -> "Mis citas"
     "documents" -> "Mis documentos"
+    "shopping" -> "Lista de la compra"
+    "messages" -> "Mensajes"
+    "training" -> "Entrenamiento"
     "progress" -> "Mi seguimiento"
     "profile" -> "Mi perfil"
     else -> "Tu espacio"
