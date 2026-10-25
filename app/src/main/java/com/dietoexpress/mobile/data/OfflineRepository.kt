@@ -43,6 +43,17 @@ class OfflineRepository(context: Context) {
     suspend fun saveMessageDraft(accountId: Int, draft: String) = cacheValue(accountId, DRAFT_KEY, draft)
     suspend fun messageDraft(accountId: Int): String = cachedValue<String>(accountId, DRAFT_KEY, String::class.java).orEmpty()
 
+    /** Queue a patient message with a durable key that is reused for every HTTP retry. */
+    suspend fun enqueueSendPatientMessage(accountId: Int, body: String): String {
+        require(body.isNotBlank() && body.length <= 5000) { "El mensaje debe contener entre 1 y 5000 caracteres." }
+        val id = UUID.randomUUID().toString()
+        val payload = gson.toJson(SendPatientMessageRequest(body))
+        dao.enqueue(PendingOperationEntity(id, accountId, OP_SEND_PATIENT_MESSAGE,
+            LocalPayloadCipher.encrypt(payload), System.currentTimeMillis()))
+        scheduleSync(accountId)
+        return id
+    }
+
     /** Only idempotent operations may enter the automatic retry queue. */
     suspend fun enqueueMarkMessagesRead(accountId: Int) {
         dao.enqueue(PendingOperationEntity(UUID.randomUUID().toString(), accountId, OP_MARK_MESSAGES_READ,
@@ -50,6 +61,9 @@ class OfflineRepository(context: Context) {
         scheduleSync(accountId)
     }
     suspend fun pendingOperations(accountId: Int) = dao.pendingOperations(accountId)
+    suspend fun allOperations(accountId: Int): List<PendingOperationEntity> =
+        dao.allOperations(accountId)
+    suspend fun activeAccountMatches(accountId: Int): Boolean = activeAccountId() == accountId
     suspend fun completeOperation(id: String) = dao.completeOperation(id)
     suspend fun needsAuthentication(id: String) = dao.updateOperationStatus(id, PendingOperationEntity.STATUS_NEEDS_AUTH, "Se necesita iniciar sesión para sincronizar.")
     suspend fun retryOperation(id: String, reason: String) {
@@ -85,6 +99,7 @@ class OfflineRepository(context: Context) {
     }
     companion object {
         const val OP_MARK_MESSAGES_READ = "MARK_MESSAGES_READ"
+        const val OP_SEND_PATIENT_MESSAGE = "SEND_PATIENT_MESSAGE"
         private const val DRAFT_KEY = "message-draft"
         private const val STATE_PREFS = "dietoexpress_offline_state"
         private const val ACTIVE_ACCOUNT_KEY = "active_account_id"
