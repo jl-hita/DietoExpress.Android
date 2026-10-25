@@ -67,8 +67,8 @@ interface OfflineDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun enqueue(operation: PendingOperationEntity): Long
 
-    @Query("SELECT * FROM pending_operations WHERE accountId = :accountId AND status IN ('PENDING', 'NEEDS_AUTH') ORDER BY createdAtEpochMs ASC")
-    suspend fun pendingOperations(accountId: Int): List<PendingOperationEntity>
+    @Query("SELECT * FROM pending_operations WHERE accountId = :accountId AND status IN ('PENDING', 'NEEDS_AUTH') AND nextAttemptAtEpochMs <= :nowEpochMs ORDER BY createdAtEpochMs ASC")
+    suspend fun pendingOperations(accountId: Int, nowEpochMs: Long): List<PendingOperationEntity>
 
     @Query("SELECT * FROM pending_operations WHERE accountId = :accountId ORDER BY createdAtEpochMs ASC")
     suspend fun allOperations(accountId: Int): List<PendingOperationEntity>
