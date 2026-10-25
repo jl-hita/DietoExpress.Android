@@ -1,6 +1,8 @@
 package com.dietoexpress.mobile.data
 
+import android.content.Context
 import com.dietoexpress.mobile.BuildConfig
+import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import okhttp3.Cookie
 import okhttp3.CookieJar
@@ -226,37 +228,107 @@ interface PortalApi {
 }
 
 /**
- * Cookie de sesión mantenida solo en memoria. No persiste JWT/cookies en almacenamiento
- * no cifrado y nunca registra credenciales. Al cerrar completamente el proceso habrá que
- * iniciar sesión otra vez; la persistencia cifrada con Android Keystore se decidirá aparte.
+ * Session cookies are encrypted at rest with an AES-GCM key backed by Android Keystore.
+ * Passwords and access codes are never persisted.
  */
-private class InMemoryCookieJar : CookieJar {
-    private val cookies = mutableListOf<Cookie>()
+private interface ClearableCookieJar : CookieJar { fun clear() }
 
-    @Synchronized
-    override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+private data class StoredCookie(
+    val name: String,
+    val value: String,
+    val domain: String,
+    val path: String,
+    val expiresAt: Long,
+    val persistent: Boolean,
+    val hostOnly: Boolean,
+    val secure: Boolean,
+    val httpOnly: Boolean
+) {
+    fun restore(): Cookie? = try {
+        Cookie.Builder().name(name).value(value).apply {
+            if (hostOnly) hostOnlyDomain(domain) else domain(domain)
+            path(path)
+            if (persistent) expiresAt(expiresAt)
+            if (secure) secure()
+            if (httpOnly) httpOnly()
+        }.build()
+    } catch (_: IllegalArgumentException) { null }
+
+    companion object {
+        fun from(cookie: Cookie) = StoredCookie(
+            cookie.name, cookie.value, cookie.domain, cookie.path, cookie.expiresAt,
+            cookie.persistent, cookie.hostOnly, cookie.secure, cookie.httpOnly
+        )
+    }
+}
+
+private class EncryptedCookieJar(context: Context) : ClearableCookieJar {
+    private val preferences = context.applicationContext.getSharedPreferences("dietoexpress_session", Context.MODE_PRIVATE)
+    private val gson = Gson()
+
+    @Synchronized private fun readCookies(): MutableList<Cookie> {
+        val encrypted = preferences.getString("cookies", null) ?: return mutableListOf()
+        return try {
+            gson.fromJson(LocalPayloadCipher.decrypt(encrypted), Array<StoredCookie>::class.java)
+                .mapNotNull { it.restore() }.filter { it.expiresAt > System.currentTimeMillis() }.toMutableList()
+        } catch (_: Exception) {
+            preferences.edit().remove("cookies").apply()
+            mutableListOf()
+        }
+    }
+
+    @Synchronized private fun saveCookies(cookies: List<Cookie>) {
+        if (cookies.isEmpty()) {
+            preferences.edit().remove("cookies").apply()
+            return
+        }
+        val payload = gson.toJson(cookies.map(StoredCookie::from))
+        preferences.edit().putString("cookies", LocalPayloadCipher.encrypt(payload)).apply()
+    }
+
+    @Synchronized override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+        val current = readCookies()
+        for (incoming in cookies) {
+            current.removeAll { it.name == incoming.name && it.domain == incoming.domain && it.path == incoming.path }
+            if (incoming.expiresAt > System.currentTimeMillis()) current.add(incoming)
+        }
+        saveCookies(current)
+    }
+
+    @Synchronized override fun loadForRequest(url: HttpUrl): List<Cookie> {
+        val current = readCookies()
+        val valid = current.filter { it.expiresAt > System.currentTimeMillis() }
+        if (valid.size != current.size) saveCookies(valid)
+        return valid.filter { it.matches(url) }
+    }
+
+    @Synchronized override fun clear() {
+        preferences.edit().remove("cookies").apply()
+    }
+}
+
+private class InMemoryCookieJar : ClearableCookieJar {
+    private val cookies = mutableListOf<Cookie>()
+    @Synchronized override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
         cookies.forEach { incoming ->
-            this.cookies.removeAll {
-                it.name == incoming.name && it.domain == incoming.domain && it.path == incoming.path
-            }
+            this.cookies.removeAll { it.name == incoming.name && it.domain == incoming.domain && it.path == incoming.path }
             if (incoming.expiresAt > System.currentTimeMillis()) this.cookies.add(incoming)
         }
         this.cookies.removeAll { it.expiresAt <= System.currentTimeMillis() }
     }
-
-    @Synchronized
-    override fun loadForRequest(url: HttpUrl): List<Cookie> {
+    @Synchronized override fun loadForRequest(url: HttpUrl): List<Cookie> {
         cookies.removeAll { it.expiresAt <= System.currentTimeMillis() }
         return cookies.filter { it.matches(url) }
     }
-
-    @Synchronized
-    fun clear() = cookies.clear()
+    @Synchronized override fun clear() = cookies.clear()
 }
 
 object PortalService {
-    private val cookieJar = InMemoryCookieJar()
-    private val client = OkHttpClient.Builder().cookieJar(cookieJar).build()
+    @Volatile private var cookieJar: ClearableCookieJar = InMemoryCookieJar()
+    private val client = OkHttpClient.Builder().cookieJar(object : CookieJar {
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) = cookieJar.saveFromResponse(url, cookies)
+        override fun loadForRequest(url: HttpUrl): List<Cookie> = cookieJar.loadForRequest(url)
+    }).build()
 
     val api: PortalApi = Retrofit.Builder()
         .baseUrl(BuildConfig.API_BASE_URL.trimEnd('/') + "/")
@@ -265,5 +337,6 @@ object PortalService {
         .build()
         .create(PortalApi::class.java)
 
+    fun initialize(context: Context) { cookieJar = EncryptedCookieJar(context.applicationContext) }
     fun clearSessionCookies() = cookieJar.clear()
 }
