@@ -1,6 +1,7 @@
 package com.dietoexpress.mobile
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dietoexpress.mobile.data.AccessLinkRequest
 import com.dietoexpress.mobile.data.CheckinEligibility
@@ -15,6 +16,8 @@ import com.dietoexpress.mobile.data.TrainingEnvelope
 import com.dietoexpress.mobile.data.SendPatientMessageRequest
 import com.dietoexpress.mobile.data.PatientProfile
 import com.dietoexpress.mobile.data.PortalService
+import com.dietoexpress.mobile.data.OfflineRepository
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,7 +53,22 @@ data class PortalUiState(
     val error: Boolean = false
 )
 
-class PortalViewModel : ViewModel() {
+class PortalViewModel(application: Application) : AndroidViewModel(application) {
+    private val offline = OfflineRepository(application)
+
+    init {
+        PortalService.initialize(application)
+        viewModelScope.launch {
+            val cachedProfile = offline.restoreLastProfile()
+            if (cachedProfile != null && _state.value.profile == null && !_state.value.busy) {
+                _state.value = _state.value.copy(
+                    profile = cachedProfile,
+                    message = "Perfil recuperado del dispositivo; puede estar desactualizado hasta sincronizarse.",
+                    error = false
+                )
+            }
+        }
+    }
     private val _state = MutableStateFlow(PortalUiState())
     val state: StateFlow<PortalUiState> = _state.asStateFlow()
 
@@ -69,6 +87,9 @@ class PortalViewModel : ViewModel() {
                 PatientAuthRequest(emailOrPhone = current.emailOrPhone.trim(), passcode = current.passcode)
             )
             val profile = PortalService.api.profile()
+            offline.cacheValue(profile.clientId, "profile", profile)
+            offline.setActiveAccountId(profile.clientId)
+            offline.scheduleSync(profile.clientId)
             _state.value = _state.value.copy(
                 profile = profile, passcode = "", diet = null, dietLoaded = false,
                 appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
@@ -91,7 +112,16 @@ class PortalViewModel : ViewModel() {
     }
 
     fun refreshProfile() = runRequest {
-        _state.value = _state.value.copy(profile = PortalService.api.profile(), message = null)
+        val accountId = _state.value.profile?.clientId
+        val result = if (accountId != null) {
+            offline.readThrough(accountId, "profile", PatientProfile::class.java) { PortalService.api.profile() }
+        } else {
+            val profile = PortalService.api.profile()
+            offline.cacheValue(profile.clientId, "profile", profile)
+            com.dietoexpress.mobile.data.OfflineRead(profile, false)
+        }
+        _state.value = _state.value.copy(profile = result.value,
+            message = if (result.fromCache) "Sin conexión: se muestran los últimos datos guardados." else null, error = false)
     }
 
     fun openSection(section: String) {
@@ -115,8 +145,10 @@ class PortalViewModel : ViewModel() {
         runRequest {
             _state.value = _state.value.copy(section = "diet")
             try {
-                val diet = PortalService.api.activeDiet()
-                _state.value = _state.value.copy(diet = diet, dietLoaded = true, message = null, error = false)
+                val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+                val result = offline.readThrough(accountId, "diet", DietDetail::class.java) { PortalService.api.activeDiet() }
+                _state.value = _state.value.copy(diet = result.value, dietLoaded = true,
+                    message = if (result.fromCache) "Sin conexión: se muestra la última dieta guardada. Comprueba su vigencia antes de seguirla." else null, error = false)
             } catch (ex: HttpException) {
                 if (ex.code() == 404) {
                     _state.value = _state.value.copy(
@@ -132,16 +164,22 @@ class PortalViewModel : ViewModel() {
     fun loadAppointments() {
         if (_state.value.busy || _state.value.appointmentsLoaded) return
         runRequest {
-            val appointments = PortalService.api.appointments()
-            _state.value = _state.value.copy(appointments = appointments, appointmentsLoaded = true, section = "appointments")
+            val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+            val type = TypeToken.getParameterized(List::class.java, PatientAppointment::class.java).type
+            val result = offline.readThrough(accountId, "appointments", type) { PortalService.api.appointments() }
+            _state.value = _state.value.copy(appointments = result.value, appointmentsLoaded = true, section = "appointments",
+                message = if (result.fromCache) "Sin conexión: se muestran las últimas citas guardadas." else null, error = false)
         }
     }
 
     fun loadDocuments() {
         if (_state.value.busy || _state.value.documentsLoaded) return
         runRequest {
-            val documents = PortalService.api.documents()
-            _state.value = _state.value.copy(documents = documents, documentsLoaded = true, section = "documents")
+            val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+            val type = TypeToken.getParameterized(List::class.java, PatientDocument::class.java).type
+            val result = offline.readThrough(accountId, "documents", type) { PortalService.api.documents() }
+            _state.value = _state.value.copy(documents = result.value, documentsLoaded = true, section = "documents",
+                message = if (result.fromCache) "Sin conexión: se muestran los últimos documentos guardados." else null, error = false)
         }
     }
 
@@ -149,61 +187,105 @@ class PortalViewModel : ViewModel() {
     fun loadShoppingList() {
         if (_state.value.busy || _state.value.shoppingLoaded) return
         runRequest {
-            val items = PortalService.api.shoppingList()
-            _state.value = _state.value.copy(shoppingList = items, shoppingLoaded = true, section = "shopping")
+            val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+            val type = TypeToken.getParameterized(List::class.java, ShoppingCategory::class.java).type
+            val result = offline.readThrough(accountId, "shopping-list", type) { PortalService.api.shoppingList() }
+            _state.value = _state.value.copy(shoppingList = result.value, shoppingLoaded = true, section = "shopping",
+                message = if (result.fromCache) "Sin conexión: se muestra la última lista guardada. Comprueba los alérgenos antes de comprar." else null, error = false)
         }
     }
 
     fun loadMessages() {
         if (_state.value.busy) return
         runRequest {
-            val items = PortalService.api.messages()
-            PortalService.api.markMessagesRead(emptyMap())
-            _state.value = _state.value.copy(messages = items, messagesLoaded = true, section = "messages")
+            val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+            val type = TypeToken.getParameterized(List::class.java, PatientMessage::class.java).type
+            val result = offline.readThrough(accountId, "messages", type) { PortalService.api.messages() }
+            try { PortalService.api.markMessagesRead(emptyMap()) } catch (_: IOException) { /* Cached reads remain available; do not mark future unseen messages as read. */ }
+            val draft = offline.messageDraft(accountId)
+            _state.value = _state.value.copy(messages = result.value, messagesLoaded = true, messageDraft = draft, section = "messages",
+                message = if (result.fromCache) "Sin conexión: se muestran los últimos mensajes guardados. El envío requiere conexión." else null, error = false)
         }
     }
 
     fun updateMessageDraft(value: String) {
         _state.value = _state.value.copy(messageDraft = value)
+        _state.value.profile?.clientId?.let { accountId -> viewModelScope.launch { offline.saveMessageDraft(accountId, value) } }
     }
 
     fun sendMessage() {
         val body = _state.value.messageDraft.trim()
-        if (body.isBlank() || body.length > 5000 || _state.value.busy) return
+        val accountId = _state.value.profile?.clientId
+        if (body.isBlank() || body.length > 5000 || _state.value.busy || accountId == null) return
         runRequest {
-            PortalService.api.sendMessage(SendPatientMessageRequest(body))
-            val messages = PortalService.api.messages()
-            PortalService.api.markMessagesRead(emptyMap())
-            _state.value = _state.value.copy(messages = messages, messagesLoaded = true, messageDraft = "", section = "messages")
+            try {
+                PortalService.api.sendMessage(SendPatientMessageRequest(body))
+            } catch (_: IOException) {
+                _state.value = _state.value.copy(
+                    message = "No se ha podido confirmar el envío. El borrador se conserva; comprueba los mensajes antes de volver a intentarlo.",
+                    error = true
+                )
+                return@runRequest
+            }
+
+            offline.saveMessageDraft(accountId, "")
+            _state.value = _state.value.copy(messageDraft = "", message = "Mensaje enviado.", error = false)
+            try {
+                val type = TypeToken.getParameterized(List::class.java, PatientMessage::class.java).type
+                val result = offline.readThrough(accountId, "messages", type) { PortalService.api.messages() }
+                try { PortalService.api.markMessagesRead(emptyMap()) } catch (_: IOException) { /* Do not defer a broad read receipt. */ }
+                _state.value = _state.value.copy(
+                    messages = result.value, messagesLoaded = true, section = "messages",
+                    message = if (result.fromCache) "Mensaje enviado. El historial mostrado está guardado localmente y puede estar desactualizado." else null,
+                    error = false
+                )
+            } catch (_: IOException) {
+                _state.value = _state.value.copy(
+                    message = "Mensaje enviado. No se pudo actualizar el historial; se actualizará cuando haya conexión.",
+                    error = false
+                )
+            }
         }
     }
 
     fun loadTraining() {
         if (_state.value.busy || _state.value.trainingLoaded) return
         runRequest {
-            val training = PortalService.api.trainingSessions()
-            _state.value = _state.value.copy(training = training, trainingLoaded = true, section = "training")
+            val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+            val result = offline.readThrough(accountId, "training", com.dietoexpress.mobile.data.TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }
+            _state.value = _state.value.copy(training = result.value, trainingLoaded = true, section = "training",
+                message = if (result.fromCache) "Sin conexión: se muestran las últimas sesiones guardadas." else null, error = false)
         }
     }
 
     fun loadCheckin() {
         if (_state.value.busy || _state.value.checkinLoaded) return
         runRequest {
-            val eligibility = PortalService.api.checkinEligibility()
-            val current = if (eligibility.eligible) PortalService.api.currentCheckin() else null
-            val history = if (eligibility.eligible) PortalService.api.checkinHistory() else emptyList()
-            _state.value = _state.value.copy(
-                checkinEligibility = eligibility, currentCheckin = current,
-                checkinHistory = history, checkinLoaded = true, section = "progress"
-            )
+            val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+            val eligibilityResult = offline.readThrough(accountId, "checkin-eligibility", CheckinEligibility::class.java) { PortalService.api.checkinEligibility() }
+            val eligibility = eligibilityResult.value
+            val currentResult = if (eligibility.eligible) offline.readThrough<PatientCheckin?>(accountId, "checkin-current", PatientCheckin::class.java) { PortalService.api.currentCheckin() } else null
+            val historyResult = if (eligibility.eligible) {
+                val type = TypeToken.getParameterized(List::class.java, PatientCheckin::class.java).type
+                offline.readThrough(accountId, "checkin-history", type) { PortalService.api.checkinHistory() }
+            } else null
+            val stale = eligibilityResult.fromCache || currentResult?.fromCache == true || historyResult?.fromCache == true
+            _state.value = _state.value.copy(checkinEligibility = eligibility, currentCheckin = currentResult?.value,
+                checkinHistory = historyResult?.value ?: emptyList(), checkinLoaded = true, section = "progress",
+                message = if (stale) "Sin conexión: se muestran los últimos datos de seguimiento guardados." else null, error = false)
         }
     }
 
     fun logout() = runRequest {
+        val accountId = _state.value.profile?.clientId
         try {
             PortalService.api.logout()
         } finally {
             PortalService.clearSessionCookies()
+            if (accountId != null) {
+                offline.clearActiveAccountId(accountId)
+                offline.clearAccountCache(accountId)
+            }
             _state.value = PortalUiState(message = "Sesión cerrada.", error = false)
         }
     }
