@@ -10,6 +10,8 @@ import com.dietoexpress.mobile.data.PatientAppointment
 import com.dietoexpress.mobile.data.AppointmentSlot
 import com.dietoexpress.mobile.data.CreatePatientAppointmentRequest
 import com.dietoexpress.mobile.data.NutritionistRelationship
+import com.dietoexpress.mobile.data.NutritionistTransfer
+import com.dietoexpress.mobile.data.ConfirmNutritionistTransferRequest
 import com.dietoexpress.mobile.data.NutritionistChangeRequest
 import com.dietoexpress.mobile.data.PatientAuthRequest
 import com.dietoexpress.mobile.data.PatientCheckin
@@ -37,6 +39,8 @@ data class PortalUiState(
     val linkEmail: String = "",
     val profile: PatientProfile? = null,
     val nutritionistRelationship: NutritionistRelationship? = null,
+    val nutritionistTransfer: NutritionistTransfer? = null,
+    val transferConsentChecked: Boolean = false,
     val diet: DietDetail? = null,
     val dietLoaded: Boolean = false,
     val appointments: List<PatientAppointment> = emptyList(),
@@ -100,11 +104,13 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 )
                 val profile = PortalService.api.profile()
                 val relationship = runCatching { PortalService.api.nutritionistRelationship() }.getOrNull()
+                val transfer = runCatching { PortalService.api.nutritionistTransfer() }.getOrNull()
                 offline.cacheValue(profile.clientId, "profile", profile)
                 offline.setActiveAccountId(profile.clientId)
                 offline.scheduleSync(profile.clientId)
                 _state.value = _state.value.copy(
-                    profile = profile, nutritionistRelationship = relationship, passcode = "", diet = null, dietLoaded = false,
+                    profile = profile, nutritionistRelationship = relationship, nutritionistTransfer = transfer?.takeIf { it.pending },
+                    transferConsentChecked = false, passcode = "", diet = null, dietLoaded = false,
                     appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
                     messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
                     section = "home", message = null, error = false
@@ -141,6 +147,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openSection(section: String) {
         _state.value = _state.value.copy(section = section, message = null, error = false)
+        loadNutritionistTransfer()
         when (section) {
             "diet" -> loadDiet()
             "appointments" -> loadAppointments()
@@ -202,6 +209,51 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             _state.value = _state.value.copy(appointments = result.value, appointmentsLoaded = true,
                 appointmentSlots = slots, appointmentSlotsError = slotsError, section = "appointments",
                 message = if (result.fromCache) "Sin conexión: se muestran las últimas citas guardadas." else null, error = false)
+        }
+    }
+
+    fun loadNutritionistTransfer() {
+        viewModelScope.launch {
+            val transfer = runCatching { PortalService.api.nutritionistTransfer() }.getOrNull()
+            _state.value = _state.value.copy(nutritionistTransfer = transfer?.takeIf { it.pending })
+        }
+    }
+
+    fun setTransferConsent(checked: Boolean) {
+        _state.value = _state.value.copy(transferConsentChecked = checked)
+    }
+
+    fun confirmNutritionistTransfer() {
+        val current = _state.value
+        val transfer = current.nutritionistTransfer ?: return
+        val id = transfer.id ?: return
+        if (!transfer.requiresPatientConfirmation || !current.transferConsentChecked || current.busy) return
+        runRequest {
+            val result = PortalService.api.confirmNutritionistTransfer(id, ConfirmNutritionistTransferRequest(true))
+            val relationship = runCatching { PortalService.api.nutritionistRelationship() }.getOrNull()
+            _state.value = _state.value.copy(
+                nutritionistTransfer = null, transferConsentChecked = false,
+                nutritionistRelationship = relationship,
+                message = result.message ?: "Cambio y transferencia confirmados.",
+                error = false
+            )
+            refreshProfile()
+            loadAppointments()
+        }
+    }
+
+    fun cancelNutritionistTransfer() {
+        val transfer = _state.value.nutritionistTransfer ?: return
+        val id = transfer.id ?: return
+        if (_state.value.busy) return
+        runRequest {
+            val result = PortalService.api.cancelNutritionistTransfer(id)
+            _state.value = _state.value.copy(
+                nutritionistTransfer = null, transferConsentChecked = false,
+                message = result.message ?: "Cambio cancelado. Mantienes tu nutricionista actual.",
+                error = false
+            )
+            loadAppointments()
         }
     }
 

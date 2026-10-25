@@ -27,6 +27,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -39,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -95,6 +97,9 @@ class MainActivity : ComponentActivity() {
                     val vm: PortalViewModel = viewModel()
                     val state by vm.state.collectAsStateWithLifecycle()
                     var publicRoute by remember { mutableStateOf("portal") }
+                    LaunchedEffect(publicRoute, state.profile?.clientId) {
+                        if (publicRoute == "portal" && state.profile != null) vm.loadNutritionistTransfer()
+                    }
                     if (publicRoute != "portal") {
                         PublicDirectoryScreen(
                             initialBooking = publicRoute == "booking",
@@ -172,6 +177,43 @@ class MainActivity : ComponentActivity() {
 
                                 state.message?.let {
                                     InfoBanner(it, state.error)
+                                }
+
+                                state.nutritionistTransfer?.takeIf { it.pending }?.let { transfer ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                                    ) {
+                                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Text("Cambio de nutricionista", fontWeight = FontWeight.Bold, color = Ink)
+                                            Text(
+                                                if (transfer.requiresPatientConfirmation) "La cita ha sido aceptada por ${transfer.nutritionistName ?: "el nuevo profesional"}."
+                                                else "Solicitud enviada a ${transfer.nutritionistName ?: "un nuevo profesional"}. Tu relación e historial siguen intactos.",
+                                                color = Muted
+                                            )
+                                            if (transfer.requiresPatientConfirmation) {
+                                                Text("Confirma el cambio solo si quieres transferir tu historial al nuevo profesional. No se hará efectivo antes de este consentimiento.", color = Ink)
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Checkbox(
+                                                        checked = state.transferConsentChecked,
+                                                        onCheckedChange = vm::setTransferConsent
+                                                    )
+                                                    Text("Consiento expresamente la transferencia de mi historial", color = Ink)
+                                                }
+                                                Button(
+                                                    onClick = vm::confirmNutritionistTransfer,
+                                                    enabled = state.transferConsentChecked && !state.busy,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) { Text("Confirmar cambio y transferir historial") }
+                                            }
+                                            OutlinedButton(
+                                                onClick = vm::cancelNutritionistTransfer,
+                                                enabled = !state.busy,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) { Text("Cancelar cambio") }
+                                        }
+                                    }
                                 }
 
                                 when (state.section) {
