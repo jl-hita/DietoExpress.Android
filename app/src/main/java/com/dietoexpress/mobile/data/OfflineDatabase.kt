@@ -5,6 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.room.*
+import androidx.room.migration.Migration
 import java.nio.ByteBuffer
 import java.security.KeyStore
 import javax.crypto.Cipher
