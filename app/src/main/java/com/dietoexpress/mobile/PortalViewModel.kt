@@ -9,6 +9,10 @@ import com.dietoexpress.mobile.data.PatientAppointment
 import com.dietoexpress.mobile.data.PatientAuthRequest
 import com.dietoexpress.mobile.data.PatientCheckin
 import com.dietoexpress.mobile.data.PatientDocument
+import com.dietoexpress.mobile.data.PatientMessage
+import com.dietoexpress.mobile.data.ShoppingCategory
+import com.dietoexpress.mobile.data.TrainingEnvelope
+import com.dietoexpress.mobile.data.SendPatientMessageRequest
 import com.dietoexpress.mobile.data.PatientProfile
 import com.dietoexpress.mobile.data.PortalService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +33,13 @@ data class PortalUiState(
     val appointmentsLoaded: Boolean = false,
     val documents: List<PatientDocument> = emptyList(),
     val documentsLoaded: Boolean = false,
+    val shoppingList: List<ShoppingCategory> = emptyList(),
+    val shoppingLoaded: Boolean = false,
+    val messages: List<PatientMessage> = emptyList(),
+    val messagesLoaded: Boolean = false,
+    val messageDraft: String = "",
+    val training: TrainingEnvelope? = null,
+    val trainingLoaded: Boolean = false,
     val checkinEligibility: CheckinEligibility? = null,
     val currentCheckin: PatientCheckin? = null,
     val checkinHistory: List<PatientCheckin> = emptyList(),
@@ -60,7 +71,8 @@ class PortalViewModel : ViewModel() {
             val profile = PortalService.api.profile()
             _state.value = _state.value.copy(
                 profile = profile, passcode = "", diet = null, dietLoaded = false,
-                appointmentsLoaded = false, documentsLoaded = false, checkinLoaded = false,
+                appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
+                messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
                 section = "home", message = null, error = false
             )
         }
@@ -88,6 +100,9 @@ class PortalViewModel : ViewModel() {
             "diet" -> loadDiet()
             "appointments" -> loadAppointments()
             "documents" -> loadDocuments()
+            "shopping" -> loadShoppingList()
+            "messages" -> loadMessages()
+            "training" -> loadTraining()
             "progress" -> loadCheckin()
             "profile" -> refreshProfile()
         }
@@ -127,6 +142,47 @@ class PortalViewModel : ViewModel() {
         runRequest {
             val documents = PortalService.api.documents()
             _state.value = _state.value.copy(documents = documents, documentsLoaded = true, section = "documents")
+        }
+    }
+
+
+    fun loadShoppingList() {
+        if (_state.value.busy || _state.value.shoppingLoaded) return
+        runRequest {
+            val items = PortalService.api.shoppingList()
+            _state.value = _state.value.copy(shoppingList = items, shoppingLoaded = true, section = "shopping")
+        }
+    }
+
+    fun loadMessages() {
+        if (_state.value.busy) return
+        runRequest {
+            val items = PortalService.api.messages()
+            PortalService.api.markMessagesRead()
+            _state.value = _state.value.copy(messages = items, messagesLoaded = true, section = "messages")
+        }
+    }
+
+    fun updateMessageDraft(value: String) {
+        _state.value = _state.value.copy(messageDraft = value)
+    }
+
+    fun sendMessage() {
+        val body = _state.value.messageDraft.trim()
+        if (body.isBlank() || body.length > 5000 || _state.value.busy) return
+        runRequest {
+            PortalService.api.sendMessage(SendPatientMessageRequest(body))
+            val messages = PortalService.api.messages()
+            PortalService.api.markMessagesRead()
+            _state.value = _state.value.copy(messages = messages, messagesLoaded = true, messageDraft = "", section = "messages")
+        }
+    }
+
+    fun loadTraining() {
+        if (_state.value.busy || _state.value.trainingLoaded) return
+        runRequest {
+            val training = PortalService.api.trainingSessions()
+            _state.value = _state.value.copy(training = training, trainingLoaded = true, section = "training")
         }
     }
 
