@@ -42,6 +42,17 @@ data class NutritionistRelationship(
 )
 data class NutritionistChangeRequest(val type: String, val reason: String? = null)
 data class NutritionistChangeResponse(val message: String? = null, val pending: Boolean? = null, val unassigned: Boolean? = null)
+data class NutritionistTransfer(
+    val pending: Boolean = false,
+    val id: Long? = null,
+    val status: String? = null,
+    val appointmentId: Int? = null,
+    val appointmentStartsAt: String? = null,
+    val nutritionistName: String? = null,
+    val requiresPatientConfirmation: Boolean = false
+)
+data class ConfirmNutritionistTransferRequest(val consentToHistoryTransfer: Boolean)
+data class NutritionistTransferResponse(val completed: Boolean = false, val cancelled: Boolean = false, val message: String? = null)
 
 data class PatientProfile(
     val clientId: Int,
@@ -218,6 +229,15 @@ interface PortalApi {
 
     @POST("portal/nutritionist-change-requests")
     suspend fun requestNutritionistChange(@Body request: NutritionistChangeRequest): NutritionistChangeResponse
+
+    @GET("portal/nutritionist-transfer")
+    suspend fun nutritionistTransfer(): NutritionistTransfer
+
+    @POST("portal/nutritionist-transfer/{id}/confirm")
+    suspend fun confirmNutritionistTransfer(@Path("id") id: Long, @Body request: ConfirmNutritionistTransferRequest): NutritionistTransferResponse
+
+    @POST("portal/nutritionist-transfer/{id}/cancel")
+    suspend fun cancelNutritionistTransfer(@Path("id") id: Long): NutritionistTransferResponse
 
     @GET("portal/diet")
     suspend fun activeDiet(): DietDetail
