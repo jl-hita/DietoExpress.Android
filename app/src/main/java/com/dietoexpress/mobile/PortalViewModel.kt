@@ -147,6 +147,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openSection(section: String) {
         _state.value = _state.value.copy(section = section, message = null, error = false)
+        loadNutritionistTransfer()
         when (section) {
             "diet" -> loadDiet()
             "appointments" -> loadAppointments()
