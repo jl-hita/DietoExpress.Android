@@ -88,4 +88,31 @@ class OfflineDatabasePersistenceTest {
             context.deleteDatabase(databaseName)
         }
     }
+
+    @Test
+    fun serverConflictIsDurableAndNotAutomaticallyRetried() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, OfflineDatabase::class.java).build()
+        try {
+            val id = UUID.randomUUID().toString()
+            db.offlineDao().enqueue(
+                PendingOperationEntity(
+                    id = id,
+                    accountId = 101,
+                    operationType = OfflineRepository.OP_SEND_PATIENT_MESSAGE,
+                    encryptedPayload = LocalPayloadCipher.encrypt("""{"body":"conflict"}"""),
+                    createdAtEpochMs = System.currentTimeMillis(),
+                    idempotencyKey = id
+                )
+            )
+            db.offlineDao().markConflict(id, "Conflicto HTTP 409", """{"message":"same key, different payload"}""")
+            val operation = db.offlineDao().allOperations(101).single()
+            assertEquals(PendingOperationEntity.STATUS_CONFLICT, operation.status)
+            assertEquals("""{"message":"same key, different payload"}""", operation.conflictDetails)
+            assertTrue(db.offlineDao().pendingOperations(101).isEmpty())
+        } finally {
+            db.close()
+        }
+    }
+
 }
