@@ -7,6 +7,10 @@ import com.dietoexpress.mobile.data.AccessLinkRequest
 import com.dietoexpress.mobile.data.CheckinEligibility
 import com.dietoexpress.mobile.data.DietDetail
 import com.dietoexpress.mobile.data.PatientAppointment
+import com.dietoexpress.mobile.data.AppointmentSlot
+import com.dietoexpress.mobile.data.CreatePatientAppointmentRequest
+import com.dietoexpress.mobile.data.NutritionistRelationship
+import com.dietoexpress.mobile.data.NutritionistChangeRequest
 import com.dietoexpress.mobile.data.PatientAuthRequest
 import com.dietoexpress.mobile.data.PatientCheckin
 import com.dietoexpress.mobile.data.PatientDocument
@@ -32,10 +36,13 @@ data class PortalUiState(
     val passcode: String = "",
     val linkEmail: String = "",
     val profile: PatientProfile? = null,
+    val nutritionistRelationship: NutritionistRelationship? = null,
     val diet: DietDetail? = null,
     val dietLoaded: Boolean = false,
     val appointments: List<PatientAppointment> = emptyList(),
     val appointmentsLoaded: Boolean = false,
+    val appointmentSlots: List<AppointmentSlot> = emptyList(),
+    val appointmentSlotsError: String? = null,
     val documents: List<PatientDocument> = emptyList(),
     val documentsLoaded: Boolean = false,
     val shoppingList: List<ShoppingCategory> = emptyList(),
@@ -92,11 +99,12 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     PatientAuthRequest(emailOrPhone = current.emailOrPhone.trim(), passcode = current.passcode)
                 )
                 val profile = PortalService.api.profile()
+                val relationship = runCatching { PortalService.api.nutritionistRelationship() }.getOrNull()
                 offline.cacheValue(profile.clientId, "profile", profile)
                 offline.setActiveAccountId(profile.clientId)
                 offline.scheduleSync(profile.clientId)
                 _state.value = _state.value.copy(
-                    profile = profile, passcode = "", diet = null, dietLoaded = false,
+                    profile = profile, nutritionistRelationship = relationship, passcode = "", diet = null, dietLoaded = false,
                     appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
                     messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
                     section = "home", message = null, error = false
@@ -126,7 +134,8 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             offline.cacheValue(profile.clientId, "profile", profile)
             com.dietoexpress.mobile.data.OfflineRead(profile, false)
         }
-        _state.value = _state.value.copy(profile = result.value,
+        val relationship = runCatching { PortalService.api.nutritionistRelationship() }.getOrNull()
+        _state.value = _state.value.copy(profile = result.value, nutritionistRelationship = relationship,
             message = if (result.fromCache) "Sin conexión: se muestran los últimos datos guardados." else null, error = false)
     }
 
@@ -168,14 +177,74 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun refreshAppointments() {
+        _state.value = _state.value.copy(appointmentsLoaded = false, appointmentSlotsError = null)
+        loadAppointments()
+    }
+
     fun loadAppointments() {
         if (_state.value.busy || _state.value.appointmentsLoaded) return
         runRequest {
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val type = TypeToken.getParameterized(List::class.java, PatientAppointment::class.java).type
             val result = offline.readThrough(accountId, "appointments", type) { PortalService.api.appointments() }
-            _state.value = _state.value.copy(appointments = result.value, appointmentsLoaded = true, section = "appointments",
+            var slots = emptyList<AppointmentSlot>()
+            var slotsError: String? = null
+            if (!_state.value.profile?.nutritionistName.isNullOrBlank()) {
+                try {
+                    slots = PortalService.api.appointmentSlots(30)
+                } catch (ex: Exception) {
+                    slotsError = "No hemos podido cargar la disponibilidad de tu nutricionista. Comprueba la conexión e inténtalo de nuevo."
+                }
+            }
+            _state.value = _state.value.copy(appointments = result.value, appointmentsLoaded = true,
+                appointmentSlots = slots, appointmentSlotsError = slotsError, section = "appointments",
                 message = if (result.fromCache) "Sin conexión: se muestran las últimas citas guardadas." else null, error = false)
+        }
+    }
+
+    fun requestNutritionistChange(type: String) {
+        if (_state.value.busy) return
+        runRequest {
+            val response = PortalService.api.requestNutritionistChange(NutritionistChangeRequest(type))
+            val current = _state.value
+            val relationship = if (type == "leave_and_find_new") {
+                current.nutritionistRelationship?.copy(
+                    hasAssignedNutritionist = false,
+                    nutritionistId = null,
+                    nutritionistName = null,
+                    hasPendingClinicReassignment = false
+                )
+            } else {
+                current.nutritionistRelationship?.copy(hasPendingClinicReassignment = true)
+            }
+            val profile = if (type == "leave_and_find_new") current.profile?.copy(nutritionistName = null) else current.profile
+            _state.value = current.copy(
+                profile = profile,
+                nutritionistRelationship = relationship,
+                appointmentSlots = if (type == "leave_and_find_new") emptyList() else current.appointmentSlots,
+                appointmentsLoaded = if (type == "leave_and_find_new") false else current.appointmentsLoaded,
+                message = response.message ?: "Solicitud procesada.",
+                error = false
+            )
+        }
+    }
+
+    fun requestAppointment(slot: AppointmentSlot, modality: String) {
+        if (_state.value.busy) return
+        runRequest {
+            val response = PortalService.api.requestAppointment(
+                CreatePatientAppointmentRequest(startsAt = slot.startsAt, durationMinutes = 30, modality = modality)
+            )
+            val current = _state.value
+            _state.value = current.copy(
+                appointments = listOf(response) + current.appointments,
+                appointmentSlots = current.appointmentSlots.filterNot { it.startsAt == slot.startsAt },
+                appointmentSlotsError = null,
+                message = "Solicitud enviada a tu nutricionista. Queda pendiente de confirmación.",
+                error = false,
+                section = "appointments"
+            )
         }
     }
 
