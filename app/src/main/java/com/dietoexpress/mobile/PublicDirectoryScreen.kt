@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dietoexpress.mobile.data.PortalService
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
@@ -48,10 +49,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-private val directoryHttp = OkHttpClient.Builder()
-    .connectTimeout(15, TimeUnit.SECONDS)
-    .readTimeout(20, TimeUnit.SECONDS)
-    .build()
+private val directoryHttp by lazy { PortalService.authenticatedClient() }
 private val directoryJson = "application/json; charset=utf-8".toMediaType()
 private val directoryDateTime = DateTimeFormatter.ofPattern("EEE d MMM, HH:mm", Locale("es", "ES"))
 
