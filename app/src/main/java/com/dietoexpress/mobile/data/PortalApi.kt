@@ -12,6 +12,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
 
@@ -206,7 +207,7 @@ interface PortalApi {
     suspend fun sendMessage(@Body request: SendPatientMessageRequest): Map<String, Long>
 
     @retrofit2.http.PATCH("messages/patient/read")
-    suspend fun markMessagesRead(@Body body: Map<String, String>)
+    suspend fun markMessagesRead(@Header("Idempotency-Key") idempotencyKey: String, @Body body: Map<String, String>)
 
     @GET("portal/training/sessions")
     suspend fun trainingSessions(): TrainingEnvelope
