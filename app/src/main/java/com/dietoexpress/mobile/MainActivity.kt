@@ -700,7 +700,7 @@ private fun AppointmentsContent(
                             }
                         }
                     }
-                } else {
+                } ?: run {
                     Text("Toca una hora para elegir la modalidad de la consulta.", color = Muted, style = MaterialTheme.typography.bodySmall)
                 }
             }
