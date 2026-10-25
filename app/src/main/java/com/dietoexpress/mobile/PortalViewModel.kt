@@ -17,14 +17,15 @@ import com.dietoexpress.mobile.data.SendPatientMessageRequest
 import com.dietoexpress.mobile.data.PatientProfile
 import com.dietoexpress.mobile.data.PortalService
 import com.dietoexpress.mobile.data.OfflineRepository
+import com.dietoexpress.mobile.data.SessionOperationLock
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
-import java.util.UUID
 
 data class PortalUiState(
     val emailOrPhone: String = "",
@@ -84,19 +85,23 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             return
         }
         runRequest {
-            PortalService.api.authenticate(
-                PatientAuthRequest(emailOrPhone = current.emailOrPhone.trim(), passcode = current.passcode)
-            )
-            val profile = PortalService.api.profile()
-            offline.cacheValue(profile.clientId, "profile", profile)
-            offline.setActiveAccountId(profile.clientId)
-            offline.scheduleSync(profile.clientId)
-            _state.value = _state.value.copy(
-                profile = profile, passcode = "", diet = null, dietLoaded = false,
-                appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
-                messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
-                section = "home", message = null, error = false
-            )
+            // Serializa el cambio de sesión con cualquier envío offline en curso: una cookie recién
+            // autenticada nunca puede utilizarse accidentalmente para una operación de otra cuenta.
+            SessionOperationLock.withLock {
+                PortalService.api.authenticate(
+                    PatientAuthRequest(emailOrPhone = current.emailOrPhone.trim(), passcode = current.passcode)
+                )
+                val profile = PortalService.api.profile()
+                offline.cacheValue(profile.clientId, "profile", profile)
+                offline.setActiveAccountId(profile.clientId)
+                offline.scheduleSync(profile.clientId)
+                _state.value = _state.value.copy(
+                    profile = profile, passcode = "", diet = null, dietLoaded = false,
+                    appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
+                    messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
+                    section = "home", message = null, error = false
+                )
+            }
         }
     }
 
@@ -202,7 +207,33 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val type = TypeToken.getParameterized(List::class.java, PatientMessage::class.java).type
             val result = offline.readThrough(accountId, "messages", type) { PortalService.api.messages() }
-            try { PortalService.api.markMessagesRead(UUID.randomUUID().toString(), emptyMap()) } catch (_: IOException) { /* Cached reads remain available; do not mark future unseen messages as read. */ }
+            if (!result.fromCache) {
+                // La operación de lectura se persiste antes del envío. Si se pierde la respuesta,
+                // WorkManager reintenta con el mismo ID en lugar de generar una clave nueva.
+                val operationId = offline.enqueueMarkMessagesRead(accountId)
+                try {
+                    val sent = SessionOperationLock.withLock {
+                        if (!offline.activeAccountMatches(accountId)) false
+                        else {
+                            PortalService.api.markMessagesRead(operationId, emptyMap())
+                            true
+                        }
+                    }
+                    if (sent) offline.completeOperation(operationId)
+                    else offline.needsAuthentication(operationId)
+                } catch (_: IOException) {
+                    // La operación queda en Room y WorkManager la reintentará con la misma clave.
+                } catch (ex: HttpException) {
+                    when {
+                        ex.code() == 401 || ex.code() == 403 ->
+                            offline.needsAuthentication(operationId)
+                        ex.code() >= 500 || ex.code() == 429 ->
+                            offline.retryOperation(operationId, "El servidor rechazó temporalmente la lectura.")
+                        else ->
+                            offline.failOperation(operationId, "No se pudo marcar la conversación como leída (HTTP ${ex.code()}).")
+                    }
+                }
+            }
             val draft = offline.messageDraft(accountId)
             val queued = offline.allOperations(accountId).filter {
                 it.operationType == OfflineRepository.OP_SEND_PATIENT_MESSAGE
@@ -235,7 +266,23 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val operationId = offline.enqueueSendPatientMessage(accountId, body)
             val request = SendPatientMessageRequest(body)
             try {
-                PortalService.api.sendMessage(operationId, request)
+                val sent = SessionOperationLock.withLock {
+                    if (!offline.activeAccountMatches(accountId)) false
+                    else {
+                        PortalService.api.sendMessage(operationId, request)
+                        true
+                    }
+                }
+                if (!sent) {
+                    offline.needsAuthentication(operationId)
+                    offline.saveMessageDraft(accountId, "")
+                    _state.value = _state.value.copy(
+                        messageDraft = "",
+                        message = "El mensaje está guardado en el dispositivo, pero necesita una sesión válida para enviarse.",
+                        error = false
+                    )
+                    return@runRequest
+                }
                 offline.completeOperation(operationId)
                 offline.saveMessageDraft(accountId, "")
                 _state.value = _state.value.copy(messageDraft = "", message = "Mensaje enviado.", error = false)
@@ -323,15 +370,17 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun logout() = runRequest {
         val accountId = _state.value.profile?.clientId
-        try {
-            PortalService.api.logout()
-        } finally {
-            PortalService.clearSessionCookies()
-            if (accountId != null) {
-                offline.clearActiveAccountId(accountId)
-                offline.clearAccountCache(accountId)
+        SessionOperationLock.withLock {
+            try {
+                PortalService.api.logout()
+            } finally {
+                PortalService.clearSessionCookies()
+                if (accountId != null) {
+                    offline.clearActiveAccountId(accountId)
+                    offline.clearAccountCache(accountId)
+                }
+                _state.value = PortalUiState(message = "Sesión cerrada.", error = false)
             }
-            _state.value = PortalUiState(message = "Sesión cerrada.", error = false)
         }
     }
 
@@ -341,6 +390,10 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 block()
+            } catch (ex: CancellationException) {
+                // No convertir la cancelación del ViewModel en un error normal: la cola persistida
+                // debe quedar pendiente para que WorkManager pueda retomarla de forma segura.
+                throw ex
             } catch (ex: HttpException) {
                 val message = when (ex.code()) {
                     400 -> "Revisa los datos introducidos."
