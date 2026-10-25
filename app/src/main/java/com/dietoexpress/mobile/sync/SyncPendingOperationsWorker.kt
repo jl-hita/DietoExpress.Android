@@ -20,6 +20,14 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
         PortalService.initialize(applicationContext)
         val repository = OfflineRepository(applicationContext)
         val operations = repository.pendingOperations(accountId)
+        if (operations.isEmpty()) {
+            val now = System.currentTimeMillis()
+            val nextDue = repository.allOperations(accountId)
+                .filter { it.status == PendingOperationEntity.STATUS_PENDING || it.status == PendingOperationEntity.STATUS_NEEDS_AUTH }
+                .minOfOrNull { it.nextAttemptAtEpochMs }
+            if (nextDue != null && nextDue > now) repository.scheduleSync(accountId, nextDue - now)
+            return Result.success()
+        }
 
         var initialSessionMismatch = false
         SessionOperationLock.withLock {
@@ -82,7 +90,8 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
                             continue
                         }
                         repository.retryOperation(operation.id, "El servidor rechazó temporalmente la sincronización (HTTP ${ex.code()}).")
-                        return Result.retry()
+                        repository.scheduleSync(accountId, repository.delayUntilNextAttempt(operation.id))
+                        return Result.success()
                     }
                     else -> repository.failOperation(operation.id, "El servidor rechazó la operación (HTTP ${ex.code()}).")
                 }
@@ -92,7 +101,8 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
                     continue
                 }
                 repository.retryOperation(operation.id, "Sin conexión; se volverá a intentar.")
-                return Result.retry()
+                repository.scheduleSync(accountId, repository.delayUntilNextAttempt(operation.id))
+                return Result.success()
             } catch (_: Exception) {
                 repository.failOperation(operation.id, "No se ha podido sincronizar esta operación.")
             }
