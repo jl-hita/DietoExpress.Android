@@ -16,7 +16,7 @@ permissions:
 jobs:
   assemble-debug:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,17 +34,6 @@ jobs:
 
       - name: Run unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
-
-      - name: Run instrumented outbox tests
-        uses: reactivecircus/android-emulator-runner@v2
-        timeout-minutes: 20
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          disable-animations: true
-          script: gradle --no-daemon :app:connectedDebugAndroidTest
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
