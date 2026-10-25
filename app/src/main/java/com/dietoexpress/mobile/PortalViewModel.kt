@@ -3,6 +3,7 @@ package com.dietoexpress.mobile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dietoexpress.mobile.data.AccessLinkRequest
+import com.dietoexpress.mobile.data.DietDetail
 import com.dietoexpress.mobile.data.PatientAuthRequest
 import com.dietoexpress.mobile.data.PatientProfile
 import com.dietoexpress.mobile.data.PortalService
@@ -18,6 +19,9 @@ data class PortalUiState(
     val passcode: String = "",
     val linkEmail: String = "",
     val profile: PatientProfile? = null,
+    val diet: DietDetail? = null,
+    val dietLoaded: Boolean = false,
+    val section: String = "profile",
     val busy: Boolean = false,
     val message: String? = null,
     val error: Boolean = false
@@ -42,7 +46,10 @@ class PortalViewModel : ViewModel() {
                 PatientAuthRequest(emailOrPhone = current.emailOrPhone.trim(), passcode = current.passcode)
             )
             val profile = PortalService.api.profile()
-            _state.value = _state.value.copy(profile = profile, passcode = "", message = "Sesión iniciada.", error = false)
+            _state.value = _state.value.copy(
+                profile = profile, passcode = "", diet = null, dietLoaded = false,
+                section = "profile", message = "Sesión iniciada.", error = false
+            )
         }
     }
 
@@ -62,12 +69,40 @@ class PortalViewModel : ViewModel() {
         _state.value = _state.value.copy(profile = PortalService.api.profile(), message = null)
     }
 
+    fun showProfile() {
+        _state.value = _state.value.copy(section = "profile", message = null, error = false)
+    }
+
+    fun loadDiet() {
+        if (_state.value.busy) return
+        runRequest {
+            _state.value = _state.value.copy(section = "diet")
+            try {
+                val diet = PortalService.api.activeDiet()
+                _state.value = _state.value.copy(diet = diet, dietLoaded = true, message = null, error = false)
+            } catch (ex: HttpException) {
+                if (ex.code() == 404) {
+                    _state.value = _state.value.copy(
+                        diet = null, dietLoaded = true,
+                        message = "Tu nutricionista todavía no te ha asignado una dieta activa.",
+                        error = false
+                    )
+                } else {
+                    throw ex
+                }
+            }
+        }
+    }
+
     fun logout() = runRequest {
         try {
             PortalService.api.logout()
         } finally {
             PortalService.clearSessionCookies()
-            _state.value = _state.value.copy(profile = null, passcode = "", message = "Sesión cerrada.", error = false)
+            _state.value = _state.value.copy(
+                profile = null, diet = null, dietLoaded = false, section = "profile",
+                passcode = "", message = "Sesión cerrada.", error = false
+            )
         }
     }
 
@@ -89,7 +124,7 @@ class PortalViewModel : ViewModel() {
                 _state.value = _state.value.copy(message = message, error = true)
                 if (ex.code() == 401) {
                     PortalService.clearSessionCookies()
-                    _state.value = _state.value.copy(profile = null)
+                    _state.value = _state.value.copy(profile = null, diet = null, dietLoaded = false, section = "profile")
                 }
             } catch (_: IOException) {
                 _state.value = _state.value.copy(message = "No se ha podido conectar. Comprueba tu conexión.", error = true)
