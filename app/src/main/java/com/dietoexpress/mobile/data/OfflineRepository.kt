@@ -130,7 +130,7 @@ class OfflineRepository(context: Context) {
         return id
     }
 
-    suspend fun pendingOperations(accountId: Int) = dao.pendingOperations(accountId)
+    suspend fun pendingOperations(accountId: Int) = dao.pendingOperations(accountId, System.currentTimeMillis())
     suspend fun allOperations(accountId: Int): List<PendingOperationEntity> = dao.allOperations(accountId)
     suspend fun activeAccountMatches(accountId: Int): Boolean = activeAccountId() == accountId
     suspend fun completeOperation(id: String) = dao.completeOperation(id)
@@ -141,6 +141,11 @@ class OfflineRepository(context: Context) {
         val attempts = (operation?.attemptCount ?: 0) + 1
         val delayMs = min(30_000L * (1L shl attempts.coerceAtMost(10)), MAX_RETRY_DELAY_MS)
         dao.scheduleRetry(id, System.currentTimeMillis() + delayMs, reason)
+    }
+
+    suspend fun delayUntilNextAttempt(id: String): Long {
+        val dueAt = dao.getOperation(id)?.nextAttemptAtEpochMs ?: return 0
+        return (dueAt - System.currentTimeMillis()).coerceAtLeast(0)
     }
     suspend fun failOperation(id: String, reason: String) =
         dao.updateOperationStatus(id, PendingOperationEntity.STATUS_FAILED, reason)
@@ -165,10 +170,11 @@ class OfflineRepository(context: Context) {
         if (prefs.getInt(ACTIVE_ACCOUNT_KEY, -1) == accountId) prefs.edit().remove(ACTIVE_ACCOUNT_KEY).apply()
     }
 
-    fun scheduleSync(accountId: Int) {
+    fun scheduleSync(accountId: Int, delayMs: Long = 0) {
         val request = OneTimeWorkRequestBuilder<SyncPendingOperationsWorker>()
             .setInputData(workDataOf(SyncPendingOperationsWorker.KEY_ACCOUNT_ID to accountId))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setInitialDelay(delayMs.coerceAtLeast(0), TimeUnit.MILLISECONDS)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build()
         WorkManager.getInstance(appContext).enqueueUniqueWork("dietoexpress-offline-sync-$accountId", ExistingWorkPolicy.APPEND_OR_REPLACE, request)
     }
