@@ -190,7 +190,9 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val result = offline.readThrough(accountId, "appointments", type) { PortalService.api.appointments() }
             var slots = emptyList<AppointmentSlot>()
             var slotsError: String? = null
-            if (!_state.value.profile?.nutritionistName.isNullOrBlank()) {
+            val hasAssignedNutritionist = _state.value.nutritionistRelationship?.hasAssignedNutritionist
+                ?: !_state.value.profile?.nutritionistName.isNullOrBlank()
+            if (hasAssignedNutritionist) {
                 try {
                     slots = PortalService.api.appointmentSlots(30)
                 } catch (ex: Exception) {
