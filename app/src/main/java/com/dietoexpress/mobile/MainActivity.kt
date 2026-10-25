@@ -638,7 +638,21 @@ private fun AppointmentsContent(
     val daySlots = activeDate?.let { slotsByDate[it] }.orEmpty()
     val selectedSlot = daySlots.firstOrNull { it.startsAt == selectedSlotStart }
 
+    val hasFutureAppointment = appointments.any { appointment ->
+        appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)
+    } && appointments.any { appointment ->
+        appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)
+    }.let {
+        appointments.any { appointment ->
+            (appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)) &&
+                runCatching { java.time.Instant.parse(appointment.startsAt).isAfter(java.time.Instant.now()) }.getOrDefault(false)
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (hasFutureAppointment) {
+            MyAppointmentsSection(appointments, loaded, busy, onRetry, upcomingFirst = true)
+        }
         if (!hasAssignedNutritionist) {
             EmptyCard("Sin nutricionista asignado", "Busca un profesional en el directorio para solicitar una primera consulta.", "Buscar nutricionista", onBookAppointment)
         } else {
@@ -748,12 +762,30 @@ private fun AppointmentsContent(
             }
             OutlinedButton(onClick = onRetry, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Actualizar disponibilidad") }
         }
-        Text("Mis citas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-        when {
-            busy && !loaded -> LoadingCard("Cargando tus citas")
-            !loaded -> EmptyCard("Tu agenda", "Consulta aquí tus citas y su estado.", "Cargar citas", onRetry)
-            appointments.isEmpty() -> EmptyCard("Todavía no tienes citas", "Cuando tengas una cita con tu profesional, aparecerá aquí.")
-            else -> appointments.sortedByDescending { it.startsAt }.forEach { appointment ->
+        if (!hasFutureAppointment) {
+            MyAppointmentsSection(appointments, loaded, busy, onRetry, upcomingFirst = false)
+        }
+    }
+}
+
+@Composable
+private fun MyAppointmentsSection(
+    appointments: List<PatientAppointment>,
+    loaded: Boolean,
+    busy: Boolean,
+    onRetry: () -> Unit,
+    upcomingFirst: Boolean
+) {
+    Text("Mis citas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+    when {
+        busy && !loaded -> LoadingCard("Cargando tus citas")
+        !loaded -> EmptyCard("Tu agenda", "Consulta aquí tus citas y su estado.", "Cargar citas", onRetry)
+        appointments.isEmpty() -> EmptyCard("Todavía no tienes citas", "Cuando tengas una cita con tu profesional, aparecerá aquí.")
+        else -> appointments
+            .let { list ->
+                if (upcomingFirst) list.sortedBy { it.startsAt } else list.sortedByDescending { it.startsAt }
+            }
+            .forEach { appointment ->
                 Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
@@ -771,7 +803,6 @@ private fun AppointmentsContent(
                     }
                 }
             }
-        }
     }
 }
 
