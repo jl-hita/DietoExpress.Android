@@ -10,8 +10,8 @@
         <item name="android:windowBackground">#F5F8F6</item>
     </style>
     <style name="Theme.DietoExpress.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#F5F8F6</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_dietoexpress_mark</item>
+        <item name="windowSplashScreenBackground">#31AE45</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_dietoexpress_splash</item>
         <item name="postSplashScreenTheme">@style/Theme.DietoExpress</item>
     </style>
 </resources>
