@@ -4,9 +4,11 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="DietoExpress"
+        android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:theme="@style/Theme.DietoExpress.Starting"
         android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
