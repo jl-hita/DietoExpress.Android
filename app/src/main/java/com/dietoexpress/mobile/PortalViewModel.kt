@@ -210,22 +210,15 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         runRequest {
             val response = PortalService.api.requestNutritionistChange(NutritionistChangeRequest(type))
             val current = _state.value
-            val relationship = if (type == "leave_and_find_new") {
-                current.nutritionistRelationship?.copy(
-                    hasAssignedNutritionist = false,
-                    nutritionistId = null,
-                    nutritionistName = null,
-                    hasPendingClinicReassignment = false
-                )
-            } else {
+            // Buscar otro profesional no equivale a confirmar el cambio. No borrar la
+            // relación ni la disponibilidad: se mantienen hasta la reserva y confirmación final.
+            val relationship = if (type == "clinic_reassignment") {
                 current.nutritionistRelationship?.copy(hasPendingClinicReassignment = true)
+            } else {
+                current.nutritionistRelationship
             }
-            val profile = if (type == "leave_and_find_new") current.profile?.copy(nutritionistName = null) else current.profile
             _state.value = current.copy(
-                profile = profile,
                 nutritionistRelationship = relationship,
-                appointmentSlots = if (type == "leave_and_find_new") emptyList() else current.appointmentSlots,
-                appointmentsLoaded = if (type == "leave_and_find_new") false else current.appointmentsLoaded,
                 message = response.message ?: "Solicitud procesada.",
                 error = false
             )
