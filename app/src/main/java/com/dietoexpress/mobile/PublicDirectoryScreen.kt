@@ -231,8 +231,8 @@ fun PublicDirectoryScreen(
         OutlinedButton(onClick = { if (selected != null) { selected = null; selectedSlot = null; slots = emptyList(); error = null; notice = null } else onBack() }) {
             Text(if (selected != null) "← Resultados" else "← Volver")
         }
-        Text("Nutricionistas", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = ForestDark)
-        Text("Encuentra un profesional y consulta sus próximos horarios disponibles.", color = Muted)
+        Text("Nutricionistas", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = DirectoryForestDark)
+        Text("Encuentra un profesional y consulta sus próximos horarios disponibles.", color = DirectoryMuted)
         if (selected == null) {
             OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Ciudad o localidad") }, singleLine = true)
             OutlinedTextField(value = province, onValueChange = { province = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Provincia (opcional)") }, singleLine = true)
@@ -252,7 +252,7 @@ fun PublicDirectoryScreen(
                 Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.padding(18.dp)) {
                         Text("No hay resultados", fontWeight = FontWeight.Bold)
-                        Text("Prueba otra localidad o ajusta los filtros de provincia, especialidad y modalidad.", color = Muted)
+                        Text("Prueba otra localidad o ajusta los filtros de provincia, especialidad y modalidad.", color = DirectoryMuted)
                     }
                 }
             }
@@ -265,27 +265,27 @@ fun PublicDirectoryScreen(
                 ) {
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(profile.name, fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.weight(1f))
-                            if (profile.verified) Text("Verificado", color = Forest, fontSize = 11.sp)
+                            Text(profile.name, fontWeight = FontWeight.Bold, color = DirectoryInk, modifier = Modifier.weight(1f))
+                            if (profile.verified) Text("Verificado", color = DirectoryForest, fontSize = 11.sp)
                         }
                         val location = listOf(profile.city, profile.province).filter { it.isNotBlank() }.distinct().joinToString(", ")
-                        if (location.isNotBlank()) Text(location, color = Muted, style = MaterialTheme.typography.bodySmall)
-                        if (profile.clinic.isNotBlank()) Text(profile.clinic, color = Muted, style = MaterialTheme.typography.bodySmall)
-                        if (profile.specialties.isNotBlank()) Text(profile.specialties, color = ForestDark, style = MaterialTheme.typography.bodyMedium)
-                        if (profile.bio.isNotBlank()) Text(profile.bio.take(220), color = Muted, style = MaterialTheme.typography.bodySmall)
-                        Text(if (profile.canBook) "Consultar horarios →" else "Reservas no disponibles", color = if (profile.canBook) Forest else Muted, fontWeight = FontWeight.SemiBold)
+                        if (location.isNotBlank()) Text(location, color = DirectoryMuted, style = MaterialTheme.typography.bodySmall)
+                        if (profile.clinic.isNotBlank()) Text(profile.clinic, color = DirectoryMuted, style = MaterialTheme.typography.bodySmall)
+                        if (profile.specialties.isNotBlank()) Text(profile.specialties, color = DirectoryForestDark, style = MaterialTheme.typography.bodyMedium)
+                        if (profile.bio.isNotBlank()) Text(profile.bio.take(220), color = DirectoryMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(if (profile.canBook) "Consultar horarios →" else "Reservas no disponibles", color = if (profile.canBook) DirectoryForest else DirectoryMuted, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         } else {
             val profile = selected!!
             Text(profile.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(listOf(profile.city, profile.province).filter { it.isNotBlank() }.distinct().joinToString(", "), color = Muted)
+            Text(listOf(profile.city, profile.province).filter { it.isNotBlank() }.distinct().joinToString(", "), color = DirectoryMuted)
             if (slotsLoading) CircularProgressIndicator()
             if (!slotsLoading && slots.isNotEmpty()) {
                 Text("Elige fecha y hora", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 slots.groupBy { it.dayKey() }.toSortedMap().forEach { (day, daySlots) ->
-                    Text(runCatching { DateTimeFormatter.ofPattern("EEEE d MMMM", Locale("es", "ES")).format(java.time.LocalDate.parse(day)) }.getOrDefault(day).replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.SemiBold, color = Ink)
+                    Text(runCatching { DateTimeFormatter.ofPattern("EEEE d MMMM", Locale("es", "ES")).format(java.time.LocalDate.parse(day)) }.getOrDefault(day).replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.SemiBold, color = DirectoryInk)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         daySlots.forEach { slot ->
                             val chosen = selectedSlot == slot
@@ -309,7 +309,7 @@ fun PublicDirectoryScreen(
                 }
             }
             if (!slotsLoading && slots.isEmpty() && error == null && notice == null) {
-                Text("No hay horarios disponibles. Vuelve a consultar más tarde o elige otro profesional.", color = Muted)
+                Text("No hay horarios disponibles. Vuelve a consultar más tarde o elige otro profesional.", color = DirectoryMuted)
             }
         }
         error?.let { DirectoryMessage(it, true) }
@@ -321,6 +321,6 @@ fun PublicDirectoryScreen(
 @Composable
 private fun DirectoryMessage(message: String, isError: Boolean) {
     Card(colors = CardDefaults.cardColors(containerColor = if (isError) Color(0xFFFFF0EE) else Color(0xFFE7F2EC))) {
-        Text(message, modifier = Modifier.padding(14.dp), color = if (isError) Color(0xFF9B2C23) else ForestDark)
+        Text(message, modifier = Modifier.padding(14.dp), color = if (isError) Color(0xFF9B2C23) else DirectoryForestDark)
     }
 }
