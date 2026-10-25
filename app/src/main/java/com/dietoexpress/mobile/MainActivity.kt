@@ -524,7 +524,7 @@ private fun AppointmentsContent(appointments: List<PatientAppointment>, loaded: 
                             Text(dateLabel(appointment.startsAt), fontWeight = FontWeight.Bold, color = Ink)
                             Text(timeLabel(appointment.startsAt), color = Forest, fontWeight = FontWeight.SemiBold)
                         }
-                        StatusPill(appointment.status)
+                        StatusPill(appointment.status, appointment.endsAt)
                     }
                     Text(appointment.nutritionistName?.takeIf { it.isNotBlank() } ?: "Tu profesional", color = Muted, style = MaterialTheme.typography.bodyMedium)
                     Text(if (appointment.modality.equals("online", true)) "Videoconsulta" else "Presencial", color = Muted, style = MaterialTheme.typography.bodySmall)
@@ -700,22 +700,28 @@ private fun EmptyCard(title: String, body: String, action: String? = null, onAct
 }
 
 @Composable
-private fun StatusPill(status: String) {
-    val label = when (status.lowercase()) {
+private fun StatusPill(status: String, endsAt: String?) {
+    // Una solicitud sin confirmar que ya quedó atrás caduca; no debe mostrarse eternamente como pendiente.
+    // No inferimos una ausencia a partir de la fecha: "No asistió" requiere que el profesional lo registre.
+    val expiredRequest = status.equals("requested", true) &&
+        endsAt?.let { runCatching { java.time.Instant.parse(it).isBefore(java.time.Instant.now()) }.getOrDefault(false) } == true
+    val displayStatus = if (expiredRequest) "expired" else status.lowercase()
+    val label = when (displayStatus) {
         "requested" -> "Pendiente"
+        "expired" -> "Caducada"
         "confirmed" -> "Confirmada"
         "cancelled" -> "Cancelada"
         "completed" -> "Completada"
         "no_show" -> "No asistida"
         else -> status.replaceFirstChar { it.uppercase() }
     }
-    val bg = when (status.lowercase()) {
+    val bg = when (displayStatus) {
         "confirmed", "completed" -> Sage
-        "requested" -> Color(0xFFFFF3D9)
+        "requested", "expired" -> Color(0xFFFFF3D9)
         "cancelled", "no_show" -> Color(0xFFF0F1F0)
         else -> Sage
     }
-    val fg = if (status.lowercase() == "requested") Amber else ForestDark
+    val fg = if (displayStatus == "requested" || displayStatus == "expired") Amber else ForestDark
     Surface(color = bg, shape = RoundedCornerShape(100.dp)) {
         Text(label, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = fg, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
     }
