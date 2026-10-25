@@ -4,14 +4,34 @@
     android:height="163dp"
     android:viewportWidth="163"
     android:viewportHeight="163">
-    <!-- Splash API aplica una máscara al icono. Deja margen de seguridad para que la marca no se recorte. -->
-    <group
-        android:scaleX="0.72"
-        android:scaleY="0.72"
-        android:pivotX="81.5"
-        android:pivotY="81.5">
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M38,36 L37,51 L86,52 L118,80 L104,91 L92,106 L85,109 L64,109 L56,113 L55,92 L64,91 L65,99 L86,80 L65,62 L64,71 L56,70 L56,62 L38,62 L38,124 L64,127 L91,126 L112,116 L121,106 L128,88 L127,68 L115,47 L99,37 L87,34 L42,34 Z" />
-    </group>
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="
+            M 38,36
+            L 37,51
+            L 86,52
+            L 118,80
+            L 85,109
+            L 56,109
+            L 56,92
+            L 64,91
+            L 65,98
+            L 86,80
+            L 65,62
+            L 64,71
+            L 56,70
+            L 56,62
+            L 38,62
+            L 38,123
+            C 46,126 55,127 64,127
+            C 74,128 83,127 91,126
+            C 106,123 119,112 125,98
+            C 130,86 130,73 125,62
+            C 120,49 110,40 99,37
+            C 91,34 82,34 73,34
+            L 42,34
+            C 40,34 39,35 38,36
+            Z" />
+
 </vector>
