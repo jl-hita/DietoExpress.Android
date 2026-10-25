@@ -61,3 +61,10 @@ Esto incluye, como mínimo:
 - Las escrituras de mensajes y el marcado de lectura se guardan cifrados en Room antes del envío; la misma clave persistida se reutiliza tras timeout o pérdida de respuesta.
 - La cancelación de coroutines se propaga sin convertir operaciones pendientes en fallos definitivos. La operación sigue en Room para que WorkManager pueda reintentarla.
 - La prueba unitaria de SessionOperationLock verifica la exclusión mutua; siguen pendientes pruebas instrumentadas de reinicio, cambio de cuenta y pérdida de respuesta contra el backend desplegado.
+
+
+## Auditoría offline-first (octubre de 2026)
+
+La clasificación de rutas, permisos, sensibilidad, retención y viabilidad offline está en [`OFFLINE_ENDPOINT_AUDIT.md`](OFFLINE_ENDPOINT_AUDIT.md). La regla central es no encolar escrituras cuyo contrato no permita reintentos seguros: mensajes del paciente reutilizan un UUID persistido como `Idempotency-Key`; las reservas públicas, cancelaciones, check-ins y aceptaciones documentales siguen siendo solo online.
+
+La caché cifrada aplica TTL por familia, conserva snapshots vencidos durante un máximo de 30 días para consulta offline claramente señalada, y se invalida en logout o cuando una respuesta online confirma que ya no existe la dieta. Los 401/403 no se ocultan con caché: se limpia el estado de sesión local y se exige autenticación. Las operaciones con HTTP 409 quedan en estado persistente `CONFLICT`, fuera de la cola de reintentos automáticos.

@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.dietoexpress.mobile.data.LocalPayloadCipher
 import com.dietoexpress.mobile.data.OfflineRepository
+import com.dietoexpress.mobile.data.PendingOperationEntity
 import com.dietoexpress.mobile.data.PortalService
 import com.dietoexpress.mobile.data.SendPatientMessageRequest
 import com.dietoexpress.mobile.data.SessionOperationLock
@@ -20,10 +21,15 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
         PortalService.initialize(applicationContext)
         val repository = OfflineRepository(applicationContext)
         val operations = repository.pendingOperations(accountId)
+        if (operations.isEmpty()) {
+            val now = System.currentTimeMillis()
+            val nextDue = repository.allOperations(accountId)
+                .filter { it.status == PendingOperationEntity.STATUS_PENDING || it.status == PendingOperationEntity.STATUS_NEEDS_AUTH }
+                .minOfOrNull { it.nextAttemptAtEpochMs }
+            if (nextDue != null && nextDue > now) repository.scheduleSync(accountId, nextDue - now)
+            return Result.success()
+        }
 
-        // PortalService tiene una cookie compartida por instalación. La comprobación inicial
-        // también debe coordinarse con login/logout: si se hace fuera del lock, puede marcar
-        // operaciones como NEEDS_AUTH justo cuando la sesión correcta está terminando de activarse.
         var initialSessionMismatch = false
         SessionOperationLock.withLock {
             if (!repository.activeAccountMatches(accountId)) {
@@ -34,30 +40,27 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
         if (initialSessionMismatch) return Result.success()
 
         for (operation in operations) {
+            if (operation.attemptCount >= MAX_ATTEMPTS) {
+                repository.failOperation(operation.id, "Se ha alcanzado el máximo de reintentos. Revisa la operación antes de volver a enviarla.")
+                continue
+            }
             try {
                 var sessionMismatch = false
                 var unknownOperation = false
                 SessionOperationLock.withLock {
-                    // Revalidar dentro del mismo bloqueo que protege el inicio/cierre de sesión.
-                    // Así, una operación de A nunca utiliza la cookie recién recibida para B.
                     if (!repository.activeAccountMatches(accountId)) {
-                        // La sesión pudo cambiar después de la comprobación inicial. Como seguimos
-                        // bajo el lock, aparcamos todas las operaciones de esta cuenta de forma
-                        // coherente antes de permitir que login/logout cambie de sesión.
                         operations.forEach { repository.needsAuthentication(it.id) }
                         sessionMismatch = true
                     } else {
                         when (operation.operationType) {
-                            OfflineRepository.OP_MARK_MESSAGES_READ -> {
-                                PortalService.api.markMessagesRead(operation.id, emptyMap())
-                            }
+                            OfflineRepository.OP_MARK_MESSAGES_READ ->
+                                PortalService.api.markMessagesRead(operation.idempotencyKey, emptyMap())
                             OfflineRepository.OP_SEND_PATIENT_MESSAGE -> {
                                 val json = LocalPayloadCipher.decrypt(operation.encryptedPayload)
                                 val request = Gson().fromJson(json, SendPatientMessageRequest::class.java)
                                     ?: throw IllegalArgumentException("El mensaje pendiente no contiene un cuerpo válido.")
-                                // operation.id se creó y persistió antes del primer envío; se reutiliza incluso
-                                // tras timeout, muerte del proceso o reintento de WorkManager.
-                                PortalService.api.sendMessage(operation.id, request)
+                                // The key and encrypted body were committed before the first request.
+                                PortalService.api.sendMessage(operation.idempotencyKey, request)
                             }
                             else -> {
                                 repository.failOperation(operation.id, "Tipo de operación offline no reconocido.")
@@ -70,8 +73,7 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
                 if (unknownOperation) continue
                 repository.completeOperation(operation.id)
             } catch (ex: CancellationException) {
-                // WorkManager puede cancelar el worker al sustituir o detener trabajo. No marcar
-                // como fallida una operación cuyo envío puede haber llegado al servidor.
+                // A cancelled worker may have reached the server. Keep the durable operation and key.
                 throw ex
             } catch (ex: HttpException) {
                 when {
@@ -79,15 +81,29 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
                         repository.needsAuthentication(operation.id)
                         return Result.success()
                     }
+                    ex.code() == 409 -> {
+                        val details = runCatching { ex.response()?.errorBody()?.string() }.getOrNull()
+                        repository.conflictOperation(operation.id, "El servidor detectó un conflicto. No se repetirá automáticamente.", details)
+                    }
                     ex.code() >= 500 || ex.code() == 429 -> {
-                        repository.retryOperation(operation.id, "El servidor rechazó temporalmente la sincronización.")
-                        return Result.retry()
+                        if (operation.attemptCount + 1 >= MAX_ATTEMPTS) {
+                            repository.failOperation(operation.id, "Se ha alcanzado el máximo de reintentos tras un error temporal.")
+                            continue
+                        }
+                        repository.retryOperation(operation.id, "El servidor rechazó temporalmente la sincronización (HTTP ${ex.code()}).")
+                        repository.scheduleSync(accountId, repository.delayUntilNextAttempt(operation.id))
+                        return Result.success()
                     }
                     else -> repository.failOperation(operation.id, "El servidor rechazó la operación (HTTP ${ex.code()}).")
                 }
             } catch (_: IOException) {
+                if (operation.attemptCount + 1 >= MAX_ATTEMPTS) {
+                    repository.failOperation(operation.id, "Se ha alcanzado el máximo de reintentos sin conexión.")
+                    continue
+                }
                 repository.retryOperation(operation.id, "Sin conexión; se volverá a intentar.")
-                return Result.retry()
+                repository.scheduleSync(accountId, repository.delayUntilNextAttempt(operation.id))
+                return Result.success()
             } catch (_: Exception) {
                 repository.failOperation(operation.id, "No se ha podido sincronizar esta operación.")
             }
@@ -95,5 +111,8 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
         return Result.success()
     }
 
-    companion object { const val KEY_ACCOUNT_ID = "account_id" }
+    companion object {
+        const val KEY_ACCOUNT_ID = "account_id"
+        private const val MAX_ATTEMPTS = 10
+    }
 }
