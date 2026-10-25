@@ -204,8 +204,19 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val result = offline.readThrough(accountId, "messages", type) { PortalService.api.messages() }
             try { PortalService.api.markMessagesRead(UUID.randomUUID().toString(), emptyMap()) } catch (_: IOException) { /* Cached reads remain available; do not mark future unseen messages as read. */ }
             val draft = offline.messageDraft(accountId)
+            val queued = offline.allOperations(accountId).filter {
+                it.operationType == OfflineRepository.OP_SEND_PATIENT_MESSAGE
+            }
+            val pendingCount = queued.count { it.status == "PENDING" || it.status == "NEEDS_AUTH" }
+            val failedCount = queued.count { it.status == "FAILED" }
+            val syncMessage = when {
+                failedCount > 0 -> "Hay $failedCount mensaje(s) que no se pudieron enviar. Comprueba el contenido y vuelve a intentarlo."
+                pendingCount > 0 -> "Tienes $pendingCount mensaje(s) guardados y pendientes de confirmación."
+                result.fromCache -> "Sin conexión: se muestran los últimos mensajes guardados."
+                else -> null
+            }
             _state.value = _state.value.copy(messages = result.value, messagesLoaded = true, messageDraft = draft, section = "messages",
-                message = if (result.fromCache) "Sin conexión: se muestran los últimos mensajes guardados. El envío requiere conexión." else null, error = false)
+                message = syncMessage, error = failedCount > 0)
         }
     }
 
