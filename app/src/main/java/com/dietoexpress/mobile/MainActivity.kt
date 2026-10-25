@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -96,6 +97,9 @@ class MainActivity : ComponentActivity() {
                     val vm: PortalViewModel = viewModel()
                     val state by vm.state.collectAsStateWithLifecycle()
                     var publicRoute by remember { mutableStateOf("portal") }
+                    LaunchedEffect(publicRoute, state.profile?.clientId) {
+                        if (publicRoute == "portal" && state.profile != null) vm.loadNutritionistTransfer()
+                    }
                     if (publicRoute != "portal") {
                         PublicDirectoryScreen(
                             initialBooking = publicRoute == "booking",
