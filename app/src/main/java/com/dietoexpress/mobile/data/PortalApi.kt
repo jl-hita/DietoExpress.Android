@@ -1,6 +1,7 @@
 package com.dietoexpress.mobile.data
 
 import com.dietoexpress.mobile.BuildConfig
+import com.google.gson.annotations.SerializedName
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -10,6 +11,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
 
 data class PatientAuthRequest(
     val token: String? = null,
@@ -80,6 +82,48 @@ data class DietMealItem(
     val exchangeCount: Double? = null
 )
 
+data class PatientAppointment(
+    val id: Int,
+    val startsAt: String,
+    val endsAt: String,
+    val status: String,
+    val nutritionistName: String? = null,
+    val modality: String? = null,
+    val videoRoomUrl: String? = null
+)
+
+data class PatientDocument(
+    val id: Long,
+    val name: String,
+    val documentType: String? = null,
+    val status: String,
+    val requiresSignature: Boolean = false,
+    val signedAt: String? = null,
+    val createdAt: String? = null,
+    val originalFileName: String? = null
+)
+
+data class CheckinEligibility(
+    val eligible: Boolean,
+    val message: String? = null
+)
+
+data class PatientCheckin(
+    val id: Long? = null,
+    @SerializedName("week_start") val weekStart: String? = null,
+    @SerializedName("submitted_at") val submittedAt: String? = null,
+    val weight: Double? = null,
+    val adherence: Int? = null,
+    val hunger: Int? = null,
+    val energy: Int? = null,
+    @SerializedName("sleep_quality") val sleepQuality: Int? = null,
+    @SerializedName("sleep_hours") val sleepHours: Double? = null,
+    val training: Int? = null,
+    val difficulties: String? = null,
+    val barriers: List<String>? = null,
+    val notes: String? = null
+)
+
 interface PortalApi {
     @POST("portal/auth")
     suspend fun authenticate(@Body request: PatientAuthRequest): PatientAuthResponse
@@ -92,6 +136,24 @@ interface PortalApi {
 
     @GET("portal/diet")
     suspend fun activeDiet(): DietDetail
+
+    @GET("appointments/mine")
+    suspend fun appointments(): List<PatientAppointment>
+
+    @GET("portal/documents")
+    suspend fun documents(): List<PatientDocument>
+
+    @GET("portal/check-ins/eligibility")
+    suspend fun checkinEligibility(): CheckinEligibility
+
+    @GET("portal/check-ins/current")
+    suspend fun currentCheckin(): PatientCheckin?
+
+    @GET("portal/check-ins")
+    suspend fun checkinHistory(): List<PatientCheckin>
+
+    @POST("portal/documents/{documentId}/accept")
+    suspend fun acceptDocument(@Path("documentId") documentId: Long)
 
     @POST("portal/logout")
     suspend fun logout()
