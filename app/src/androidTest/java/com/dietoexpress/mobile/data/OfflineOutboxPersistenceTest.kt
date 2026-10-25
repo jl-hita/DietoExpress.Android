@@ -44,7 +44,7 @@ class OfflineOutboxPersistenceTest {
         // de la misma RoomDatabase en memoria.
         database = Room.databaseBuilder(context, OfflineDatabase::class.java, databaseName).build()
         try {
-            val restored = runBlocking { database.offlineDao().pendingOperations(accountId) }
+            val restored = runBlocking { database.offlineDao().pendingOperations(accountId, System.currentTimeMillis()) }
             assertEquals(1, restored.size)
             assertEquals(operationId, restored.single().id)
             assertEquals(
@@ -52,7 +52,7 @@ class OfflineOutboxPersistenceTest {
                 LocalPayloadCipher.decrypt(restored.single().encryptedPayload)
             )
             assertTrue(
-                runBlocking { database.offlineDao().pendingOperations(accountId + 1) }.isEmpty()
+                runBlocking { database.offlineDao().pendingOperations(accountId + 1, System.currentTimeMillis()) }.isEmpty()
             )
         } finally {
             database.close()

@@ -39,6 +39,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
@@ -90,7 +93,14 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = Canvas) {
                     val vm: PortalViewModel = viewModel()
                     val state by vm.state.collectAsStateWithLifecycle()
-                    if (state.profile == null) {
+                    var publicRoute by remember { mutableStateOf("portal") }
+                    if (publicRoute != "portal") {
+                        PublicDirectoryScreen(
+                            initialBooking = publicRoute == "booking",
+                            onBack = { publicRoute = "portal" },
+                            onOpenBooking = { publicRoute = "booking" }
+                        )
+                    } else if (state.profile == null) {
                         LoginScreen(
                             emailOrPhone = state.emailOrPhone,
                             passcode = state.passcode,
@@ -102,7 +112,8 @@ class MainActivity : ComponentActivity() {
                             onPasscodeChange = vm::updatePasscode,
                             onLinkEmailChange = vm::updateLinkEmail,
                             onLogin = vm::login,
-                            onRequestLink = vm::requestAccessLink
+                            onRequestLink = vm::requestAccessLink,
+                            onOpenDirectory = { publicRoute = "directory" }
                         )
                     } else {
                         Scaffold(
@@ -173,7 +184,8 @@ class MainActivity : ComponentActivity() {
                                         appointments = state.appointments,
                                         loaded = state.appointmentsLoaded,
                                         busy = state.busy,
-                                        onRetry = { vm.openSection("appointments") }
+                                        onRetry = { vm.openSection("appointments") },
+                                        onBookAppointment = { publicRoute = "directory" }
                                     )
                                     "documents" -> DocumentsContent(
                                         documents = state.documents,
@@ -222,7 +234,8 @@ class MainActivity : ComponentActivity() {
                                         onShopping = { vm.openSection("shopping") },
                                         onMessages = { vm.openSection("messages") },
                                         onTraining = { vm.openSection("training") },
-                                        onProfile = { vm.openSection("profile") }
+                                        onProfile = { vm.openSection("profile") },
+                                        onBookAppointment = { publicRoute = "directory" }
                                     )
                                 }
 
@@ -259,7 +272,8 @@ private fun LoginScreen(
     onPasscodeChange: (String) -> Unit,
     onLinkEmailChange: (String) -> Unit,
     onLogin: () -> Unit,
-    onRequestLink: () -> Unit
+    onRequestLink: () -> Unit,
+    onOpenDirectory: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -330,6 +344,9 @@ private fun LoginScreen(
                 TextButton(onClick = onRequestLink, enabled = !busy) {
                     Text("Solicitar enlace de acceso")
                 }
+                OutlinedButton(onClick = onOpenDirectory, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Text("Buscar nutricionista")
+                }
             }
         }
         Spacer(Modifier.height(18.dp))
@@ -351,7 +368,8 @@ private fun HomeContent(
     onShopping: () -> Unit,
     onMessages: () -> Unit,
     onTraining: () -> Unit,
-    onProfile: () -> Unit
+    onProfile: () -> Unit,
+    onBookAppointment: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Card(
@@ -386,7 +404,17 @@ private fun HomeContent(
                         Text("Tu equipo de cuidado", fontWeight = FontWeight.SemiBold, color = Ink)
                         clinic?.takeIf { it.isNotBlank() }?.let { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
                         nutritionist?.takeIf { it.isNotBlank() }?.let { Text("Profesional: $it", color = Muted, style = MaterialTheme.typography.bodySmall) }
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = onBookAppointment, shape = RoundedCornerShape(12.dp)) { Text("Buscar nutricionista y reservar") }
                     }
+                }
+            }
+        } else {
+            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Tu equipo de cuidado", fontWeight = FontWeight.SemiBold, color = Ink)
+                    Text("Encuentra un profesional y solicita tu primera cita.", color = Muted, style = MaterialTheme.typography.bodySmall)
+                    Button(onClick = onBookAppointment, shape = RoundedCornerShape(12.dp)) { Text("Buscar nutricionista y reservar") }
                 }
             }
         }
@@ -511,7 +539,9 @@ private fun MealBlock(meal: DietMeal) {
 }
 
 @Composable
-private fun AppointmentsContent(appointments: List<PatientAppointment>, loaded: Boolean, busy: Boolean, onRetry: () -> Unit) {
+private fun AppointmentsContent(appointments: List<PatientAppointment>, loaded: Boolean, busy: Boolean, onRetry: () -> Unit, onBookAppointment: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Button(onClick = onBookAppointment, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("＋ Buscar nutricionista y reservar cita") }
     when {
         busy && !loaded -> LoadingCard("Cargando tus citas")
         !loaded -> EmptyCard("Tu agenda", "Consulta aquí tus citas y su estado.", "Cargar citas", onRetry)
@@ -534,6 +564,7 @@ private fun AppointmentsContent(appointments: List<PatientAppointment>, loaded: 
                 }
             }
         }
+    }
     }
 }
 
