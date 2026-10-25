@@ -17,7 +17,7 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
         for (operation in repository.pendingOperations(accountId)) {
             when (operation.operationType) {
                 OfflineRepository.OP_MARK_MESSAGES_READ -> try {
-                    PortalService.api.markMessagesRead(emptyMap())
+                    PortalService.api.markMessagesRead(operation.id, emptyMap())
                     repository.completeOperation(operation.id)
                 } catch (ex: HttpException) {
                     when {
