@@ -400,12 +400,16 @@ private fun HomeContent(
                         Text("＋", color = Forest, fontSize = 23.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.width(12.dp))
-                    Column {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Tu equipo de cuidado", fontWeight = FontWeight.SemiBold, color = Ink)
                         clinic?.takeIf { it.isNotBlank() }?.let { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
                         nutritionist?.takeIf { it.isNotBlank() }?.let { Text("Profesional: $it", color = Muted, style = MaterialTheme.typography.bodySmall) }
                         Spacer(Modifier.height(8.dp))
-                        Button(onClick = onBookAppointment, shape = RoundedCornerShape(12.dp)) { Text("Buscar nutricionista y reservar") }
+                        Button(
+                            onClick = onBookAppointment,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text("Reservar consulta") }
                     }
                 }
             }
@@ -541,7 +545,7 @@ private fun MealBlock(meal: DietMeal) {
 @Composable
 private fun AppointmentsContent(appointments: List<PatientAppointment>, loaded: Boolean, busy: Boolean, onRetry: () -> Unit, onBookAppointment: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    Button(onClick = onBookAppointment, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("＋ Buscar nutricionista y reservar cita") }
+    Button(onClick = onBookAppointment, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("＋ Reservar consulta") }
     when {
         busy && !loaded -> LoadingCard("Cargando tus citas")
         !loaded -> EmptyCard("Tu agenda", "Consulta aquí tus citas y su estado.", "Cargar citas", onRetry)
