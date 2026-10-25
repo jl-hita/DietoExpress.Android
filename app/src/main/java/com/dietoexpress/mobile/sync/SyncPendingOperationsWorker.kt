@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.dietoexpress.mobile.data.LocalPayloadCipher
 import com.dietoexpress.mobile.data.OfflineRepository
+import com.dietoexpress.mobile.data.PendingOperationEntity
 import com.dietoexpress.mobile.data.PortalService
 import com.dietoexpress.mobile.data.SendPatientMessageRequest
 import com.dietoexpress.mobile.data.SessionOperationLock
