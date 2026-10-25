@@ -42,11 +42,11 @@ class OfflineDatabasePersistenceTest {
                 .addMigrations(OfflineDatabase.MIGRATION_1_2)
                 .build()
             try {
-                val restored = reopened.offlineDao().pendingOperations(101).single()
+                val restored = reopened.offlineDao().pendingOperations(101, System.currentTimeMillis()).single()
                 assertEquals(operationId, restored.id)
                 assertEquals(operationId, restored.idempotencyKey)
                 assertEquals(payload, LocalPayloadCipher.decrypt(restored.encryptedPayload))
-                assertTrue(reopened.offlineDao().pendingOperations(202).isEmpty())
+                assertTrue(reopened.offlineDao().pendingOperations(202, System.currentTimeMillis()).isEmpty())
                 assertNotEquals(payload, restored.encryptedPayload)
             } finally {
                 reopened.close()
@@ -77,7 +77,7 @@ class OfflineDatabasePersistenceTest {
                 .addMigrations(OfflineDatabase.MIGRATION_1_2)
                 .build()
             try {
-                val restored = db.offlineDao().pendingOperations(101).single()
+                val restored = db.offlineDao().pendingOperations(101, System.currentTimeMillis()).single()
                 assertEquals("legacy-op", restored.id)
                 assertEquals("legacy-op", restored.idempotencyKey)
                 assertEquals(PendingOperationEntity.STATUS_PENDING, restored.status)
@@ -109,7 +109,7 @@ class OfflineDatabasePersistenceTest {
             val operation = db.offlineDao().allOperations(101).single()
             assertEquals(PendingOperationEntity.STATUS_CONFLICT, operation.status)
             assertEquals("""{"message":"same key, different payload"}""", operation.conflictDetails)
-            assertTrue(db.offlineDao().pendingOperations(101).isEmpty())
+            assertTrue(db.offlineDao().pendingOperations(101, System.currentTimeMillis()).isEmpty())
         } finally {
             db.close()
         }
