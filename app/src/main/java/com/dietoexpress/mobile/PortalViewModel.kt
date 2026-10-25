@@ -158,7 +158,7 @@ class PortalViewModel : ViewModel() {
         if (_state.value.busy) return
         runRequest {
             val items = PortalService.api.messages()
-            PortalService.api.markMessagesRead()
+            PortalService.api.markMessagesRead(emptyMap())
             _state.value = _state.value.copy(messages = items, messagesLoaded = true, section = "messages")
         }
     }
@@ -173,7 +173,7 @@ class PortalViewModel : ViewModel() {
         runRequest {
             PortalService.api.sendMessage(SendPatientMessageRequest(body))
             val messages = PortalService.api.messages()
-            PortalService.api.markMessagesRead()
+            PortalService.api.markMessagesRead(emptyMap())
             _state.value = _state.value.copy(messages = messages, messagesLoaded = true, messageDraft = "", section = "messages")
         }
     }
