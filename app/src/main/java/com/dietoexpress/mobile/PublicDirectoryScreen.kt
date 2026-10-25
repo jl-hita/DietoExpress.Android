@@ -98,10 +98,14 @@ private suspend fun directoryRequest(path: String, body: String? = null): String
 private fun JsonObject.string(name: String): String = get(name)?.takeUnless { it.isJsonNull }?.asString.orEmpty()
 private fun JsonObject.bool(name: String): Boolean = runCatching { get(name)?.asBoolean == true }.getOrDefault(false)
 
-private suspend fun searchNutritionists(query: String, onlineOnly: Boolean): List<PublicNutritionist> {
+private suspend fun searchNutritionists(query: String, province: String, speciality: String, goal: String, onlineOnly: Boolean, availableOnly: Boolean): List<PublicNutritionist> {
     val params = buildList {
         if (query.isNotBlank()) add("city=" + URLEncoder.encode(query.trim(), "UTF-8"))
+        if (province.isNotBlank()) add("province=" + URLEncoder.encode(province.trim(), "UTF-8"))
+        if (speciality.isNotBlank()) add("speciality=" + URLEncoder.encode(speciality.trim(), "UTF-8"))
+        if (goal.isNotBlank()) add("goal=" + URLEncoder.encode(goal.trim(), "UTF-8"))
         if (onlineOnly) add("online=true")
+        if (availableOnly) add("availableOnly=true")
     }.joinToString("&").let { if (it.isBlank()) "" else "?$it" }
     val json = JsonParser.parseString(directoryRequest("/directory/professionals$params")).asJsonArray
     return json.mapNotNull { element ->
@@ -143,6 +147,10 @@ fun PublicDirectoryScreen(
 ) {
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
+    var province by remember { mutableStateOf("") }
+    var speciality by remember { mutableStateOf("") }
+    var goal by remember { mutableStateOf("") }
+    var availableOnly by remember { mutableStateOf(false) }
     var onlineOnly by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var slotsLoading by remember { mutableStateOf(false) }
@@ -163,7 +171,7 @@ fun PublicDirectoryScreen(
     fun search() {
         scope.launch {
             loading = true; error = null; notice = null; selected = null; selectedSlot = null; slots = emptyList()
-            try { profiles = searchNutritionists(query, onlineOnly); hasSearched = true }
+            try { profiles = searchNutritionists(query, province, speciality, goal, onlineOnly, availableOnly); hasSearched = true }
             catch (ex: Exception) { error = ex.message ?: "No se ha podido cargar el directorio." }
             finally { loading = false }
         }
@@ -227,10 +235,14 @@ fun PublicDirectoryScreen(
         Text("Encuentra un profesional y consulta sus próximos horarios disponibles.", color = Muted)
         if (selected == null) {
             OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Ciudad o localidad") }, singleLine = true)
+            OutlinedTextField(value = province, onValueChange = { province = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Provincia (opcional)") }, singleLine = true)
+            OutlinedTextField(value = speciality, onValueChange = { speciality = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Especialidad (opcional)") }, singleLine = true)
+            OutlinedTextField(value = goal, onValueChange = { goal = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Objetivo (opcional)") }, singleLine = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { onlineOnly = !onlineOnly }) { Text(if (onlineOnly) "✓ Solo online" else "Filtrar online") }
-                Button(onClick = { search() }, enabled = !loading) { Text("Buscar") }
+                OutlinedButton(onClick = { availableOnly = !availableOnly }) { Text(if (availableOnly) "✓ Con horarios" else "Con horarios") }
             }
+            Button(onClick = { search() }, enabled = !loading, modifier = Modifier.fillMaxWidth()) { Text("Buscar nutricionistas") }
             if (!hasSearched) {
                 Text("Puedes buscar por ciudad o filtrar profesionales que atienden online.")
                 Button(onClick = { search() }, modifier = Modifier.fillMaxWidth(), enabled = !loading) { Text("Ver nutricionistas") }
@@ -240,7 +252,7 @@ fun PublicDirectoryScreen(
                 Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.padding(18.dp)) {
                         Text("No hay resultados", fontWeight = FontWeight.Bold)
-                        Text("Prueba otra localidad o desactiva el filtro online.", color = Muted)
+                        Text("Prueba otra localidad o ajusta los filtros de provincia, especialidad y modalidad.", color = Muted)
                     }
                 }
             }
