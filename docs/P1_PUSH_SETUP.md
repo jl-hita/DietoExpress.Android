@@ -19,7 +19,7 @@ No hace falta añadir `google-services.json` ni el plugin de Google Services: la
 
 ## 2. Backend
 
-La app registra el token autenticado en `POST /api/portal/push-tokens`. El backend debe guardar el token asociado a la cuenta paciente, permitir su revocación al cerrar sesión y usar FCM HTTP v1 con credenciales de servidor protegidas para enviar avisos. Nunca guardes credenciales de cuenta de servicio en Android ni en Git.
+El backend de DietoExpress implementa `POST /api/portal/push-tokens` y `POST /api/portal/push-tokens/revoke`. Para el envío real, configura en el servidor `DIETOEXPRESS_FCM_PROJECT_ID` y `DIETOEXPRESS_FCM_SERVICE_ACCOUNT_PATH` según `docs/P1_PUSH_NOTIFICATIONS.md` del repositorio backend. Hasta entonces, la app sigue funcionando y el backend no afirma que haya enviado avisos. Nunca guardes credenciales de cuenta de servicio en Android ni en Git.
 
 ## 3. Permisos
 
