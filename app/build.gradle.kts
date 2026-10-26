@@ -4,6 +4,12 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val signingStorePath = providers.environmentVariable("ANDROID_SIGNING_KEYSTORE_PATH").orNull
+val signingStorePassword = providers.environmentVariable("ANDROID_SIGNING_KEYSTORE_PASSWORD").orNull
+val signingKeyAlias = providers.environmentVariable("ANDROID_SIGNING_KEY_ALIAS").orNull
+val signingKeyPassword = providers.environmentVariable("ANDROID_SIGNING_KEY_PASSWORD").orNull
+val hasStableSigning = listOf(signingStorePath, signingStorePassword, signingKeyAlias, signingKeyPassword).all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.dietoexpress.mobile"
     compileSdk = 36
@@ -17,6 +23,26 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "API_BASE_URL", "\"" + providers.gradleProperty("dietoexpressApiBaseUrl").orElse("https://jlhitap.duckdns.org/api").get() + "\"")
+    }
+
+    signingConfigs {
+        if (hasStableSigning) {
+            create("stable") {
+                storeFile = file(signingStorePath!!)
+                storePassword = signingStorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            // Local builds remain usable without secrets; main CI supplies the stable key.
+            if (hasStableSigning) {
+                signingConfig = signingConfigs.getByName("stable")
+            }
+        }
     }
 
     buildFeatures {
