@@ -15,7 +15,7 @@ Fecha de preparación: 26/10/2026.
 
 La configuración de firma se guarda fuera del repositorio, en el archivo personal de Gradle:
 
-- Windows: `%USERPROFILE%\\.gradle\\gradle.properties`
+- Windows: `%USERPROFILE%\.gradle\gradle.properties`
 - Linux/macOS: `~/.gradle/gradle.properties`
 
 Añade estas propiedades con los valores reales de tu clave ya creada:
@@ -44,7 +44,7 @@ Cierra y vuelve a abrir Android Studio si lo tenías abierto mientras modificaba
 También puedes compilar desde la terminal de Android Studio, siempre que las cuatro propiedades personales de Gradle estén configuradas:
 
 ```powershell
-.\\gradlew.bat --no-daemon :app:bundleRelease
+.\gradlew.bat --no-daemon :app:bundleRelease
 ```
 
 ## Antes de crear el lanzamiento
