@@ -116,7 +116,7 @@ No generes una clave nueva para cada compilación. Una actualización debe usar 
 
 ## 5. GitHub Actions y secretos de CI
 
-Configura en **Settings → Secrets and variables → Actions** del repositorio Android los siguientes nombres, con los valores de la clave estable:
+El build Gradle espera estas cuatro variables de entorno. Si se almacenan en GitHub Actions, el workflow debe mapear explícitamente los secretos a esas variables y provisionar el archivo keystore en el runner. Antes de crear o renombrar secretos, comprueba los nombres que realmente consume el workflow. Los nombres de variables de entorno esperados son:
 
 - `ANDROID_SIGNING_KEYSTORE_PATH`
 - `ANDROID_SIGNING_KEYSTORE_PASSWORD`
