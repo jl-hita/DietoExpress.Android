@@ -53,6 +53,8 @@ data class PortalUiState(
     val shoppingLoaded: Boolean = false,
     val messages: List<PatientMessage> = emptyList(),
     val messagesLoaded: Boolean = false,
+    val notificationMessages: List<PatientMessage> = emptyList(),
+    val unreadMessagesCount: Int = 0,
     val messageDraft: String = "",
     val training: TrainingEnvelope? = null,
     val trainingLoaded: Boolean = false,
@@ -146,7 +148,10 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun openSection(section: String) {
-        _state.value = _state.value.copy(section = section, message = null, error = false)
+        _state.value = _state.value.copy(
+            section = section, message = null, error = false,
+            unreadMessagesCount = if (section == "messages") 0 else _state.value.unreadMessagesCount
+        )
         loadNutritionistTransfer()
         when (section) {
             "diet" -> loadDiet()
@@ -161,6 +166,25 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun showProfile() = openSection("home")
+
+    /** Refresh notification data without marking the conversation as read. */
+    fun refreshNotifications() {
+        val accountId = _state.value.profile?.clientId ?: return
+        viewModelScope.launch {
+            try {
+                val fetched = PortalService.api.messages()
+                val current = _state.value
+                if (current.profile?.clientId != accountId) return@launch
+                offline.cacheValue(accountId, "messages", fetched)
+                val unread = if (current.section == "messages") 0 else fetched.count {
+                    it.senderType.equals("professional", true) && it.readAt == null
+                }
+                _state.value = current.copy(notificationMessages = fetched, unreadMessagesCount = unread)
+            } catch (_: Exception) {
+                // Keep the last known notification state when offline or when the service is unavailable.
+            }
+        }
+    }
 
     fun loadDiet() {
         if (_state.value.busy) return
@@ -336,8 +360,15 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                             true
                         }
                     }
-                    if (sent) offline.completeOperation(operationId)
-                    else offline.needsAuthentication(operationId)
+                    if (sent) {
+                        offline.completeOperation(operationId)
+                        _state.value = _state.value.copy(
+                            notificationMessages = result.value.map { item ->
+                                if (item.senderType.equals("professional", true) && item.readAt == null) item.copy(readAt = java.time.Instant.now().toString()) else item
+                            },
+                            unreadMessagesCount = 0
+                        )
+                    } else offline.needsAuthentication(operationId)
                 } catch (_: IOException) {
                     // La operación queda en Room y WorkManager la reintentará con la misma clave.
                 } catch (ex: HttpException) {
