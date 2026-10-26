@@ -1078,7 +1078,7 @@ private fun ProgressContent(
                         }
                         val first = weightPoints.first()
                         val last = weightPoints.last()
-                        Text("\${number(first.weight!!)} kg (\${first.weekStart ?: first.submittedAt?.take(10).orEmpty()}) → \${number(last.weight!!)} kg (\${last.weekStart ?: last.submittedAt?.take(10).orEmpty()})",
+                        Text("${number(first.weight!!)} kg (${first.weekStart ?: first.submittedAt?.take(10).orEmpty()}) → ${number(last.weight!!)} kg (${last.weekStart ?: last.submittedAt?.take(10).orEmpty()})",
                             color = Muted, style = MaterialTheme.typography.bodySmall)
                     }
                 }
@@ -1200,7 +1200,7 @@ private fun ProfileContent(
             Text("Tu información personal", color = Muted, style = MaterialTheme.typography.bodyMedium)
             HorizontalDivider(color = Line)
             ProfileRow("Edad", age?.let { "$it años" } ?: "Sin datos")
-            ProfileRow("Peso actual", weight?.let { "\${number(it)} kg" } ?: "Sin datos")
+            ProfileRow("Peso actual", weight?.let { "${number(it)} kg" } ?: "Sin datos")
             ProfileRow("Altura", height?.let { "$it cm" } ?: "Sin datos")
             ProfileRow("Dieta activa", if (hasDiet) "Sí" else "Todavía no")
             clinic?.takeIf { it.isNotBlank() }?.let { ProfileRow("Centro", it) }
