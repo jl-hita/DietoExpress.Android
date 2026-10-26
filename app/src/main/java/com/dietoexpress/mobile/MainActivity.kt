@@ -327,6 +327,7 @@ class MainActivity : ComponentActivity() {
                                         eligible = state.checkinEligibility?.eligible,
                                         current = state.currentCheckin,
                                         history = state.checkinHistory,
+                                        weightHistory = state.profile?.weightHistory.orEmpty(),
                                         draft = state.checkinDraft,
                                         submissionPending = state.checkinSubmissionPending,
                                         loaded = state.checkinLoaded,
@@ -1034,6 +1035,7 @@ private fun ProgressContent(
     eligible: Boolean?,
     current: PatientCheckin?,
     history: List<PatientCheckin>,
+    weightHistory: List<com.dietoexpress.mobile.data.WeightEntry>,
     draft: PatientCheckinDraft,
     submissionPending: Boolean,
     loaded: Boolean,
@@ -1054,13 +1056,19 @@ private fun ProgressContent(
                     Text("Revisa tus hábitos y sigue la evolución de tu peso.", color = Color(0xFFE2F0E8))
                 }
             }
-            val weightPoints = history.filter { it.weight != null }
-                .sortedBy { it.weekStart ?: it.submittedAt.orEmpty() }.takeLast(12)
+            val biometricPoints = weightHistory.filter { it.weight > 0.0 }.sortedBy { it.date }.takeLast(12)
+            val weightPoints: List<Pair<String, Double>> = if (biometricPoints.size >= 2) {
+                biometricPoints.map { it.date to it.weight }
+            } else {
+                history.filter { it.weight != null }
+                    .sortedBy { it.weekStart ?: it.submittedAt.orEmpty() }.takeLast(12)
+                    .map { (it.weekStart ?: it.submittedAt?.take(10).orEmpty()) to it.weight!! }
+            }
             if (weightPoints.size >= 2) {
                 Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Evolución del peso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-                        val weights = weightPoints.mapNotNull { it.weight }
+                        val weights = weightPoints.map { it.second }
                         val minWeight = (weights.minOrNull() ?: 0.0) - 1.0
                         val maxWeight = (weights.maxOrNull() ?: 1.0) + 1.0
                         Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
@@ -1078,12 +1086,17 @@ private fun ProgressContent(
                         }
                         val first = weightPoints.first()
                         val last = weightPoints.last()
-                        Text("${number(first.weight!!)} kg (${dateLabel(first.weekStart ?: first.submittedAt?.take(10).orEmpty())}) → ${number(last.weight!!)} kg (${dateLabel(last.weekStart ?: last.submittedAt?.take(10).orEmpty())})",
+                        Text("${number(first.second)} kg (${dateLabel(first.first)}) → ${number(last.second)} kg (${dateLabel(last.first)})",
                             color = Muted, style = MaterialTheme.typography.bodySmall)
+                        if (biometricPoints.size >= 2) {
+                            Text("Basado en mediciones biométricas del historial.", color = Muted, style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Text("Basado en las revisiones semanales.", color = Muted, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             } else {
-                Text("La gráfica de peso aparecerá cuando haya al menos dos revisiones con peso registrado.", color = Muted)
+                Text("La gráfica de peso aparecerá cuando haya al menos dos mediciones registradas.", color = Muted)
             }
             if (current != null) {
                 Text("Revisión de esta semana", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
