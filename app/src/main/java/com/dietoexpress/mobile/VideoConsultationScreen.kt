@@ -304,7 +304,7 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
                     if (!connected || !cameraGranted) return@OutlinedButton
                     scope.launch {
                         val next = !cameraEnabled
-                        if (runCatching { room.localParticipant.setCameraEnabled(next) }.getOrDefault(false) == next) {
+                        if (runCatching { room.localParticipant.setCameraEnabled(next) }.getOrDefault(false)) {
                             cameraEnabled = next
                             localVideoTrack = room.localParticipant.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack
                         }
