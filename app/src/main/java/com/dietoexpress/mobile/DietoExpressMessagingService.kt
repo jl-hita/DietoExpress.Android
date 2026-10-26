@@ -26,6 +26,8 @@ import kotlin.coroutines.resume
 object PushNotifications {
     private const val CHANNEL_ID = "dietoexpress_updates"
 
+    fun isConfigured(context: Context): Boolean = FirebaseApp.getApps(context).isNotEmpty()
+
     fun registerCurrentToken(context: Context, expectedClientId: Int? = null) {
         if (FirebaseApp.getApps(context).isEmpty()) return
         runCatching { FirebaseMessaging.getInstance().token }
