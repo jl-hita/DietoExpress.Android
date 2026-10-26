@@ -693,11 +693,28 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun recordTrainingSession(session: com.dietoexpress.mobile.data.TrainingSession) {
+    fun recordTrainingSession(
+        session: com.dietoexpress.mobile.data.TrainingSession,
+        actualDurationMinutes: Int?,
+        sessionRpe: Double?,
+        notes: String?
+    ) {
         if (_state.value.busy || session.completedAt != null) return
+        if (actualDurationMinutes != null && actualDurationMinutes !in 1..1440) {
+            showMessage("La duración debe estar entre 1 y 1440 minutos.", true)
+            return
+        }
+        if (sessionRpe != null && sessionRpe !in 0.0..10.0) {
+            showMessage("El RPE debe estar entre 0 y 10.", true)
+            return
+        }
+        if ((notes?.length ?: 0) > 2000) {
+            showMessage("Las notas no pueden superar los 2000 caracteres.", true)
+            return
+        }
         runRequest {
             PortalService.api.recordTrainingSession(session.id,
-                PatientTrainingRecordRequest(actualDurationMinutes = session.durationMinutes))
+                PatientTrainingRecordRequest(actualDurationMinutes = actualDurationMinutes, sessionRpe = sessionRpe, notes = notes?.trim()?.takeIf { it.isNotEmpty() }))
             val accountId = _state.value.profile?.clientId
             val training = PortalService.api.trainingSessions()
             _state.value = _state.value.copy(training = training, trainingLoaded = true,
@@ -720,7 +737,12 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 offline.readThrough(accountId, "checkin-history", type) { PortalService.api.checkinHistory() }
             } else null
             val stale = eligibilityResult.fromCache || currentResult?.fromCache == true || historyResult?.fromCache == true
-            _state.value = _state.value.copy(checkinEligibility = eligibility, currentCheckin = currentResult?.value,
+            val currentWeekStartUtc = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+                .with(java.time.DayOfWeek.MONDAY).toString()
+            val visibleCurrent = currentResult?.let { result ->
+                result.value?.takeIf { !result.fromCache || it.weekStart == currentWeekStartUtc }
+            }
+            _state.value = _state.value.copy(checkinEligibility = eligibility, currentCheckin = visibleCurrent,
                 checkinHistory = historyResult?.value ?: emptyList(), checkinLoaded = true, section = "progress",
                 checkinDraft = savedDraft, checkinSubmissionPending = savedDraft.submissionPending,
                 message = if (stale) "Sin conexión: se muestran los últimos datos de seguimiento guardados." else null, error = false)
