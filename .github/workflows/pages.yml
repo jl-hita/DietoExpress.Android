@@ -30,7 +30,7 @@ jobs:
           grep -q 'dietoexpress@gmail.com' docs/privacy-policy.html
           grep -q 'dietoexpress@gmail.com' docs/account-deletion.html
           grep -q 'privacy-policy.html' docs/account-deletion.html
-          ! grep -Eq '\\[(EMAIL-DE-PRIVACIDAD|NOMBRE LEGAL COMPLETO)' docs/privacy-policy.html
+          ! grep -Eq '\[(EMAIL-DE-PRIVACIDAD|NOMBRE LEGAL COMPLETO)' docs/privacy-policy.html
   deploy:
     needs: validate
     runs-on: ubuntu-latest
