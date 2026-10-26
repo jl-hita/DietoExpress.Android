@@ -40,8 +40,8 @@ Firebase ya está configurado en el `gradle.properties` versionado del proyecto.
 
 Windows (PowerShell):
 ```powershell
-.\gradlew.bat --no-daemon :app:testDebugUnitTest
-.\gradlew.bat --no-daemon :app:assembleDebug
+.\\gradlew.bat --no-daemon :app:testDebugUnitTest
+.\\gradlew.bat --no-daemon :app:assembleDebug
 ```
 
 Linux/macOS:
@@ -57,7 +57,7 @@ No es necesario configurar Firebase en el equipo: los valores de cliente están 
 
 Los cuatro valores Firebase identifican la aplicación cliente; no son credenciales administrativas. Aun así, restringe la API key a las APIs y aplicaciones necesarias cuando sea posible. **Nunca** guardes en el repositorio credenciales de servidor, service-account JSON, contraseñas, tokens, cookies ni el keystore de firma.
 
-La firma estable de APK/AAB usa las variables de entorno `ANDROID_SIGNING_KEYSTORE_PATH`, `ANDROID_SIGNING_KEYSTORE_PASSWORD`, `ANDROID_SIGNING_KEY_ALIAS` y `ANDROID_SIGNING_KEY_PASSWORD`. En CI, el workflow obtiene la clave desde secretos de GitHub y prepara el archivo keystore temporalmente.
+Para generar el AAB de Google Play, configura las cuatro propiedades `androidSigning*` en tu archivo personal de Gradle siguiendo [la guía de firma y publicación](docs/ANDROID_SETUP.md). El AAB se genera desde Android Studio en tu PC; GitHub Actions no recibe la clave ni genera paquetes de publicación.
 
 ## Compatibilidad obligatoria con el backend
 Cada PR que cambie endpoints, DTO, cookies, permisos, estados HTTP, formatos de fecha o reglas de negocio debe revisar el impacto en Android y registrar la conclusión. Ver [docs/API_COMPATIBILITY.md](docs/API_COMPATIBILITY.md).
