@@ -94,7 +94,7 @@ internal fun PatientMessagesContent(
                     ) {
                         Text(if (mine) "Tú" else "Tu profesional", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
                         Text(message.body)
-                        Text(message.createdAt.take(16).replace('T', ' '), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                        Text(formatPortalDateTime(message.createdAt), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -135,7 +135,7 @@ internal fun TrainingPortalContent(training: TrainingEnvelope?, loaded: Boolean,
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(session.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                                Text(session.scheduledDate, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                Text(formatPortalDate(session.scheduledDate), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                             }
                             Text(if (session.completedAt != null) "Completada" else "Pendiente", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                         }
@@ -195,3 +195,13 @@ internal fun TrainingPortalContent(training: TrainingEnvelope?, loaded: Boolean,
         }
     }
 }
+
+private fun formatPortalDateTime(value: String): String {
+    val rawDate = value.take(10)
+    val parts = rawDate.split("-")
+    val date = if (parts.size == 3) parts.reversed().joinToString("/") else rawDate
+    val time = value.substringAfter("T", "").take(5)
+    return listOf(date, time).filter { it.isNotBlank() }.joinToString(" ")
+}
+
+private fun formatPortalDate(value: String): String = formatPortalDateTime(value).substringBefore(" ")
