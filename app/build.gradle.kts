@@ -49,6 +49,14 @@ android {
                 signingConfig = signingConfigs.getByName("stable")
             }
         }
+        getByName("release") {
+            // Google Play upload AABs must use the stable upload key.
+            // CI only runs this build on main and fails earlier if signing secrets are absent.
+            if (hasStableSigning) {
+                signingConfig = signingConfigs.getByName("stable")
+            }
+            isMinifyEnabled = false
+        }
     }
 
     buildFeatures {
