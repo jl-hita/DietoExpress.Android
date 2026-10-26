@@ -118,6 +118,27 @@ class PortalApiIdempotencyTest {
         }
     }
 
+    @Test
+    fun patientBiometricHistoryMapsOnlyThePortalMeasurementSeries() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
+            .setBody("""[{"date":"2026-10-01","weight":92.4,"height":176.0,"bodyFat":28.1,"muscleMass":63.2,"visceralFat":12.0,"waist":99.0,"hip":104.0}]"""))
+        server.start()
+        try {
+            val api = createApi(server)
+            val history = api.biometricHistory()
+            val request = server.takeRequest()
+            assertEquals("GET", request.method)
+            assertEquals("/api/portal/biometrics", request.path)
+            assertEquals(1, history.size)
+            assertEquals("2026-10-01", history[0].date)
+            assertEquals(28.1, history[0].bodyFat!!, 0.001)
+            assertEquals(99.0, history[0].waist!!, 0.001)
+        } finally {
+            server.shutdown()
+        }
+    }
+
     private fun createApi(server: MockWebServer): PortalApi =
         Retrofit.Builder()
             .baseUrl(server.url("/api/"))
