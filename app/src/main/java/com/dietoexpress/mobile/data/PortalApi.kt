@@ -8,6 +8,7 @@ import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.ResponseBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
@@ -153,6 +154,7 @@ data class PatientDocument(
     val status: String,
     val requiresSignature: Boolean = false,
     val signedAt: String? = null,
+    val viewedAt: String? = null,
     val createdAt: String? = null,
     val originalFileName: String? = null
 )
@@ -229,6 +231,41 @@ data class PatientCheckin(
     val notes: String? = null
 )
 
+data class PatientCheckinRequest(
+    val weight: Double? = null,
+    val adherence: Int? = null,
+    val hunger: Int? = null,
+    val energy: Int? = null,
+    @SerializedName("sleep_quality") val sleepQuality: Int? = null,
+    @SerializedName("sleep_hours") val sleepHours: Double? = null,
+    val training: Int? = null,
+    val difficulties: String? = null,
+    val barriers: List<String> = emptyList(),
+    val notes: String? = null
+)
+
+data class PatientCheckinDraft(
+    val weight: String = "",
+    val adherence: String = "80",
+    val hunger: String = "",
+    val energy: String = "",
+    val sleepQuality: String = "",
+    val sleepHours: String = "",
+    val training: String = "",
+    val difficulties: String = "",
+    val barriers: List<String> = emptyList(),
+    val notes: String = "",
+    val idempotencyKey: String = java.util.UUID.randomUUID().toString(),
+    val submissionPending: Boolean = false
+)
+
+data class PatientTrainingRecordRequest(
+    val completedAt: String? = null,
+    val actualDurationMinutes: Int? = null,
+    val sessionRpe: Double? = null,
+    val notes: String? = null
+)
+
 interface PortalApi {
     @POST("portal/auth")
     suspend fun authenticate(@Body request: PatientAuthRequest): PatientAuthResponse
@@ -282,6 +319,9 @@ interface PortalApi {
     @POST("appointments")
     suspend fun requestAppointment(@Body request: CreatePatientAppointmentRequest): PatientAppointment
 
+    @POST("appointments/{id}/cancel")
+    suspend fun cancelPatientAppointment(@Path("id") id: Int): retrofit2.Response<Unit>
+
     @GET("portal/documents")
     suspend fun documents(): List<PatientDocument>
 
@@ -303,6 +343,9 @@ interface PortalApi {
     @GET("portal/training/sessions")
     suspend fun trainingSessions(): TrainingEnvelope
 
+    @POST("portal/training/sessions/{sessionId}/record")
+    suspend fun recordTrainingSession(@Path("sessionId") sessionId: Int, @Body request: PatientTrainingRecordRequest): Map<String, Long>
+
     @GET("portal/check-ins/eligibility")
     suspend fun checkinEligibility(): CheckinEligibility
 
@@ -311,6 +354,15 @@ interface PortalApi {
 
     @GET("portal/check-ins")
     suspend fun checkinHistory(): List<PatientCheckin>
+
+    @POST("portal/check-ins")
+    suspend fun submitCheckin(
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body request: PatientCheckinRequest
+    ): PatientCheckin
+
+    @GET("portal/documents/{documentId}")
+    suspend fun downloadPatientDocument(@Path("documentId") documentId: Long): ResponseBody
 
     @POST("portal/documents/{documentId}/accept")
     suspend fun acceptDocument(@Path("documentId") documentId: Long)
