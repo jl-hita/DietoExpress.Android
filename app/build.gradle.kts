@@ -4,10 +4,10 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val signingStorePath = providers.environmentVariable("ANDROID_SIGNING_KEYSTORE_PATH").orNull
-val signingStorePassword = providers.environmentVariable("ANDROID_SIGNING_KEYSTORE_PASSWORD").orNull
-val signingKeyAlias = providers.environmentVariable("ANDROID_SIGNING_KEY_ALIAS").orNull
-val signingKeyPassword = providers.environmentVariable("ANDROID_SIGNING_KEY_PASSWORD").orNull
+val signingStorePath = providers.gradleProperty("androidSigningKeystorePath").orNull
+val signingStorePassword = providers.gradleProperty("androidSigningKeystorePassword").orNull
+val signingKeyAlias = providers.gradleProperty("androidSigningKeyAlias").orNull
+val signingKeyPassword = providers.gradleProperty("androidSigningKeyPassword").orNull
 val hasStableSigning = listOf(signingStorePath, signingStorePassword, signingKeyAlias, signingKeyPassword).all { !it.isNullOrBlank() } &&
     !signingStorePath.isNullOrBlank() && file(signingStorePath).isFile
 
@@ -44,14 +44,10 @@ android {
 
     buildTypes {
         getByName("debug") {
-            // Local builds remain usable without secrets; main CI supplies the stable key.
-            if (hasStableSigning) {
-                signingConfig = signingConfigs.getByName("stable")
-            }
+            // El debug local/CI usa la clave debug normal; release usa la clave estable de carga.
         }
         getByName("release") {
-            // Google Play upload AABs must use the stable upload key.
-            // CI only runs this build on main and fails earlier if signing secrets are absent.
+            // La firma se configura con propiedades locales de Gradle; no se requieren secretos en CI.
             if (hasStableSigning) {
                 signingConfig = signingConfigs.getByName("stable")
             }
