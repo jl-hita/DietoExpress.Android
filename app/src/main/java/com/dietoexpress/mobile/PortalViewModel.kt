@@ -63,6 +63,7 @@ data class PortalUiState(
     val checkinHistory: List<PatientCheckin> = emptyList(),
     val checkinLoaded: Boolean = false,
     val section: String = "home",
+    val videoAppointmentId: Int? = null,
     val busy: Boolean = false,
     val message: String? = null,
     val error: Boolean = false
@@ -115,8 +116,9 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     transferConsentChecked = false, passcode = "", diet = null, dietLoaded = false,
                     appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
                     messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
-                    section = "home", message = null, error = false
+                    section = "home", videoAppointmentId = null, message = null, error = false
                 )
+                PushNotifications.registerCurrentToken(application)
             }
         }
     }
@@ -149,7 +151,8 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openSection(section: String) {
         _state.value = _state.value.copy(
-            section = section, message = null, error = false,
+            section = section, videoAppointmentId = if (section == "video") _state.value.videoAppointmentId else null,
+            message = null, error = false,
             unreadMessagesCount = if (section == "messages") 0 else _state.value.unreadMessagesCount
         )
         loadNutritionistTransfer()
@@ -162,7 +165,12 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             "training" -> loadTraining()
             "progress" -> loadCheckin()
             "profile" -> refreshProfile()
+            "video" -> Unit
         }
+    }
+
+    fun openVideoAppointment(appointmentId: Int) {
+        _state.value = _state.value.copy(section = "video", videoAppointmentId = appointmentId, message = null, error = false)
     }
 
     fun showProfile() = openSection("home")
