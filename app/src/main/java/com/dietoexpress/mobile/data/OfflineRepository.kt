@@ -133,6 +133,7 @@ class OfflineRepository(context: Context) {
     suspend fun pendingOperations(accountId: Int) = dao.pendingOperations(accountId, System.currentTimeMillis())
     suspend fun allOperations(accountId: Int): List<PendingOperationEntity> = dao.allOperations(accountId)
     suspend fun activeAccountMatches(accountId: Int): Boolean = activeAccountId() == accountId
+    fun activeAccountIdForPush(): Int? = activeAccountId()
     suspend fun completeOperation(id: String) = dao.completeOperation(id)
     suspend fun needsAuthentication(id: String) =
         dao.updateOperationStatus(id, PendingOperationEntity.STATUS_NEEDS_AUTH, "Se necesita iniciar sesión para sincronizar.")
