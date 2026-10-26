@@ -254,6 +254,10 @@ class MainActivity : ComponentActivity() {
                                         busy = state.busy,
                                         onRetry = vm::loadDiet
                                     )
+                                    "video" -> VideoConsultationScreen(
+                                        appointmentId = state.videoAppointmentId,
+                                        onExit = { vm.openSection("appointments") }
+                                    )
                                     "appointments" -> AppointmentsContent(
                                         appointments = state.appointments,
                                         slots = state.appointmentSlots,
@@ -263,7 +267,8 @@ class MainActivity : ComponentActivity() {
                                         busy = state.busy,
                                         onRetry = { vm.refreshAppointments() },
                                         onBookAppointment = { publicRoute = "directory" },
-                                        onRequestAppointment = vm::requestAppointment
+                                        onRequestAppointment = vm::requestAppointment,
+                                        onJoinVideo = vm::openVideoAppointment
                                     )
                                     "documents" -> DocumentsContent(
                                         documents = state.documents,
@@ -698,7 +703,8 @@ private fun AppointmentsContent(
     busy: Boolean,
     onRetry: () -> Unit,
     onBookAppointment: () -> Unit,
-    onRequestAppointment: (com.dietoexpress.mobile.data.AppointmentSlot, String) -> Unit
+    onRequestAppointment: (com.dietoexpress.mobile.data.AppointmentSlot, String) -> Unit,
+    onJoinVideo: (Int) -> Unit
 ) {
     var selectedDate by remember(slots) { mutableStateOf(slots.firstOrNull()?.startsAt?.take(10)) }
     var selectedSlotStart by remember(slots) { mutableStateOf<String?>(null) }
@@ -732,7 +738,7 @@ private fun AppointmentsContent(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (upcomingAppointments.isNotEmpty()) {
             Text("Próximas citas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-            upcomingAppointments.forEach { appointment -> AppointmentCard(appointment) }
+            upcomingAppointments.forEach { appointment -> AppointmentCard(appointment, onJoinVideo) }
         }
 
         if (!hasAssignedNutritionist) {
@@ -888,7 +894,7 @@ private fun AppointmentHistoryContent(
 }
 
 @Composable
-private fun AppointmentCard(appointment: PatientAppointment) {
+private fun AppointmentCard(appointment: PatientAppointment, onJoinVideo: ((Int) -> Unit)? = null) {
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
@@ -901,7 +907,21 @@ private fun AppointmentCard(appointment: PatientAppointment) {
             Text(appointment.nutritionistName?.takeIf { it.isNotBlank() } ?: "Tu profesional", color = Muted, style = MaterialTheme.typography.bodyMedium)
             Text(if (appointment.modality.equals("online", true)) "Videoconsulta" else "Presencial", color = Muted, style = MaterialTheme.typography.bodySmall)
             if (appointment.status.equals("confirmed", true) && appointment.modality.equals("online", true)) {
-                Text("El acceso a la videoconsulta estará disponible según el horario de tu cita.", color = Muted, style = MaterialTheme.typography.bodySmall)
+                val now = java.time.Instant.now()
+                val startsAt = runCatching { java.time.Instant.parse(appointment.startsAt) }.getOrNull()
+                val endsAt = runCatching { java.time.Instant.parse(appointment.endsAt) }.getOrNull()
+                val withinAccessWindow = startsAt != null && endsAt != null &&
+                    !now.isBefore(startsAt.minus(java.time.Duration.ofMinutes(15))) &&
+                    now.isBefore(endsAt.plus(java.time.Duration.ofHours(24)))
+                if (withinAccessWindow && onJoinVideo != null) {
+                    Button(
+                        onClick = { onJoinVideo(appointment.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("Entrar a la videoconsulta") }
+                } else {
+                    Text("El acceso a la videoconsulta estará disponible 15 minutos antes de la cita.", color = Muted, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }
