@@ -272,6 +272,10 @@ interface PortalApi {
     @POST("portal/push-tokens")
     suspend fun registerPushToken(@Body request: PushTokenRequest)
 
+    @Headers("X-DietoExpress-Patient-Portal: 1")
+    @POST("portal/push-tokens/revoke")
+    suspend fun revokePushToken(@Body request: PushTokenRequest)
+
     @GET("appointments/slots")
     suspend fun appointmentSlots(@retrofit2.http.Query("days") days: Int = 30): List<AppointmentSlot>
 
