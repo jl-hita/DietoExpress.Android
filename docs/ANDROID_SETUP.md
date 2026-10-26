@@ -37,7 +37,7 @@ En Firebase Console:
 1. Abre el proyecto Firebase de DietoExpress o crea uno específico para la app.
 2. Añade una aplicación Android con el identificador exacto `com.dietoexpress.mobile`.
 3. Obtén los valores de configuración del proyecto: API key, Firebase App ID, Project ID y sender ID.
-4. Comprueba que Cloud Messaging está disponible y que el backend está configurado para enviar notificaciones usando credenciales de servidor guardadas fuera del repositorio.
+4. Comprueba que Cloud Messaging está disponible. La configuración del servidor es independiente de la app cliente: sigue la guía del backend [docs/P1_PUSH_NOTIFICATIONS.md](https://github.com/jl-hita/DietoExpress/blob/main/docs/P1_PUSH_NOTIFICATIONS.md), que documenta la cuenta de servicio, las variables `DIETOEXPRESS_FCM_PROJECT_ID` y `DIETOEXPRESS_FCM_SERVICE_ACCOUNT_PATH`, los permisos del archivo y el reinicio de systemd.
 5. Restringe la API key cliente a las APIs y aplicaciones necesarias cuando sea posible. Esta clave no sustituye a credenciales de servidor ni concede autorización clínica.
 
 Configura los valores como propiedades locales de Gradle, no dentro de un archivo versionado. En Windows crea/edita `%USERPROFILE%\.gradle\gradle.properties`; en Linux/macOS, `~/.gradle/gradle.properties`.
