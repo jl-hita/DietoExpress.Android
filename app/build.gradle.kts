@@ -2,6 +2,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+    // Add the Google services Gradle plugin
+    id("com.google.gms.google-services")
 }
 
 val signingStorePath = providers.environmentVariable("ANDROID_SIGNING_KEYSTORE_PATH").orNull
@@ -96,4 +98,11 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    // Import the Firebase BoM
+    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
+    // TODO: Add the dependencies for Firebase products you want to use
+    // When using the BoM, don't specify versions in Firebase dependencies
+    implementation("com.google.firebase:firebase-analytics")
+    // Add the dependencies for any other desired Firebase products
+    // https://firebase.google.com/docs/android/setup#available-libraries
 }
