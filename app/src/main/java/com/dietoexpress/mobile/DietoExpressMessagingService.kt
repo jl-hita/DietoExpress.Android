@@ -58,7 +58,7 @@ object PushNotifications {
         runCatching { PortalService.api.revokePushToken(PushTokenRequest(token)) }
     }
 
-    fun show(context: Context, title: String, body: String, target: String?) {
+    fun show(context: Context, title: String, body: String, target: String?, notificationId: String?) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
@@ -81,8 +81,10 @@ object PushNotifications {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()
+        val stableNotificationId = notificationId?.hashCode()
+            ?: (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
         try {
-            NotificationManagerCompat.from(context).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
+            NotificationManagerCompat.from(context).notify(stableNotificationId, notification)
         } catch (_: SecurityException) {
             // Android 13+: the user may have denied notification permission.
         }
@@ -99,6 +101,6 @@ class DietoExpressMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(message)
         val title = message.data["title"] ?: message.notification?.title ?: "DietoExpress"
         val body = message.data["body"] ?: message.notification?.body ?: "Tienes una nueva notificación."
-        PushNotifications.show(applicationContext, title, body, message.data["target"])
+        PushNotifications.show(applicationContext, title, body, message.data["target"], message.data["notification_id"])
     }
 }
