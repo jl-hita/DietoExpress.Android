@@ -46,3 +46,14 @@ jobs:
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
+
+      # Publica el APK solo tras una compilación correcta de main.
+      # Reutiliza el APK ya compilado; no añade otra compilación.
+      - name: Upload APK for phone testing
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DietoExpress-debug-${{ github.sha }}
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
