@@ -8,7 +8,8 @@ val signingStorePath = providers.environmentVariable("ANDROID_SIGNING_KEYSTORE_P
 val signingStorePassword = providers.environmentVariable("ANDROID_SIGNING_KEYSTORE_PASSWORD").orNull
 val signingKeyAlias = providers.environmentVariable("ANDROID_SIGNING_KEY_ALIAS").orNull
 val signingKeyPassword = providers.environmentVariable("ANDROID_SIGNING_KEY_PASSWORD").orNull
-val hasStableSigning = listOf(signingStorePath, signingStorePassword, signingKeyAlias, signingKeyPassword).all { !it.isNullOrBlank() }
+val hasStableSigning = listOf(signingStorePath, signingStorePassword, signingKeyAlias, signingKeyPassword).all { !it.isNullOrBlank() } &&
+    !signingStorePath.isNullOrBlank() && file(signingStorePath).isFile
 
 android {
     namespace = "com.dietoexpress.mobile"
