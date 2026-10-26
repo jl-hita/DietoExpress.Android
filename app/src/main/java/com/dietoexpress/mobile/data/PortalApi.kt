@@ -246,7 +246,7 @@ data class PatientCheckinRequest(
 
 data class PatientCheckinDraft(
     val weight: String = "",
-    val adherence: String = "80",
+    val adherence: String = "",
     val hunger: String = "",
     val energy: String = "",
     val sleepQuality: String = "",

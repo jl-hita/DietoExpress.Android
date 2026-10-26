@@ -19,6 +19,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -108,7 +112,7 @@ internal fun PatientMessagesContent(
 }
 
 @Composable
-internal fun TrainingPortalContent(training: TrainingEnvelope?, loaded: Boolean, busy: Boolean, onRecordSession: (com.dietoexpress.mobile.data.TrainingSession) -> Unit, onRetry: () -> Unit) {
+internal fun TrainingPortalContent(training: TrainingEnvelope?, loaded: Boolean, busy: Boolean, onRecordSession: (com.dietoexpress.mobile.data.TrainingSession, Int?, Double?, String?) -> Unit, onRetry: () -> Unit) {
     when {
         busy && !loaded -> Text("Cargando tu planificación…", color = MaterialTheme.colorScheme.onSurfaceVariant)
         !loaded -> Button(onClick = onRetry) { Text("Cargar entrenamientos") }
@@ -122,6 +126,10 @@ internal fun TrainingPortalContent(training: TrainingEnvelope?, loaded: Boolean,
                 }
             }
             training.sessions.forEach { session ->
+                var actualDuration by remember(session.id) { mutableStateOf(session.actualDurationMinutes?.toString().orEmpty()) }
+                var sessionRpe by remember(session.id) { mutableStateOf(session.sessionRpe?.toString().orEmpty()) }
+                var recordNotes by remember(session.id) { mutableStateOf(session.recordNotes.orEmpty()) }
+                var recordError by remember(session.id) { mutableStateOf<String?>(null) }
                 Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -141,8 +149,44 @@ internal fun TrainingPortalContent(training: TrainingEnvelope?, loaded: Boolean,
                             Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         if (session.completedAt == null) {
-                            Button(onClick = { onRecordSession(session) }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                                Text("Marcar como realizada")
+                            OutlinedTextField(
+                                value = actualDuration,
+                                onValueChange = { actualDuration = it; recordError = null },
+                                label = { Text("Duración real (min, opcional)") },
+                                enabled = !busy,
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = sessionRpe,
+                                onValueChange = { sessionRpe = it; recordError = null },
+                                label = { Text("Esfuerzo percibido (RPE 0–10, opcional)") },
+                                enabled = !busy,
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = recordNotes,
+                                onValueChange = { recordNotes = it; recordError = null },
+                                label = { Text("Notas (opcional)") },
+                                enabled = !busy,
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 2,
+                                maxLines = 4
+                            )
+                            recordError?.let { Text(it, color = Color(0xFF94651B), style = MaterialTheme.typography.bodySmall) }
+                            Button(onClick = {
+                                val duration = actualDuration.trim().takeIf { it.isNotEmpty() }?.toIntOrNull()
+                                val rpe = sessionRpe.trim().replace(',', '.').takeIf { it.isNotEmpty() }?.toDoubleOrNull()
+                                recordError = when {
+                                    actualDuration.isNotBlank() && (duration == null || duration !in 1..1440) -> "La duración debe estar entre 1 y 1440 minutos."
+                                    sessionRpe.isNotBlank() && (rpe == null || rpe !in 0.0..10.0) -> "El RPE debe estar entre 0 y 10."
+                                    recordNotes.length > 2000 -> "Las notas no pueden superar 2000 caracteres."
+                                    else -> null
+                                }
+                                if (recordError == null) onRecordSession(session, duration, rpe, recordNotes.trim().takeIf { it.isNotEmpty() })
+                            }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                                Text("Registrar sesión realizada")
                             }
                         }
                     }
