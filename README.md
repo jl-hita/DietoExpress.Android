@@ -31,6 +31,10 @@ La lista anterior describe funcionalidad presente en el código; no significa qu
 
 La revisión semanal se guarda como borrador offline, pero no se envía automáticamente: el backend asigna la semana al recibir la petición. Las escrituras sin contrato seguro siguen siendo online. Ver [la auditoría de brechas](docs/ANDROID_GAP_AUDIT.md) y la política offline en [docs/OFFLINE_ENDPOINT_AUDIT.md](docs/OFFLINE_ENDPOINT_AUDIT.md).
 
+## Documentación de configuración y publicación
+
+Consulta [docs/ANDROID_SETUP.md](docs/ANDROID_SETUP.md) para configurar Firebase, la URL del backend, la firma estable, GitHub Actions y las comprobaciones antes de distribuir una APK.
+
 ## Requisitos y compilación
 
 - Android Studio compatible con Android Gradle Plugin 9.2.1.
