@@ -1,8 +1,12 @@
 package com.dietoexpress.mobile
 
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -101,6 +105,11 @@ class MainActivity : ComponentActivity() {
                     var publicRoute by remember { mutableStateOf("portal") }
                     var showingNotifications by remember { mutableStateOf(false) }
                     LaunchedEffect(state.profile?.clientId) {
+                        if (state.profile?.clientId != null && Build.VERSION.SDK_INT >= 33 &&
+                            ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2026)
+                        }
                         while (state.profile?.clientId != null) {
                             vm.refreshNotifications()
                             delay(60_000)
