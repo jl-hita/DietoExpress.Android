@@ -9,6 +9,8 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.dietoexpress.mobile.data.PortalService
+import com.dietoexpress.mobile.data.OfflineRepository
+import com.dietoexpress.mobile.data.SessionOperationLock
 import com.dietoexpress.mobile.data.PushTokenRequest
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
@@ -24,19 +26,23 @@ import kotlin.coroutines.resume
 object PushNotifications {
     private const val CHANNEL_ID = "dietoexpress_updates"
 
-    fun registerCurrentToken(context: Context) {
+    fun registerCurrentToken(context: Context, expectedClientId: Int? = null) {
         if (FirebaseApp.getApps(context).isEmpty()) return
         runCatching { FirebaseMessaging.getInstance().token }
             .getOrNull()
             ?.addOnSuccessListener { token ->
                 if (token.isBlank()) return@addOnSuccessListener
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                    try {
-                        PortalService.initialize(context.applicationContext)
-                        PortalService.api.registerPushToken(PushTokenRequest(token))
-                    } catch (_: Exception) {
-                        // The login flow or the next token refresh retries registration.
-                        // Never block the portal when push is not configured on the server yet.
+                    val offline = OfflineRepository(context.applicationContext)
+                    val accountId = expectedClientId ?: offline.activeAccountIdForPush() ?: return@launch
+                    SessionOperationLock.withLock {
+                        if (!offline.activeAccountMatches(accountId)) return@withLock
+                        try {
+                            PortalService.api.registerPushToken(PushTokenRequest(token))
+                        } catch (_: Exception) {
+                            // The next login or token refresh retries registration.
+                            // Never block the portal when push is not configured on the server yet.
+                        }
                     }
                 }
             }
