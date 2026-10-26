@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  assemble-debug:
+  validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -44,42 +44,11 @@ jobs:
       - name: Compile instrumented tests (no emulator)
         run: gradle --no-daemon :app:compileDebugAndroidTestKotlin
 
-      # La clave estable solo se usa en main; los PR no necesitan secretos.
-      - name: Prepare stable signing
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        env:
-          ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
-          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
-          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
-          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${ANDROID_SIGNING_KEYSTORE_BASE64}" || -z "${ANDROID_SIGNING_KEYSTORE_PASSWORD}" || -z "${ANDROID_SIGNING_KEY_ALIAS}" || -z "${ANDROID_SIGNING_KEY_PASSWORD}" ]]; then
-            echo "::error::Configura los cuatro secretos ANDROID_SIGNING_* antes de generar artefactos firmados en main."
-            exit 1
-          fi
-          printf '%s' "${ANDROID_SIGNING_KEYSTORE_BASE64}" | base64 --decode > "${RUNNER_TEMP}/dietoexpress-signing.jks"
-          chmod 600 "${RUNNER_TEMP}/dietoexpress-signing.jks"
-
       - name: Build debug APK
-        env:
-          ANDROID_SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/dietoexpress-signing.jks
-          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
-          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
-          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Build signed release AAB
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        env:
-          ANDROID_SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/dietoexpress-signing.jks
-          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
-          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
-          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
-        run: gradle --no-daemon :app:bundleRelease
-
-      # APK para pruebas manuales; AAB firmado para Play Console.
-      - name: Upload APK for phone testing
+      # Solo se publica el APK de diagnóstico desde main; el AAB de Play se genera localmente en Android Studio.
+      - name: Upload debug APK for testing
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-artifact@v4
         with:
@@ -87,16 +56,3 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
-
-      - name: Upload signed AAB for Google Play
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        uses: actions/upload-artifact@v4
-        with:
-          name: DietoExpress-release-aab-${{ github.sha }}
-          path: app/build/outputs/bundle/release/*.aab
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Remove signing keystore
-        if: always()
-        run: rm -f "${RUNNER_TEMP}/dietoexpress-signing.jks"
