@@ -937,12 +937,7 @@ private fun AppointmentCard(appointment: PatientAppointment, onJoinVideo: ((Int)
             Text(appointment.nutritionistName?.takeIf { it.isNotBlank() } ?: "Tu profesional", color = Muted, style = MaterialTheme.typography.bodyMedium)
             Text(if (appointment.modality.equals("online", true)) "Videoconsulta" else "Presencial", color = Muted, style = MaterialTheme.typography.bodySmall)
             if (appointment.status.equals("confirmed", true) && appointment.modality.equals("online", true)) {
-                val now = java.time.Instant.now()
-                val startsAt = runCatching { java.time.Instant.parse(appointment.startsAt) }.getOrNull()
-                val endsAt = runCatching { java.time.Instant.parse(appointment.endsAt) }.getOrNull()
-                val withinAccessWindow = startsAt != null && endsAt != null &&
-                    !now.isBefore(startsAt.minus(java.time.Duration.ofMinutes(15))) &&
-                    now.isBefore(endsAt.plus(java.time.Duration.ofHours(24)))
+                val withinAccessWindow = isWithinVideoAccessWindow(appointment.startsAt, appointment.endsAt, java.time.Instant.now())
                 if (withinAccessWindow && onJoinVideo != null) {
                     Button(
                         onClick = { onJoinVideo(appointment.id) },
