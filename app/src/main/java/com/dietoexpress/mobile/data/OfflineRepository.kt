@@ -132,6 +132,18 @@ class OfflineRepository(context: Context) {
 
     suspend fun pendingOperations(accountId: Int) = dao.pendingOperations(accountId, System.currentTimeMillis())
     suspend fun allOperations(accountId: Int): List<PendingOperationEntity> = dao.allOperations(accountId)
+
+    suspend fun discardTerminalOperation(accountId: Int, operationId: String): Boolean {
+        val operation = dao.getOperation(operationId) ?: return false
+        if (operation.accountId != accountId) return false
+        if (operation.status != PendingOperationEntity.STATUS_FAILED &&
+            operation.status != PendingOperationEntity.STATUS_CONFLICT) return false
+        dao.completeOperation(operationId)
+        return true
+    }
+
+    fun retryPendingOperations(accountId: Int) = scheduleSync(accountId)
+
     suspend fun activeAccountMatches(accountId: Int): Boolean = activeAccountId() == accountId
     fun activeAccountIdForPush(): Int? = activeAccountId()
     suspend fun completeOperation(id: String) = dao.completeOperation(id)
