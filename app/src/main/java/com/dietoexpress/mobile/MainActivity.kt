@@ -10,6 +10,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -54,8 +56,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +73,7 @@ import com.dietoexpress.mobile.data.DietDetail
 import com.dietoexpress.mobile.data.DietMeal
 import com.dietoexpress.mobile.data.PatientAppointment
 import com.dietoexpress.mobile.data.PatientCheckin
+import com.dietoexpress.mobile.data.PatientCheckinDraft
 import com.dietoexpress.mobile.data.PatientDocument
 import com.dietoexpress.mobile.data.PatientMessage
 import com.dietoexpress.mobile.data.ShoppingCategory
@@ -299,13 +304,16 @@ class MainActivity : ComponentActivity() {
                                         onRetry = { vm.refreshAppointments() },
                                         onBookAppointment = { publicRoute = "directory" },
                                         onRequestAppointment = vm::requestAppointment,
-                                        onJoinVideo = vm::openVideoAppointment
+                                        onJoinVideo = vm::openVideoAppointment,
+                                        onCancelAppointment = vm::cancelAppointment
                                     )
                                     "documents" -> DocumentsContent(
                                         documents = state.documents,
                                         loaded = state.documentsLoaded,
                                         busy = state.busy,
-                                        onRetry = { vm.openSection("documents") }
+                                        onRetry = { vm.openSection("documents") },
+                                        onOpenDocument = vm::openDocument,
+                                        onAcceptDocument = vm::acceptDocument
                                     )
                                     "shopping" -> ShoppingPortalContent(state.shoppingList, state.shoppingLoaded, state.busy) { vm.openSection("shopping") }
                                     "messages" -> PatientMessagesContent(
@@ -313,14 +321,18 @@ class MainActivity : ComponentActivity() {
                                         busy = state.busy, onDraftChange = vm::updateMessageDraft,
                                         onSend = vm::sendMessage, onRetry = { vm.openSection("messages") }
                                     )
-                                    "training" -> TrainingPortalContent(state.training, state.trainingLoaded, state.busy) { vm.openSection("training") }
+                                    "training" -> TrainingPortalContent(state.training, state.trainingLoaded, state.busy, vm::recordTrainingSession) { vm.openSection("training") }
                                     "progress" -> ProgressContent(
                                         eligibilityMessage = state.checkinEligibility?.message,
                                         eligible = state.checkinEligibility?.eligible,
                                         current = state.currentCheckin,
                                         history = state.checkinHistory,
+                                        draft = state.checkinDraft,
+                                        submissionPending = state.checkinSubmissionPending,
                                         loaded = state.checkinLoaded,
                                         busy = state.busy,
+                                        onDraftChange = vm::updateCheckinDraft,
+                                        onSubmit = vm::submitCheckin,
                                         onRetry = { vm.openSection("progress") }
                                     )
                                     "profile" -> ProfileContent(
@@ -735,7 +747,8 @@ private fun AppointmentsContent(
     onRetry: () -> Unit,
     onBookAppointment: () -> Unit,
     onRequestAppointment: (com.dietoexpress.mobile.data.AppointmentSlot, String) -> Unit,
-    onJoinVideo: (Int) -> Unit
+    onJoinVideo: (Int) -> Unit,
+    onCancelAppointment: (Int) -> Unit
 ) {
     var selectedDate by remember(slots) { mutableStateOf(slots.firstOrNull()?.startsAt?.take(10)) }
     var selectedSlotStart by remember(slots) { mutableStateOf<String?>(null) }
@@ -925,7 +938,8 @@ private fun AppointmentHistoryContent(
 }
 
 @Composable
-private fun AppointmentCard(appointment: PatientAppointment, onJoinVideo: ((Int) -> Unit)? = null) {
+private fun AppointmentCard(appointment: PatientAppointment, onJoinVideo: ((Int) -> Unit)? = null, onCancel: ((Int) -> Unit)? = null) {
+    var showCancelConfirmation by remember(appointment.id) { mutableStateOf(false) }
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
@@ -937,6 +951,12 @@ private fun AppointmentCard(appointment: PatientAppointment, onJoinVideo: ((Int)
             }
             Text(appointment.nutritionistName?.takeIf { it.isNotBlank() } ?: "Tu profesional", color = Muted, style = MaterialTheme.typography.bodyMedium)
             Text(if (appointment.modality.equals("online", true)) "Videoconsulta" else "Presencial", color = Muted, style = MaterialTheme.typography.bodySmall)
+            if (onCancel != null && (appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)) &&
+                runCatching { java.time.Instant.parse(appointment.startsAt).isAfter(java.time.Instant.now()) }.getOrDefault(false)) {
+                OutlinedButton(onClick = { showCancelConfirmation = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Cancelar cita")
+                }
+            }
             if (appointment.status.equals("confirmed", true) && appointment.modality.equals("online", true)) {
                 val withinAccessWindow = isWithinVideoAccessWindow(appointment.startsAt, appointment.endsAt, java.time.Instant.now())
                 if (withinAccessWindow && onJoinVideo != null) {
@@ -951,10 +971,26 @@ private fun AppointmentCard(appointment: PatientAppointment, onJoinVideo: ((Int)
             }
         }
     }
+    if (showCancelConfirmation && onCancel != null) {
+        AlertDialog(
+            onDismissRequest = { showCancelConfirmation = false },
+            title = { Text("Cancelar cita") },
+            text = { Text("¿Quieres cancelar esta cita? Esta acción no se puede deshacer.") },
+            confirmButton = { Button(onClick = { showCancelConfirmation = false; onCancel(appointment.id) }) { Text("Sí, cancelar") } },
+            dismissButton = { TextButton(onClick = { showCancelConfirmation = false }) { Text("Mantener cita") } }
+        )
+    }
 }
 
 @Composable
-private fun DocumentsContent(documents: List<PatientDocument>, loaded: Boolean, busy: Boolean, onRetry: () -> Unit) {
+private fun DocumentsContent(
+    documents: List<PatientDocument>,
+    loaded: Boolean,
+    busy: Boolean,
+    onRetry: () -> Unit,
+    onOpenDocument: (Long) -> Unit,
+    onAcceptDocument: (Long) -> Unit
+) {
     when {
         busy && !loaded -> LoadingCard("Cargando tus documentos")
         !loaded -> EmptyCard("Tus documentos", "Los documentos que comparta tu profesional aparecerán aquí.", "Cargar documentos", onRetry)
@@ -971,6 +1007,16 @@ private fun DocumentsContent(documents: List<PatientDocument>, loaded: Boolean, 
                         Text(document.documentType?.replaceFirstChar { it.uppercase() } ?: "Documento", color = Muted, style = MaterialTheme.typography.bodySmall)
                         if (document.requiresSignature) Text(if (document.status.equals("signed", true)) "Aceptado" else "Requiere revisión", color = if (document.status.equals("signed", true)) Forest else Amber, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
                         else Text("Disponible en tu portal", color = Muted, style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(onClick = { onOpenDocument(document.id) }, enabled = !busy,
+                            modifier = Modifier.fillMaxWidth()) { Text("Abrir documento PDF") }
+                        if (document.requiresSignature && document.status.equals("pending", true)) {
+                            if (document.viewedAt != null) {
+                                Button(onClick = { onAcceptDocument(document.id) }, enabled = !busy,
+                                    modifier = Modifier.fillMaxWidth()) { Text("He leído y acepto el documento") }
+                            } else {
+                                Text("Abre el PDF y revísalo antes de aceptar.", color = Muted, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
                     }
                 }
             }
@@ -984,8 +1030,12 @@ private fun ProgressContent(
     eligible: Boolean?,
     current: PatientCheckin?,
     history: List<PatientCheckin>,
+    draft: PatientCheckinDraft,
+    submissionPending: Boolean,
     loaded: Boolean,
     busy: Boolean,
+    onDraftChange: (PatientCheckinDraft) -> Unit,
+    onSubmit: () -> Unit,
     onRetry: () -> Unit
 ) {
     when {
@@ -997,13 +1047,104 @@ private fun ProgressContent(
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("TU SEGUIMIENTO", color = Color(0xFFC8E4D4), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                     Text("Pequeños pasos, progreso real.", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Revisa los datos compartidos durante tus revisiones semanales.", color = Color(0xFFE2F0E8))
+                    Text("Revisa tus hábitos y sigue la evolución de tu peso.", color = Color(0xFFE2F0E8))
                 }
             }
-            current?.let {
+            val weightPoints = history.filter { it.weight != null }
+                .sortedBy { it.weekStart ?: it.submittedAt.orEmpty() }.takeLast(12)
+            if (weightPoints.size >= 2) {
+                Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Evolución del peso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+                        val weights = weightPoints.mapNotNull { it.weight }
+                        val minWeight = (weights.minOrNull() ?: 0.0) - 1.0
+                        val maxWeight = (weights.maxOrNull() ?: 1.0) + 1.0
+                        Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
+                            val range = (maxWeight - minWeight).coerceAtLeast(1.0)
+                            val points = weights.mapIndexed { index, value ->
+                                Offset(
+                                    x = if (weights.size == 1) size.width / 2 else size.width * index / (weights.size - 1),
+                                    y = size.height - ((value - minWeight) / range * size.height).toFloat()
+                                )
+                            }
+                            for (index in 0 until points.lastIndex) {
+                                drawLine(Forest, points[index], points[index + 1], strokeWidth = 5f, cap = StrokeCap.Round)
+                            }
+                            points.forEach { drawCircle(Forest, radius = 6f, center = it) }
+                        }
+                        val first = weightPoints.first()
+                        val last = weightPoints.last()
+                        Text("\${number(first.weight!!)} kg (\${first.weekStart ?: first.submittedAt?.take(10).orEmpty()}) → \${number(last.weight!!)} kg (\${last.weekStart ?: last.submittedAt?.take(10).orEmpty()})",
+                            color = Muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            } else {
+                Text("La gráfica de peso aparecerá cuando haya al menos dos revisiones con peso registrado.", color = Muted)
+            }
+            if (current != null) {
                 Text("Revisión de esta semana", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                CheckinCard(it)
-            } ?: EmptyCard("Aún no hay revisión esta semana", "Cuando envíes una revisión semanal desde el portal, aparecerá aquí.")
+                CheckinCard(current)
+            } else {
+                Text("Revisión semanal", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Cuéntale a tu profesional cómo ha ido la semana. La adherencia es obligatoria; el resto de los datos son opcionales.", color = Muted)
+                        if (submissionPending) {
+                            Text("El envío anterior no se pudo confirmar. No edites la revisión: reintenta con la misma clave para evitar duplicados.", color = Amber, fontWeight = FontWeight.SemiBold)
+                        }
+                        OutlinedTextField(value = draft.adherence, onValueChange = { onDraftChange(draft.copy(adherence = it)) },
+                            label = { Text("Adherencia a la dieta (0–100 %) *") }, enabled = !busy && !submissionPending,
+                            modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        OutlinedTextField(value = draft.weight, onValueChange = { onDraftChange(draft.copy(weight = it)) },
+                            label = { Text("Peso (kg, opcional)") }, enabled = !busy && !submissionPending,
+                            modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(value = draft.hunger, onValueChange = { onDraftChange(draft.copy(hunger = it)) },
+                                label = { Text("Hambre (0–10)") }, enabled = !busy && !submissionPending, modifier = Modifier.weight(1f), singleLine = true)
+                            OutlinedTextField(value = draft.energy, onValueChange = { onDraftChange(draft.copy(energy = it)) },
+                                label = { Text("Energía (0–10)") }, enabled = !busy && !submissionPending, modifier = Modifier.weight(1f), singleLine = true)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(value = draft.sleepQuality, onValueChange = { onDraftChange(draft.copy(sleepQuality = it)) },
+                                label = { Text("Sueño (0–10)") }, enabled = !busy && !submissionPending, modifier = Modifier.weight(1f), singleLine = true)
+                            OutlinedTextField(value = draft.sleepHours, onValueChange = { onDraftChange(draft.copy(sleepHours = it)) },
+                                label = { Text("Horas de sueño") }, enabled = !busy && !submissionPending, modifier = Modifier.weight(1f), singleLine = true)
+                        }
+                        OutlinedTextField(value = draft.training, onValueChange = { onDraftChange(draft.copy(training = it)) },
+                            label = { Text("Entrenamiento (0–10)") }, enabled = !busy && !submissionPending,
+                            modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Text("¿Qué dificultades has encontrado?", fontWeight = FontWeight.SemiBold, color = Ink)
+                        val barrierOptions = listOf(
+                            "time" to "Falta de tiempo", "hunger" to "Hambre", "social" to "Compromisos sociales",
+                            "cooking" to "Cocinar", "budget" to "Presupuesto", "planning" to "Organización",
+                            "cravings" to "Antojos", "emotions" to "Estado emocional", "travel" to "Viajes", "other" to "Otras"
+                        )
+                        barrierOptions.chunked(2).forEach { pair ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                pair.forEach { (key, label) ->
+                                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(checked = key in draft.barriers, enabled = !busy && !submissionPending,
+                                            onCheckedChange = { checked ->
+                                                val next = if (checked) (draft.barriers + key).distinct() else draft.barriers - key
+                                                onDraftChange(draft.copy(barriers = next))
+                                            })
+                                        Text(label, style = MaterialTheme.typography.bodySmall, color = Ink)
+                                    }
+                                }
+                            }
+                        }
+                        OutlinedTextField(value = draft.difficulties, onValueChange = { onDraftChange(draft.copy(difficulties = it)) },
+                            label = { Text("Detalle opcional") }, enabled = !busy && !submissionPending,
+                            modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4)
+                        OutlinedTextField(value = draft.notes, onValueChange = { onDraftChange(draft.copy(notes = it)) },
+                            label = { Text("Comentario para tu profesional (opcional)") }, enabled = !busy && !submissionPending,
+                            modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4)
+                        Button(onClick = onSubmit, enabled = !busy && draft.adherence.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                            Text(if (submissionPending) "Reintentar envío seguro" else if (busy) "Enviando…" else "Enviar revisión semanal")
+                        }
+                    }
+                }
+            }
             if (history.isNotEmpty()) {
                 Text("Historial", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 history.forEach { CheckinCard(it) }
