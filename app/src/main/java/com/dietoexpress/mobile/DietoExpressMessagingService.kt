@@ -18,6 +18,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 object PushNotifications {
     private const val CHANNEL_ID = "dietoexpress_updates"
@@ -38,6 +40,16 @@ object PushNotifications {
                     }
                 }
             }
+    }
+
+    suspend fun unregisterCurrentToken(context: Context) {
+        if (FirebaseApp.getApps(context).isEmpty()) return
+        val task = runCatching { FirebaseMessaging.getInstance().token }.getOrNull() ?: return
+        val token = suspendCancellableCoroutine<String?> { continuation ->
+            task.addOnSuccessListener { value -> if (continuation.isActive) continuation.resume(value) }
+                .addOnFailureListener { if (continuation.isActive) continuation.resume(null) }
+        } ?: return
+        runCatching { PortalService.api.revokePushToken(PushTokenRequest(token)) }
     }
 
     fun show(context: Context, title: String, body: String, target: String?) {
