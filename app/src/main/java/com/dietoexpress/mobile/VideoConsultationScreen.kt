@@ -39,6 +39,7 @@ import com.dietoexpress.mobile.data.PortalService
 import com.dietoexpress.mobile.data.VideoEventRequest
 import io.livekit.android.LiveKit
 import io.livekit.android.events.RoomEvent
+import io.livekit.android.events.collect
 import io.livekit.android.renderer.SurfaceViewRenderer
 import io.livekit.android.room.Room
 import io.livekit.android.room.track.VideoTrack
