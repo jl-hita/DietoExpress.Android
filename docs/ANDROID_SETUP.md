@@ -26,23 +26,13 @@ Debe utilizarse Java 17. Si Android Studio y la terminal usan JDK distintos, con
 
 ## 2. Firebase y notificaciones push
 
-El proyecto utiliza Firebase Cloud Messaging (FCM). La configuración Android de Firebase debe corresponder al identificador exacto:
+El proyecto utiliza Firebase Cloud Messaging (FCM). El repositorio ya contiene los cuatro valores de configuración cliente en el `gradle.properties` de la raíz. Por tanto, **no necesitas crear un archivo local de propiedades ni configurar secretos Firebase en GitHub Actions para compilar**. El identificador Android configurado es:
 
 ```text
 com.dietoexpress.mobile
 ```
 
-En Firebase Console:
-
-1. Abre el proyecto Firebase de DietoExpress o crea uno específico para la app.
-2. Añade una aplicación Android con el identificador exacto `com.dietoexpress.mobile`.
-3. Obtén los valores de configuración del proyecto: API key, Firebase App ID, Project ID y sender ID.
-4. Comprueba que Cloud Messaging está disponible. La configuración del servidor es independiente de la app cliente: sigue la guía del backend [docs/P1_PUSH_NOTIFICATIONS.md](https://github.com/jl-hita/DietoExpress/blob/main/docs/P1_PUSH_NOTIFICATIONS.md), que documenta la cuenta de servicio, las variables `DIETOEXPRESS_FCM_PROJECT_ID` y `DIETOEXPRESS_FCM_SERVICE_ACCOUNT_PATH`, los permisos del archivo y el reinicio de systemd.
-5. Restringe la API key cliente a las APIs y aplicaciones necesarias cuando sea posible. Esta clave no sustituye a credenciales de servidor ni concede autorización clínica.
-
-Configura los valores como propiedades locales de Gradle, no dentro de un archivo versionado. En Windows crea/edita `%USERPROFILE%\.gradle\gradle.properties`; en Linux/macOS, `~/.gradle/gradle.properties`.
-
-Contenido (sustituye los marcadores por los valores de Firebase Console):
+Si en el futuro se cambia de proyecto Firebase o se necesita probar otra configuración, puedes sobrescribir los valores en el archivo personal de Gradle, sin modificar el repositorio: en Windows `%USERPROFILE%\.gradle\gradle.properties`; en Linux/macOS `~/.gradle/gradle.properties`. Las propiedades personales de Gradle permiten mantener una configuración local distinta. Las claves son:
 
 ```properties
 dietoexpressFirebaseApiKey=REEMPLAZAR
@@ -52,9 +42,9 @@ dietoexpressFirebaseSenderId=REEMPLAZAR
 dietoexpressApiBaseUrl=https://jlhitap.duckdns.org/api
 ```
 
-No añadas comillas ni espacios alrededor de `=`. `dietoexpressApiBaseUrl` debe apuntar a la raíz de la API y terminar en `/api`, sin añadir rutas de controladores. Para desarrollo local, cambia esta URL explícitamente: el `localhost` del emulador no es el PC anfitrión. No desactives la validación TLS para solucionar errores de certificados.
+Solo necesitas definir la URL de API en las propiedades personales si quieres sobrescribir la URL predeterminada o apuntar a otro entorno. La URL debe apuntar a la raíz de la API y terminar en `/api`, sin añadir rutas de controladores. Para desarrollo local, recuerda que `localhost` del emulador no es el PC anfitrión. No desactives la validación TLS para solucionar errores de certificados.
 
-La app compila estos valores en el cliente. Son configuración identificativa de una app cliente, no credenciales administrativas. No guardes service-account JSON, claves privadas ni tokens de servidor en el proyecto Android. No versionar valores de configuración locales aunque no sean secretos de servidor: evita divergencias entre equipos y deja la configuración de cada entorno explícita.
+Estos cuatro valores son configuración identificativa de una aplicación cliente Android, no credenciales administrativas. La API key cliente debe restringirse a las APIs y aplicaciones necesarias cuando sea posible. **No guardes en el repositorio credenciales de servidor, service-account JSON, claves privadas, tokens ni contraseñas.** La cuenta de servicio FCM del backend es independiente de la app cliente: sigue la guía [docs/P1_PUSH_NOTIFICATIONS.md](https://github.com/jl-hita/DietoExpress/blob/main/docs/P1_PUSH_NOTIFICATIONS.md), que documenta `DIETOEXPRESS_FCM_PROJECT_ID`, `DIETOEXPRESS_FCM_SERVICE_ACCOUNT_PATH`, los permisos del archivo y el reinicio de systemd. El JSON de esa cuenta de servicio debe permanecer únicamente en el servidor.
 
 ### Comprobación
 
@@ -116,16 +106,16 @@ No generes una clave nueva para cada compilación. Una actualización debe usar 
 
 ## 5. GitHub Actions y secretos de CI
 
-El build Gradle espera estas cuatro variables de entorno. Si se almacenan en GitHub Actions, el workflow debe mapear explícitamente los secretos a esas variables y provisionar el archivo keystore en el runner. Antes de crear o renombrar secretos, comprueba los nombres que realmente consume el workflow. Los nombres de variables de entorno esperados son:
+La configuración Firebase cliente se obtiene del `gradle.properties` versionado, por lo que no hacen falta secretos Firebase adicionales en GitHub Actions. La firma estable sí usa secretos. El workflow espera estos cuatro secretos:
 
-- `ANDROID_SIGNING_KEYSTORE_PATH`
-- `ANDROID_SIGNING_KEYSTORE_PASSWORD`
-- `ANDROID_SIGNING_KEY_ALIAS`
-- `ANDROID_SIGNING_KEY_PASSWORD`
+- `ANDROID_SIGNING_KEYSTORE_BASE64`: contenido del archivo keystore codificado en Base64.
+- `ANDROID_SIGNING_KEYSTORE_PASSWORD`: contraseña del keystore.
+- `ANDROID_SIGNING_KEY_ALIAS`: alias de la clave privada.
+- `ANDROID_SIGNING_KEY_PASSWORD`: contraseña de la clave privada.
 
-**Importante:** una variable de ruta no transfiere por sí sola el keystore a un runner efímero. Comprueba que el workflow provisiona el archivo de forma segura en el runner y lo elimina al finalizar. Los PRs desde forks no deben recibir secretos. No imprimas el entorno completo ni actives `set -x` en pasos que manejan credenciales.
+En el job de `main`, el workflow decodifica el keystore en un archivo temporal del runner, expone su ruta a Gradle mediante `ANDROID_SIGNING_KEYSTORE_PATH` y elimina el archivo al finalizar. Verifica que los cuatro secretos estén configurados si quieres que la compilación de `main` produzca una APK firmada con tu clave estable. Los PR no deben recibir esos secretos. No imprimas el entorno completo ni actives `set -x` en pasos que manejan credenciales.
 
-La configuración local y la CI deben usar la misma clave y alias. GitHub no permite leer de vuelta los valores guardados; consérvalos en el almacén seguro original.
+La compilación local sin las cuatro variables de firma sigue funcionando, pero Android Studio generará una APK debug con la firma de depuración predeterminada. Esa APK no sirve para actualizar una instalación que use tu clave estable.
 
 ## 6. Compatibilidad con el backend
 
@@ -140,7 +130,7 @@ Antes de distribuir una actualización:
 ## 7. Lista de comprobación antes de distribuir
 
 - [ ] JDK 17, Android SDK 36 y Gradle Wrapper funcionan.
-- [ ] Los cuatro valores Firebase locales están configurados fuera del repositorio.
+- [ ] La configuración Firebase incluida en el repositorio corresponde al proyecto Firebase esperado.
 - [ ] La URL base HTTPS apunta al backend correcto.
 - [ ] Compilan las pruebas unitarias y el APK.
 - [ ] Se ha probado el acceso con una cuenta de paciente de pruebas.
