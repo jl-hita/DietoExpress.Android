@@ -2,6 +2,7 @@ package com.dietoexpress.mobile
 
 import android.os.Bundle
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.ComponentActivity
@@ -62,6 +63,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.dietoexpress.mobile.data.DietDay
 import com.dietoexpress.mobile.data.DietDetail
 import com.dietoexpress.mobile.data.DietMeal
@@ -82,9 +84,18 @@ private val Line = Color(0xFFE2EAE5)
 private val Amber = Color(0xFF94651B)
 
 class MainActivity : ComponentActivity() {
+    private val notificationTarget = MutableStateFlow<String?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        notificationTarget.value = intent.getStringExtra("notification_target")
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        notificationTarget.value = intent.getStringExtra("notification_target")
         setContent {
             MaterialTheme(
                 colorScheme = lightColorScheme(
@@ -102,6 +113,16 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = Canvas) {
                     val vm: PortalViewModel = viewModel()
                     val state by vm.state.collectAsStateWithLifecycle()
+                    val notificationDestination by notificationTarget.collectAsStateWithLifecycle()
+                    LaunchedEffect(notificationDestination, state.profile?.clientId) {
+                        if (state.profile != null && notificationDestination != null) {
+                            when (notificationDestination) {
+                                "messages" -> vm.openSection("messages")
+                                "appointments" -> vm.openSection("appointments")
+                            }
+                            notificationTarget.value = null
+                        }
+                    }
                     var publicRoute by remember { mutableStateOf("portal") }
                     var showingNotifications by remember { mutableStateOf(false) }
                     LaunchedEffect(state.profile?.clientId) {
