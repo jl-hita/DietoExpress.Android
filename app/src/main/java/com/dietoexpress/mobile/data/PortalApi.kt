@@ -56,6 +56,8 @@ data class NutritionistTransfer(
 data class ConfirmNutritionistTransferRequest(val consentToHistoryTransfer: Boolean)
 data class NutritionistTransferResponse(val completed: Boolean = false, val cancelled: Boolean = false, val message: String? = null)
 
+data class WeightEntry(val date: String, val weight: Double)
+
 data class PatientProfile(
     val clientId: Int,
     val fullName: String,
@@ -63,6 +65,7 @@ data class PatientProfile(
     val gender: String? = null,
     val currentWeight: Double? = null,
     val currentHeight: Double? = null,
+    val weightHistory: List<WeightEntry> = emptyList(),
     val hasActiveDiet: Boolean = false,
     val clinicName: String? = null,
     val clinicPhone: String? = null,
