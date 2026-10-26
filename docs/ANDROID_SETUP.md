@@ -2,7 +2,7 @@
 
 Fecha de revisión: 26/10/2026.
 
-Esta guía describe cómo preparar el entorno local, configurar Firebase, compilar la app y firmar APKs de forma reproducible. La app nativa es el portal del paciente; el backend ASP.NET Core continúa siendo la autoridad para identidad, permisos y reglas de negocio.
+Esta guía describe cómo preparar el entorno local, configurar Firebase, compilar la app y generar el AAB firmado para Google Play desde Android Studio. La app nativa es el portal del paciente; el backend ASP.NET Core continúa siendo la autoridad para identidad, permisos y reglas de negocio.
 
 ## 1. Requisitos
 
@@ -66,56 +66,56 @@ adb devices
 .\gradlew.bat --no-daemon :app:installDebug
 ```
 
-Alternativamente, copia el APK a un dispositivo e instálalo; Android puede pedir autorización para instalar desde esa fuente. En Linux/macOS usa `./gradlew` en lugar de `.\gradlew.bat`.
+Alternativamente, copia el APK a un dispositivo e instálalo; Android puede pedir autorización para instalar desde esa fuente. En Linux/macOS usa `./gradlew` en lugar de `./gradlew.bat`.
 
-## 4. Firma estable de APK
+## 4. Configurar la firma estable en tu PC
 
-La firma estable es obligatoria para actualizar una instalación existente sin desinstalarla. El proyecto lee estas variables de entorno:
+El AAB de Google Play se genera **localmente desde Android Studio**. GitHub Actions no genera el AAB ni necesita acceso a la clave de carga.
 
-- `ANDROID_SIGNING_KEYSTORE_PATH`: ruta al archivo keystore.
-- `ANDROID_SIGNING_KEYSTORE_PASSWORD`: contraseña del keystore.
-- `ANDROID_SIGNING_KEY_ALIAS`: alias de la clave privada.
-- `ANDROID_SIGNING_KEY_PASSWORD`: contraseña de la clave privada.
+Guarda la configuración de firma en el archivo personal de Gradle:
 
-Los cuatro valores deben estar presentes y la ruta debe apuntar a un archivo legible. Configúralos solo en el entorno local protegido o en el almacén de secretos de CI; nunca los escribas en el repositorio, comandos guardados o logs.
+- Windows: `%USERPROFILE%\.gradle\gradle.properties`
+- Linux/macOS: `~/.gradle/gradle.properties`
 
-En PowerShell puedes pedir las contraseñas de forma interactiva para no escribirlas en el comando:
+Añade las siguientes propiedades con los datos de la clave estable que ya creaste:
 
-```powershell
-$env:ANDROID_SIGNING_KEYSTORE_PATH = "C:\ruta\privada\dietoexpress-release.jks"
-$env:ANDROID_SIGNING_KEYSTORE_PASSWORD = Read-Host "Contraseña del keystore"
-$env:ANDROID_SIGNING_KEY_ALIAS = Read-Host "Alias de la clave"
-$env:ANDROID_SIGNING_KEY_PASSWORD = Read-Host "Contraseña de la clave"
+```properties
+androidSigningKeystorePath=C:/ruta/privada/dietoexpress-release.jks
+androidSigningKeystorePassword=CONTRASEÑA_DEL_KEYSTORE
+androidSigningKeyAlias=ALIAS_DE_LA_CLAVE
+androidSigningKeyPassword=CONTRASEÑA_DE_LA_CLAVE
 ```
 
-Ten en cuenta que `Read-Host` muestra lo que escribes. Para mayor protección usa un gestor de secretos y evita copiar valores reales a la guía o al historial. No uses `setx` para guardar contraseñas permanentemente en el perfil de Windows.
+Sustituye los valores de ejemplo por los tuyos. En Windows puedes usar barras `/` en la ruta. No guardes estos valores en el repositorio ni los compartas. Asegúrate de que la ruta existe y apunta al keystore correcto. Cierra y vuelve a abrir Android Studio si estaba abierto mientras modificabas el archivo.
 
-Con la firma estable configurada, compila:
+Gradle solo configura la firma release estable si las cuatro propiedades existen y la ruta apunta a un archivo. Si no están disponibles, no subas el AAB a Google Play: podría no estar firmado con la clave de carga esperada.
+
+### Generar el AAB desde Android Studio
+
+1. Abre el proyecto y espera a que termine la sincronización de Gradle.
+2. Ejecuta las pruebas y comprueba que el backend HTTPS y Firebase configurados son los correctos.
+3. Si ya subiste una versión a Play Console, incrementa `versionCode` en `app/build.gradle.kts`. Cada lanzamiento debe tener un código superior al anterior.
+4. Abre **Build → Generate Signed Bundle / APK…** (el texto puede variar ligeramente entre versiones de Android Studio).
+5. Selecciona **Android App Bundle**, el módulo `app` y la variante `release`.
+6. Sigue el asistente. Si pide el keystore, selecciona el archivo y alias existentes; no generes una clave nueva.
+7. Finaliza la generación y localiza el archivo `.aab` indicado por Android Studio. Normalmente estará en `app/build/outputs/bundle/release/`.
+8. Verifica que el paquete corresponde a `com.dietoexpress.mobile`, que el AAB está firmado con la clave de carga esperada y que el `versionCode` es correcto. Sube ese AAB a Play Console; no subas el APK debug.
+
+También puedes generar el AAB desde la terminal de Android Studio:
 
 ```powershell
-.\gradlew.bat --no-daemon :app:assembleDebug
+.\gradlew.bat --no-daemon :app:bundleRelease
 ```
-
-La configuración actual aplica la clave estable al tipo `debug` si las cuatro variables están disponibles. **No asumas que `assembleRelease` produce un APK publicable firmado**: antes de distribuir, revisa la configuración Gradle de release y verifica el APK generado.
 
 ### Copia de seguridad de la clave
 
-Guarda una copia del keystore y de sus credenciales en un gestor o almacén cifrado independiente del PC de desarrollo. Limita el acceso y comprueba que la copia se puede leer. No la subas a GitHub, a almacenamiento sin cifrar, tickets ni chats. Perder la clave puede impedir actualizar la app instalada con una APK firmada con una identidad diferente.
+Guarda una copia del keystore y de sus credenciales en un gestor o almacén cifrado independiente del PC de desarrollo. Limita el acceso y comprueba que la copia se puede leer. No la subas a GitHub, almacenamiento sin cifrar, tickets ni chats. Perder la clave puede impedir actualizar la app si necesitas usar la misma clave para futuras cargas.
 
-No generes una clave nueva para cada compilación. Una actualización debe usar el mismo certificado que la instalación anterior; Android rechazará una APK con firma distinta. Desinstalar primero puede perder los datos locales.
+Si activas Play App Signing, Google gestiona la clave con la que firma la app distribuida; tu keystore local actúa como clave de carga. Conserva la copia de seguridad.
 
-## 5. GitHub Actions y secretos de CI
+## 5. GitHub Actions
 
-La configuración Firebase cliente se obtiene del `gradle.properties` versionado, por lo que no hacen falta secretos Firebase adicionales en GitHub Actions. La firma estable sí usa secretos. El workflow espera estos cuatro secretos:
-
-- `ANDROID_SIGNING_KEYSTORE_BASE64`: contenido del archivo keystore codificado en Base64.
-- `ANDROID_SIGNING_KEYSTORE_PASSWORD`: contraseña del keystore.
-- `ANDROID_SIGNING_KEY_ALIAS`: alias de la clave privada.
-- `ANDROID_SIGNING_KEY_PASSWORD`: contraseña de la clave privada.
-
-En el job de `main`, el workflow decodifica el keystore en un archivo temporal del runner, expone su ruta a Gradle mediante `ANDROID_SIGNING_KEYSTORE_PATH` y elimina el archivo al finalizar. Verifica que los cuatro secretos estén configurados si quieres que la compilación de `main` produzca una APK firmada con tu clave estable. Los PR no deben recibir esos secretos. No imprimas el entorno completo ni actives `set -x` en pasos que manejan credenciales.
-
-La compilación local sin las cuatro variables de firma sigue funcionando, pero Android Studio generará una APK debug con la firma de depuración predeterminada. Esa APK no sirve para actualizar una instalación que use tu clave estable.
+GitHub Actions ejecuta las pruebas unitarias, compila las pruebas instrumentadas y compila el APK debug. En pushes a `main` puede conservar un APK debug como artefacto de diagnóstico. **No genera AAB, no firma lanzamientos y no necesita los secretos de firma.** El AAB publicable se genera en tu propio Android Studio siguiendo el apartado anterior.
 
 ## 6. Compatibilidad con el backend
 
@@ -137,7 +137,7 @@ Antes de distribuir una actualización:
 - [ ] Se han probado notificaciones en primer/segundo plano, permisos y navegación.
 - [ ] Se ha probado modo sin conexión, reinicio del proceso, reintentos y cambio de cuenta.
 - [ ] Se ha probado la videoconsulta en dispositivo real.
-- [ ] La APK usa la clave estable esperada y se ha verificado su firma.
+- [ ] El AAB release usa la clave estable esperada y se ha verificado su firma.
 - [ ] El keystore y las credenciales tienen copia de seguridad cifrada.
 - [ ] Se han revisado privacidad, accesibilidad, soporte y requisitos de Google Play.
 
