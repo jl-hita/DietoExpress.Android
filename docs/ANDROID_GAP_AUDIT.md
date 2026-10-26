@@ -54,6 +54,16 @@ Por tanto, la base offline existe, pero **P0 offline-first no debe darse por ter
 5. Completar registro de entrenamiento con duración real/RPE/notas, edición de perfil y reprogramación de citas si el backend lo soporta.
 6. Cierre de publicación: accesibilidad, privacidad, soporte y requisitos de Google Play.
 
+## Checklist manual para cerrar P0 offline
+
+1. Inicia sesión con una cuenta de prueba y carga dieta, citas, documentos, mensajes y seguimiento.
+2. Activa modo avión y confirma que las lecturas muestran caché con advertencias; guarda un borrador semanal y cierra/abre la app para comprobar que persiste.
+3. Crea un mensaje pendiente, fuerza el cierre de la app, recupera la conexión y comprueba que llega una sola vez.
+4. Simula una respuesta perdida tras guardar el mensaje en el servidor y comprueba que el reintento usa la misma clave idempotente.
+5. Cambia a otra cuenta en el mismo dispositivo y confirma que ninguna operación anterior se envía con la sesión nueva.
+6. Comprueba que un conflicto queda visible y no se reintenta automáticamente; descártalo solo tras leer la advertencia.
+7. Prueba la revisión semanal cerca del cambio de semana UTC: el borrador no debe enviarse automáticamente en una semana posterior.
+
 ## Restricciones de seguridad
 
 - No mostrar como confirmadas reservas, aceptaciones o envíos que solo estén guardados localmente.

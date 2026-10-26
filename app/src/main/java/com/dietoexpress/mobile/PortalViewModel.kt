@@ -549,6 +549,10 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         val accountId = current.profile?.clientId ?: return
         if (current.busy) return
         val draft = current.checkinDraft
+        if (draft.difficulties.length > 1000 || draft.notes.length > 2000 || draft.barriers.distinct().size > 10) {
+            showMessage("El detalle no puede superar 1000 caracteres, el comentario 2000 y puedes elegir hasta 10 barreras.", true)
+            return
+        }
         val adherence = draft.adherence.toIntOrNull()
         if (adherence == null || adherence !in 0..100) {
             showMessage("Indica una adherencia entre 0 y 100 %.", true)

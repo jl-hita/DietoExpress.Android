@@ -1078,7 +1078,7 @@ private fun ProgressContent(
                         }
                         val first = weightPoints.first()
                         val last = weightPoints.last()
-                        Text("${number(first.weight!!)} kg (${first.weekStart ?: first.submittedAt?.take(10).orEmpty()}) → ${number(last.weight!!)} kg (${last.weekStart ?: last.submittedAt?.take(10).orEmpty()})",
+                        Text("${number(first.weight!!)} kg (${dateLabel(first.weekStart ?: first.submittedAt?.take(10).orEmpty())}) → ${number(last.weight!!)} kg (${dateLabel(last.weekStart ?: last.submittedAt?.take(10).orEmpty())})",
                             color = Muted, style = MaterialTheme.typography.bodySmall)
                     }
                 }
@@ -1161,7 +1161,7 @@ private fun ProgressContent(
 private fun CheckinCard(item: PatientCheckin) {
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text(item.weekStart ?: item.submittedAt?.take(10) ?: "Revisión", color = Forest, fontWeight = FontWeight.Bold)
+            Text(item.weekStart?.let(::dateLabel) ?: item.submittedAt?.take(10)?.let(::dateLabel) ?: "Revisión", color = Forest, fontWeight = FontWeight.Bold)
             item.weight?.let { ProfileRow("Peso", "${number(it)} kg") }
             item.adherence?.let { ProfileRow("Adherencia", "$it %") }
             item.hunger?.let { ProfileRow("Hambre", "$it / 10") }
