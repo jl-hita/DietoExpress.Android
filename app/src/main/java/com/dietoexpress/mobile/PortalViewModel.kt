@@ -537,6 +537,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         val accountId = _state.value.profile?.clientId
         SessionOperationLock.withLock {
             try {
+                runCatching { PushNotifications.unregisterCurrentToken(getApplication()) }
                 PortalService.api.logout()
             } finally {
                 PortalService.clearSessionCookies()
