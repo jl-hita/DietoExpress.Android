@@ -8,7 +8,8 @@ val signingStorePath = providers.environmentVariable("ANDROID_SIGNING_KEYSTORE_P
 val signingStorePassword = providers.environmentVariable("ANDROID_SIGNING_KEYSTORE_PASSWORD").orNull
 val signingKeyAlias = providers.environmentVariable("ANDROID_SIGNING_KEY_ALIAS").orNull
 val signingKeyPassword = providers.environmentVariable("ANDROID_SIGNING_KEY_PASSWORD").orNull
-val hasStableSigning = listOf(signingStorePath, signingStorePassword, signingKeyAlias, signingKeyPassword).all { !it.isNullOrBlank() }
+val hasStableSigning = listOf(signingStorePath, signingStorePassword, signingKeyAlias, signingKeyPassword).all { !it.isNullOrBlank() } &&
+    !signingStorePath.isNullOrBlank() && file(signingStorePath).isFile
 
 android {
     namespace = "com.dietoexpress.mobile"
@@ -23,6 +24,11 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "API_BASE_URL", "\"" + providers.gradleProperty("dietoexpressApiBaseUrl").orElse("https://jlhitap.duckdns.org/api").get() + "\"")
+        fun buildConfigLiteral(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+        buildConfigField("String", "FIREBASE_API_KEY", buildConfigLiteral(providers.gradleProperty("dietoexpressFirebaseApiKey").orElse("").get()))
+        buildConfigField("String", "FIREBASE_APPLICATION_ID", buildConfigLiteral(providers.gradleProperty("dietoexpressFirebaseApplicationId").orElse("").get()))
+        buildConfigField("String", "FIREBASE_PROJECT_ID", buildConfigLiteral(providers.gradleProperty("dietoexpressFirebaseProjectId").orElse("").get()))
+        buildConfigField("String", "FIREBASE_SENDER_ID", buildConfigLiteral(providers.gradleProperty("dietoexpressFirebaseSenderId").orElse("").get()))
     }
 
     signingConfigs {
@@ -78,6 +84,8 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
     implementation("com.squareup.okhttp3:okhttp:5.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("io.livekit:livekit-android:2.29.1")
+    implementation("com.google.firebase:firebase-messaging:24.1.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 

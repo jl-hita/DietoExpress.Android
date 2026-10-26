@@ -13,6 +13,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Headers
 import retrofit2.http.POST
 import retrofit2.http.Path
 
@@ -115,6 +116,20 @@ data class PatientAppointment(
     val modality: String? = null,
     val videoRoomUrl: String? = null
 )
+
+data class VideoAccessResponse(
+    val provider: String,
+    val roomUrl: String,
+    val token: String,
+    val expiresAt: String,
+    val videoStartedAt: String? = null,
+    val appointmentStatus: String,
+    val canFinalize: Boolean = false,
+    val maxCallDurationMinutes: Int = 60
+)
+
+data class VideoEventRequest(val event: String)
+data class PushTokenRequest(val token: String, val platform: String = "android")
 
 data class AppointmentSlot(
     val startsAt: String,
@@ -244,6 +259,22 @@ interface PortalApi {
 
     @GET("appointments/mine")
     suspend fun appointments(): List<PatientAppointment>
+
+    @Headers("X-DietoExpress-Patient-Portal: 1")
+    @GET("appointments/{id}/video-access")
+    suspend fun videoAccess(@Path("id") id: Int): VideoAccessResponse
+
+    @Headers("X-DietoExpress-Patient-Portal: 1")
+    @POST("appointments/{id}/video-event")
+    suspend fun recordVideoEvent(@Path("id") id: Int, @Body request: VideoEventRequest)
+
+    @Headers("X-DietoExpress-Patient-Portal: 1")
+    @POST("portal/push-tokens")
+    suspend fun registerPushToken(@Body request: PushTokenRequest)
+
+    @Headers("X-DietoExpress-Patient-Portal: 1")
+    @POST("portal/push-tokens/revoke")
+    suspend fun revokePushToken(@Body request: PushTokenRequest)
 
     @GET("appointments/slots")
     suspend fun appointmentSlots(@retrofit2.http.Query("days") days: Int = 30): List<AppointmentSlot>
