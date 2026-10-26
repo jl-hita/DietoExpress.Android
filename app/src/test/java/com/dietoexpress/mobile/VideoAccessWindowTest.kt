@@ -18,7 +18,8 @@ class VideoAccessWindowTest {
     }
 
     @Test fun hidesEntryAtExpiryAndForInvalidDates() {
-        assertFalse(isWithinVideoAccessWindow(start, end, Instant.parse("2026-10-27T10:30:00Z")))
+        assertTrue(isWithinVideoAccessWindow(start, end, Instant.parse("2026-10-26T10:44:59Z")))
+        assertFalse(isWithinVideoAccessWindow(start, end, Instant.parse("2026-10-26T10:45:00Z")))
         assertFalse(isWithinVideoAccessWindow("invalid", end, Instant.parse("2026-10-26T10:00:00Z")))
     }
 }
