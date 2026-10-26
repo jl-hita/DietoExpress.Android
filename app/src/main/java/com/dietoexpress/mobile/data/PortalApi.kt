@@ -58,6 +58,17 @@ data class NutritionistTransferResponse(val completed: Boolean = false, val canc
 
 data class WeightEntry(val date: String, val weight: Double)
 
+data class PatientBiometricMeasurement(
+    val date: String,
+    val weight: Double? = null,
+    val height: Double? = null,
+    val bodyFat: Double? = null,
+    val muscleMass: Double? = null,
+    val visceralFat: Double? = null,
+    val waist: Double? = null,
+    val hip: Double? = null
+)
+
 data class PatientProfile(
     val clientId: Int,
     val fullName: String,
@@ -348,6 +359,9 @@ interface PortalApi {
 
     @POST("portal/training/sessions/{sessionId}/record")
     suspend fun recordTrainingSession(@Path("sessionId") sessionId: Int, @Body request: PatientTrainingRecordRequest): Map<String, Long>
+
+    @GET("portal/biometrics")
+    suspend fun biometricHistory(): List<PatientBiometricMeasurement>
 
     @GET("portal/check-ins/eligibility")
     suspend fun checkinEligibility(): CheckinEligibility

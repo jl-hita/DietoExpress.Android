@@ -19,6 +19,7 @@ import com.dietoexpress.mobile.data.PatientAuthRequest
 import com.dietoexpress.mobile.data.PatientCheckin
 import com.dietoexpress.mobile.data.PatientCheckinDraft
 import com.dietoexpress.mobile.data.PatientCheckinRequest
+import com.dietoexpress.mobile.data.PatientBiometricMeasurement
 import com.dietoexpress.mobile.data.PatientTrainingRecordRequest
 import com.dietoexpress.mobile.data.PatientDocument
 import com.dietoexpress.mobile.data.PatientMessage
@@ -76,6 +77,8 @@ data class PortalUiState(
     val checkinEligibility: CheckinEligibility? = null,
     val currentCheckin: PatientCheckin? = null,
     val checkinHistory: List<PatientCheckin> = emptyList(),
+    val biometricHistory: List<PatientBiometricMeasurement> = emptyList(),
+    val biometricHistoryLoaded: Boolean = false,
     val checkinLoaded: Boolean = false,
     val checkinDraft: PatientCheckinDraft = PatientCheckinDraft(),
     val checkinSubmissionPending: Boolean = false,
@@ -736,14 +739,20 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 val type = TypeToken.getParameterized(List::class.java, PatientCheckin::class.java).type
                 offline.readThrough(accountId, "checkin-history", type) { PortalService.api.checkinHistory() }
             } else null
-            val stale = eligibilityResult.fromCache || currentResult?.fromCache == true || historyResult?.fromCache == true
+            val biometricResult = runCatching {
+                val biometricType = TypeToken.getParameterized(List::class.java, PatientBiometricMeasurement::class.java).type
+                offline.readThrough(accountId, "biometric-history", biometricType) { PortalService.api.biometricHistory() }
+            }.getOrNull()
+            val stale = eligibilityResult.fromCache || currentResult?.fromCache == true || historyResult?.fromCache == true || biometricResult?.fromCache == true
             val currentWeekStartUtc = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
                 .with(java.time.DayOfWeek.MONDAY).toString()
             val visibleCurrent = currentResult?.let { result ->
                 result.value?.takeIf { !result.fromCache || it.weekStart == currentWeekStartUtc }
             }
             _state.value = _state.value.copy(checkinEligibility = eligibility, currentCheckin = visibleCurrent,
-                checkinHistory = historyResult?.value ?: emptyList(), checkinLoaded = true, section = "progress",
+                checkinHistory = historyResult?.value ?: emptyList(),
+                biometricHistory = biometricResult?.value ?: emptyList(), biometricHistoryLoaded = biometricResult != null,
+                checkinLoaded = true, section = "progress",
                 checkinDraft = savedDraft, checkinSubmissionPending = savedDraft.submissionPending,
                 message = if (stale) "Sin conexión: se muestran los últimos datos de seguimiento guardados." else null, error = false)
         }
