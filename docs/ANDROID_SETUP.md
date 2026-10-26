@@ -19,7 +19,7 @@ Comprueba Java desde la terminal que utilizará Gradle:
 
 ```powershell
 java -version
-.\\gradlew.bat --version
+.\gradlew.bat --version
 ```
 
 Debe utilizarse Java 17. Si Android Studio y la terminal usan JDK distintos, configura **Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK**.
@@ -32,7 +32,7 @@ El proyecto utiliza Firebase Cloud Messaging (FCM). El repositorio ya contiene l
 com.dietoexpress.mobile
 ```
 
-Si en el futuro se cambia de proyecto Firebase o se necesita probar otra configuración, puedes sobrescribir los valores en el archivo personal de Gradle, sin modificar el repositorio: en Windows `%USERPROFILE%\\.gradle\\gradle.properties`; en Linux/macOS `~/.gradle/gradle.properties`. Las propiedades personales de Gradle permiten mantener una configuración local distinta. Las claves son:
+Si en el futuro se cambia de proyecto Firebase o se necesita probar otra configuración, puedes sobrescribir los valores en el archivo personal de Gradle, sin modificar el repositorio: en Windows `%USERPROFILE%\.gradle\gradle.properties`; en Linux/macOS `~/.gradle/gradle.properties`. Las propiedades personales de Gradle permiten mantener una configuración local distinta. Las claves son:
 
 ```properties
 dietoexpressFirebaseApiKey=REEMPLAZAR
@@ -51,8 +51,8 @@ Estos cuatro valores son configuración identificativa de una aplicación client
 Desde la raíz del repositorio:
 
 ```powershell
-.\\gradlew.bat --no-daemon :app:testDebugUnitTest
-.\\gradlew.bat --no-daemon :app:assembleDebug
+.\gradlew.bat --no-daemon :app:testDebugUnitTest
+.\gradlew.bat --no-daemon :app:assembleDebug
 ```
 
 El APK de depuración se genera en `app/build/outputs/apk/debug/app-debug.apk`. Instálalo en un dispositivo/emulador y verifica inicio de sesión y recepción de push en primer y segundo plano. Compilar no demuestra que FCM funcione de extremo a extremo.
@@ -63,7 +63,7 @@ Habilita las opciones de desarrollador y depuración USB, conecta el teléfono y
 
 ```powershell
 adb devices
-.\\gradlew.bat --no-daemon :app:installDebug
+.\gradlew.bat --no-daemon :app:installDebug
 ```
 
 Alternativamente, copia el APK a un dispositivo e instálalo; Android puede pedir autorización para instalar desde esa fuente. En Linux/macOS usa `./gradlew` en lugar de `./gradlew.bat`.
@@ -74,7 +74,7 @@ El AAB de Google Play se genera **localmente desde Android Studio**. GitHub Acti
 
 Guarda la configuración de firma en el archivo personal de Gradle:
 
-- Windows: `%USERPROFILE%\\.gradle\\gradle.properties`
+- Windows: `%USERPROFILE%\.gradle\gradle.properties`
 - Linux/macOS: `~/.gradle/gradle.properties`
 
 Añade las siguientes propiedades con los datos de la clave estable que ya creaste:
@@ -104,7 +104,7 @@ Gradle solo configura la firma release estable si las cuatro propiedades existen
 También puedes generar el AAB desde la terminal de Android Studio:
 
 ```powershell
-.\\gradlew.bat --no-daemon :app:bundleRelease
+.\gradlew.bat --no-daemon :app:bundleRelease
 ```
 
 ### Copia de seguridad de la clave
