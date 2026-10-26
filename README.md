@@ -40,8 +40,8 @@ Firebase ya está configurado en el `gradle.properties` versionado del proyecto.
 
 Windows (PowerShell):
 ```powershell
-.\\gradlew.bat --no-daemon :app:testDebugUnitTest
-.\\gradlew.bat --no-daemon :app:assembleDebug
+.\gradlew.bat --no-daemon :app:testDebugUnitTest
+.\gradlew.bat --no-daemon :app:assembleDebug
 ```
 
 Linux/macOS:
@@ -53,7 +53,7 @@ Linux/macOS:
 APK debug: `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Configuración local opcional
-No es necesario configurar Firebase en el equipo: los valores de cliente están en el `gradle.properties` versionado. Si necesitas apuntar a otra instalación del backend o probar otro proyecto Firebase, puedes sobrescribir propiedades desde el archivo personal de Gradle: `%USERPROFILE%\\.gradle\\gradle.properties` (Windows) o `~/.gradle/gradle.properties` (Linux/macOS). Las claves son `dietoexpressApiBaseUrl`, `dietoexpressFirebaseApiKey`, `dietoexpressFirebaseApplicationId`, `dietoexpressFirebaseProjectId` y `dietoexpressFirebaseSenderId`.
+No es necesario configurar Firebase en el equipo: los valores de cliente están en el `gradle.properties` versionado. Si necesitas apuntar a otra instalación del backend o probar otro proyecto Firebase, puedes sobrescribir propiedades desde el archivo personal de Gradle: `%USERPROFILE%\.gradle\gradle.properties` (Windows) o `~/.gradle/gradle.properties` (Linux/macOS). Las claves son `dietoexpressApiBaseUrl`, `dietoexpressFirebaseApiKey`, `dietoexpressFirebaseApplicationId`, `dietoexpressFirebaseProjectId` y `dietoexpressFirebaseSenderId`.
 
 Los cuatro valores Firebase identifican la aplicación cliente; no son credenciales administrativas. Aun así, restringe la API key a las APIs y aplicaciones necesarias cuando sea posible. **Nunca** guardes en el repositorio credenciales de servidor, service-account JSON, contraseñas, tokens, cookies ni el keystore de firma.
 
