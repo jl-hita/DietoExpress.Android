@@ -29,6 +29,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -56,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import com.dietoexpress.mobile.data.DietDay
 import com.dietoexpress.mobile.data.DietDetail
 import com.dietoexpress.mobile.data.DietMeal
@@ -97,6 +99,13 @@ class MainActivity : ComponentActivity() {
                     val vm: PortalViewModel = viewModel()
                     val state by vm.state.collectAsStateWithLifecycle()
                     var publicRoute by remember { mutableStateOf("portal") }
+                    var showingNotifications by remember { mutableStateOf(false) }
+                    LaunchedEffect(state.profile?.clientId) {
+                        while (state.profile?.clientId != null) {
+                            vm.refreshNotifications()
+                            delay(60_000)
+                        }
+                    }
                     LaunchedEffect(publicRoute, state.profile?.clientId) {
                         if (publicRoute == "portal" && state.profile != null) vm.loadNutritionistTransfer()
                     }
@@ -165,13 +174,28 @@ class MainActivity : ComponentActivity() {
                                             )
                                             Text("DIETOEXPRESS", color = Forest, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                                         }
-                                        Text(sectionTitle(state.section), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink)
+                                        Text(if (showingNotifications) "Notificaciones" else sectionTitle(state.section), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink)
                                     }
-                                    Box(
-                                        modifier = Modifier.size(44.dp).background(Sage, CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(initials(state.profile?.fullName.orEmpty()), color = ForestDark, fontWeight = FontWeight.Bold)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                                            IconButton(onClick = { showingNotifications = true }, modifier = Modifier.fillMaxSize()) {
+                                                Text("🔔", fontSize = 23.sp)
+                                            }
+                                            if (state.unreadMessagesCount > 0) {
+                                                Box(
+                                                    modifier = Modifier.align(Alignment.TopEnd).size(19.dp).background(Color(0xFFB42318), CircleShape),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(if (state.unreadMessagesCount > 9) "9+" else state.unreadMessagesCount.toString(), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                        Box(
+                                            modifier = Modifier.size(44.dp).background(Sage, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(initials(state.profile?.fullName.orEmpty()), color = ForestDark, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
 
@@ -216,7 +240,14 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
 
-                                when (state.section) {
+                                if (showingNotifications) {
+                                    NotificationCenterContent(
+                                        messages = state.notificationMessages.filter { it.senderType.equals("professional", true) && it.readAt == null }
+                                            .sortedByDescending { it.createdAt },
+                                        onBack = { showingNotifications = false },
+                                        onOpenMessages = { showingNotifications = false; vm.openSection("messages") }
+                                    )
+                                } else when (state.section) {
                                     "diet" -> DietContent(
                                         diet = state.diet,
                                         loaded = state.dietLoaded,
@@ -402,6 +433,44 @@ private fun LoginScreen(
         }
         Spacer(Modifier.height(18.dp))
         Text("Tu información personal se consulta de forma segura.", color = Muted, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun NotificationCenterContent(
+    messages: List<PatientMessage>,
+    onBack: () -> Unit,
+    onOpenMessages: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = onBack) { Text("← Volver") }
+        Text("Notificaciones", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+        Text("Aquí verás los mensajes nuevos de tu profesional y, más adelante, otros avisos importantes.", color = Muted)
+        if (messages.isEmpty()) {
+            EmptyCard("Todo al día", "No tienes mensajes nuevos sin leer.")
+        } else {
+            messages.forEach { item ->
+                Card(
+                    onClick = onOpenMessages,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(Modifier.size(10.dp).background(Forest, CircleShape))
+                            Text("Nuevo mensaje de tu profesional", color = Ink, fontWeight = FontWeight.Bold)
+                        }
+                        Text(item.body, color = Muted, maxLines = 2, style = MaterialTheme.typography.bodyMedium)
+                        Text(item.createdAt.replace("T", " ").take(16), color = Muted, style = MaterialTheme.typography.bodySmall)
+                        Text("Abrir conversación →", color = Forest, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            OutlinedButton(onClick = onOpenMessages, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Text("Ver todos los mensajes")
+            }
+        }
     }
 }
 
