@@ -22,7 +22,7 @@ La app ya no es un simple prototipo de login: implementa buena parte del portal 
 | Videoconsultas | Cliente LiveKit y política de ventana implementados | Pendiente de validación manual del usuario; no se considera bloqueada por el código, pero falta confirmación en dispositivo. |
 | Entrenamiento | Consulta y registro de sesión completada | Validar en dispositivo real el registro de duración real, RPE y notas. |
 | Seguimiento semanal | Formulario, validación, borrador cifrado y clave idempotente persistida | Validar envío, pérdida de respuesta y límites semanales en dispositivo. |
-| Evolución | Gráfica de peso basada en revisiones semanales | Faltan gráficas de biometrías fuera del check-in. |
+| Evolución | Gráfica de peso con historial de mediciones del perfil y respaldo de revisiones semanales | Faltan gráficas de otras mediciones porque el endpoint de portal solo expone historial de peso. |
 | Funciones profesionales | Deliberadamente fuera de alcance | Mantener la web como interfaz principal del nutricionista; no priorizar agenda profesional nativa. |
 
 ## Offline-first: qué está hecho y qué no
