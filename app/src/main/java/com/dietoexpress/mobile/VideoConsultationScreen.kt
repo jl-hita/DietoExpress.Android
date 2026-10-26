@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -41,6 +42,7 @@ import io.livekit.android.events.RoomEvent
 import io.livekit.android.renderer.SurfaceViewRenderer
 import io.livekit.android.room.Room
 import io.livekit.android.room.track.VideoTrack
+import io.livekit.android.room.track.Track
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -58,7 +60,9 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
     var microphoneEnabled by remember { mutableStateOf(true) }
-    var cameraEnabled by remember { mutableStateOf(true) }
+    var cameraEnabled by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+    }
     var connecting by remember { mutableStateOf(false) }
     var connected by remember { mutableStateOf(false) }
     var access by remember { mutableStateOf<com.dietoexpress.mobile.data.VideoAccessResponse?>(null) }
@@ -66,7 +70,9 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
     var connectionStatus by remember { mutableStateOf("Preparando la sala…") }
     var retryNonce by remember { mutableStateOf(0) }
     var remoteVideoTrack by remember { mutableStateOf<VideoTrack?>(null) }
+    var localVideoTrack by remember { mutableStateOf<VideoTrack?>(null) }
     var renderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
+    var localRenderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -76,6 +82,15 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
         cameraGranted = grants[Manifest.permission.CAMERA] == true ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         if (!microphoneGranted) error = "Necesitamos permiso para usar el micrófono. Puedes activarlo en los ajustes de la app."
+        if (!cameraGranted) cameraEnabled = false
+        else if (connected && !cameraEnabled) {
+            scope.launch {
+                if (runCatching { room.localParticipant.setCameraEnabled(true) }.getOrDefault(false)) {
+                    cameraEnabled = true
+                    localVideoTrack = room.localParticipant.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack
+                }
+            }
+        }
     }
 
     LaunchedEffect(appointmentId) {
@@ -97,6 +112,13 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
                     if (track != null) {
                         remoteVideoTrack = track
                         renderer?.let { track.addRenderer(it) }
+                    }
+                }
+                is RoomEvent.TrackUnsubscribed -> {
+                    val track = event.track as? VideoTrack
+                    if (track != null) {
+                        renderer?.let { track.removeRenderer(it) }
+                        if (remoteVideoTrack == track) remoteVideoTrack = null
                     }
                 }
                 is RoomEvent.Reconnecting -> {
@@ -145,7 +167,12 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
             access = meeting
             room.connect(meeting.roomUrl, meeting.token)
             room.localParticipant.setMicrophoneEnabled(true)
-            if (cameraGranted) room.localParticipant.setCameraEnabled(true)
+            if (cameraGranted && room.localParticipant.setCameraEnabled(true)) {
+                cameraEnabled = true
+                localVideoTrack = room.localParticipant.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack
+            } else {
+                cameraEnabled = false
+            }
             connected = true
             connectionStatus = "Conectado"
             withContext(Dispatchers.IO) {
@@ -214,6 +241,22 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
                         modifier = Modifier.padding(20.dp)
                     )
                 }
+                if (cameraGranted) {
+                    AndroidView(
+                        modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).width(96.dp).height(136.dp),
+                        factory = { viewContext ->
+                            SurfaceViewRenderer(viewContext).also { view ->
+                                localRenderer = view
+                                room.initVideoRenderer(view)
+                                localVideoTrack?.addRenderer(view)
+                            }
+                        },
+                        update = { view ->
+                            localRenderer = view
+                            localVideoTrack?.addRenderer(view)
+                        }
+                    )
+                }
                 if (connecting) CircularProgressIndicator()
             }
         }
@@ -232,13 +275,17 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Reintentar conexión") }
         }
-        if (!microphoneGranted) {
+        if (!microphoneGranted || !cameraGranted) {
             OutlinedButton(
                 onClick = {
-                    permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA))
+                    permissionLauncher.launch(
+                        arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA).filter { permission ->
+                            ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
+                        }.toTypedArray()
+                    )
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Volver a solicitar permisos") }
+            ) { Text(if (!microphoneGranted) "Permitir micrófono y cámara" else "Activar cámara") }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
@@ -257,7 +304,10 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
                     if (!connected || !cameraGranted) return@OutlinedButton
                     scope.launch {
                         val next = !cameraEnabled
-                        if (runCatching { room.localParticipant.setCameraEnabled(next) }.isSuccess) cameraEnabled = next
+                        if (runCatching { room.localParticipant.setCameraEnabled(next) }.getOrDefault(false) == next) {
+                            cameraEnabled = next
+                            localVideoTrack = room.localParticipant.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack
+                        }
                     }
                 },
                 enabled = connected && cameraGranted,
