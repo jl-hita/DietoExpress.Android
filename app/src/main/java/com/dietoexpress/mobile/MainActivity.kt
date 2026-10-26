@@ -126,7 +126,8 @@ class MainActivity : ComponentActivity() {
                     var publicRoute by remember { mutableStateOf("portal") }
                     var showingNotifications by remember { mutableStateOf(false) }
                     LaunchedEffect(state.profile?.clientId) {
-                        if (state.profile?.clientId != null && Build.VERSION.SDK_INT >= 33 &&
+                        if (state.profile?.clientId != null && PushNotifications.isConfigured(this@MainActivity) &&
+                            Build.VERSION.SDK_INT >= 33 &&
                             ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                         ) {
                             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2026)
