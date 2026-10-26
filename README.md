@@ -60,18 +60,19 @@ APK debug: `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Configuración local
 
-Las propiedades Firebase se guardan fuera del repositorio, en `%USERPROFILE%\.gradle\gradle.properties` (Windows) o `~/.gradle/gradle.properties`:
+Las propiedades Firebase se pueden definir en `%USERPROFILE%\.gradle\gradle.properties` (Windows) o `~/.gradle/gradle.properties` (Linux/macOS):
 
 ```properties
 dietoexpressFirebaseApiKey=...
 dietoexpressFirebaseApplicationId=...
 dietoexpressFirebaseProjectId=...
 dietoexpressFirebaseSenderId=...
+dietoexpressApiBaseUrl=https://jlhitap.duckdns.org/api
 ```
 
-Para el servidor API se puede usar `dietoexpressApiBaseUrl`; por defecto se apunta al entorno HTTPS configurado en el proyecto. No subir credenciales, contraseñas, passcodes, cookies, keystores ni archivos de configuración secretos al repositorio.
+**Importante:** en el estado actual de `main`, los cuatro valores Firebase también están presentes en el `gradle.properties` versionado del proyecto. Por eso no son exclusivamente locales y pueden prevalecer sobre la configuración del usuario. Consulta [la guía de configuración](docs/ANDROID_SETUP.md) antes de moverlos; la CI debe seguir recibiendo la configuración necesaria. No guardar credenciales de servidor, service-account JSON, contraseñas, passcodes, cookies ni keystores en el repositorio.
 
-La firma estable de APK se configura mediante las variables de entorno `ANDROID_SIGNING_KEYSTORE_PATH`, `ANDROID_SIGNING_KEYSTORE_PASSWORD`, `ANDROID_SIGNING_KEY_ALIAS` y `ANDROID_SIGNING_KEY_PASSWORD`. Para CI, los secretos correspondientes se configuran en GitHub Actions. No generar builds de actualización con una clave diferente de la usada para la instalación existente.
+La firma estable de APK usa las variables de entorno `ANDROID_SIGNING_KEYSTORE_PATH`, `ANDROID_SIGNING_KEYSTORE_PASSWORD`, `ANDROID_SIGNING_KEY_ALIAS` y `ANDROID_SIGNING_KEY_PASSWORD`. En CI, verifica qué secretos mapea realmente el workflow y cómo provisiona el archivo keystore. No generar builds de actualización con una clave diferente de la usada para la instalación existente.
 
 ## Compatibilidad obligatoria con el backend
 
