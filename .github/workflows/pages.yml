@@ -1,0 +1,48 @@
+name: Publish privacy and account deletion pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/privacy-policy.html'
+      - 'docs/account-deletion.html'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate public privacy pages
+        run: |
+          test -s docs/privacy-policy.html
+          test -s docs/account-deletion.html
+          grep -q 'dietoexpress@gmail.com' docs/privacy-policy.html
+          grep -q 'dietoexpress@gmail.com' docs/account-deletion.html
+          grep -q 'privacy-policy.html' docs/account-deletion.html
+          ! grep -Eq '\[(EMAIL-DE-PRIVACIDAD|NOMBRE LEGAL COMPLETO)' docs/privacy-policy.html
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
