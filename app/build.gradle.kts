@@ -25,10 +25,17 @@ android {
 
         buildConfigField("String", "API_BASE_URL", "\"" + providers.gradleProperty("dietoexpressApiBaseUrl").orElse("https://jlhitap.duckdns.org/api").get() + "\"")
         fun buildConfigLiteral(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
-        buildConfigField("String", "FIREBASE_API_KEY", buildConfigLiteral(providers.gradleProperty("dietoexpressFirebaseApiKey").orElse("").get()))
-        buildConfigField("String", "FIREBASE_APPLICATION_ID", buildConfigLiteral(providers.gradleProperty("dietoexpressFirebaseApplicationId").orElse("").get()))
-        buildConfigField("String", "FIREBASE_PROJECT_ID", buildConfigLiteral(providers.gradleProperty("dietoexpressFirebaseProjectId").orElse("").get()))
-        buildConfigField("String", "FIREBASE_SENDER_ID", buildConfigLiteral(providers.gradleProperty("dietoexpressFirebaseSenderId").orElse("").get()))
+        // Prefer Gradle properties (including ~/.gradle/gradle.properties); environment variables support CI.
+        fun firebaseConfig(property: String, environmentVariable: String) =
+            providers.gradleProperty(property)
+                .orElse(providers.environmentVariable(environmentVariable))
+                .orElse("")
+                .get()
+
+        buildConfigField("String", "FIREBASE_API_KEY", buildConfigLiteral(firebaseConfig("dietoexpressFirebaseApiKey", "DIETOEXPRESS_FIREBASE_API_KEY")))
+        buildConfigField("String", "FIREBASE_APPLICATION_ID", buildConfigLiteral(firebaseConfig("dietoexpressFirebaseApplicationId", "DIETOEXPRESS_FIREBASE_APPLICATION_ID")))
+        buildConfigField("String", "FIREBASE_PROJECT_ID", buildConfigLiteral(firebaseConfig("dietoexpressFirebaseProjectId", "DIETOEXPRESS_FIREBASE_PROJECT_ID")))
+        buildConfigField("String", "FIREBASE_SENDER_ID", buildConfigLiteral(firebaseConfig("dietoexpressFirebaseSenderId", "DIETOEXPRESS_FIREBASE_SENDER_ID")))
     }
 
     signingConfigs {
