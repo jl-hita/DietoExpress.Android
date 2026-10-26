@@ -81,6 +81,43 @@ class PortalApiIdempotencyTest {
         }
     }
 
+    @Test
+    fun weeklyCheckinRetryAfterLostResponseReusesKeyAndPayload() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
+            .setBody("""{"id":7,"week_start":"2026-10-26","submitted_at":"2026-10-26T10:00:00Z","weight":90.5,"adherence":80}"""))
+        server.start()
+        try {
+            val api = createApi(server)
+            val key = UUID.randomUUID().toString()
+            val request = PatientCheckinRequest(
+                weight = 90.5, adherence = 80, sleepQuality = 7, sleepHours = 7.5,
+                barriers = listOf("planning"), notes = "Semana de prueba"
+            )
+            try {
+                api.submitCheckin(key, request)
+                fail("La primera petición debía fallar al perderse la respuesta")
+            } catch (_: IOException) {
+                // Reintentar con la misma clave evita crear una segunda revisión semanal.
+            }
+            val first = server.takeRequest()
+            val result = api.submitCheckin(key, request)
+            val retry = server.takeRequest()
+            assertEquals(7L, result.id)
+            assertEquals("POST", first.method)
+            assertEquals("/api/portal/check-ins", first.path)
+            assertEquals(key, first.getHeader("Idempotency-Key"))
+            assertEquals(key, retry.getHeader("Idempotency-Key"))
+            val firstBody = first.body.readUtf8()
+            val retryBody = retry.body.readUtf8()
+            assertEquals(firstBody, retryBody)
+            assertEquals(7, com.google.gson.JsonParser.parseString(retryBody).asJsonObject.get("sleep_quality").asInt)
+        } finally {
+            server.shutdown()
+        }
+    }
+
     private fun createApi(server: MockWebServer): PortalApi =
         Retrofit.Builder()
             .baseUrl(server.url("/api/"))

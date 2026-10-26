@@ -1,8 +1,10 @@
 package com.dietoexpress.mobile
 
 import android.app.Application
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.core.content.FileProvider
 import com.dietoexpress.mobile.data.AccessLinkRequest
 import com.dietoexpress.mobile.data.CheckinEligibility
 import com.dietoexpress.mobile.data.DietDetail
@@ -15,6 +17,9 @@ import com.dietoexpress.mobile.data.ConfirmNutritionistTransferRequest
 import com.dietoexpress.mobile.data.NutritionistChangeRequest
 import com.dietoexpress.mobile.data.PatientAuthRequest
 import com.dietoexpress.mobile.data.PatientCheckin
+import com.dietoexpress.mobile.data.PatientCheckinDraft
+import com.dietoexpress.mobile.data.PatientCheckinRequest
+import com.dietoexpress.mobile.data.PatientTrainingRecordRequest
 import com.dietoexpress.mobile.data.PatientDocument
 import com.dietoexpress.mobile.data.PatientMessage
 import com.dietoexpress.mobile.data.ShoppingCategory
@@ -32,6 +37,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
+import java.io.File
+import java.util.UUID
 
 data class PortalUiState(
     val emailOrPhone: String = "",
@@ -62,6 +69,8 @@ data class PortalUiState(
     val currentCheckin: PatientCheckin? = null,
     val checkinHistory: List<PatientCheckin> = emptyList(),
     val checkinLoaded: Boolean = false,
+    val checkinDraft: PatientCheckinDraft = PatientCheckinDraft(),
+    val checkinSubmissionPending: Boolean = false,
     val section: String = "home",
     val videoAppointmentId: Int? = null,
     val busy: Boolean = false,
@@ -116,6 +125,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     transferConsentChecked = false, passcode = "", diet = null, dietLoaded = false,
                     appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
                     messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
+                    checkinDraft = PatientCheckinDraft(), checkinSubmissionPending = false,
                     section = "home", videoAppointmentId = null, message = null, error = false
                 )
                 PushNotifications.registerCurrentToken(getApplication<Application>(), profile.clientId)
@@ -515,12 +525,181 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateCheckinDraft(draft: PatientCheckinDraft) {
+        val current = _state.value
+        if (current.checkinSubmissionPending || draft.submissionPending) return
+        _state.value = current.copy(checkinDraft = draft)
+        current.profile?.clientId?.let { accountId ->
+            viewModelScope.launch { runCatching { offline.cacheValue(accountId, "checkin-draft", draft) } }
+        }
+    }
+
+    fun submitCheckin() {
+        val current = _state.value
+        val accountId = current.profile?.clientId ?: return
+        if (current.busy) return
+        val draft = current.checkinDraft
+        val adherence = draft.adherence.toIntOrNull()
+        if (adherence == null || adherence !in 0..100) {
+            showMessage("Indica una adherencia entre 0 y 100 %.", true)
+            return
+        }
+        fun optionalInt(value: String, label: String, range: IntRange): Int? {
+            if (value.isBlank()) return null
+            val parsed = value.toIntOrNull()
+            require(parsed != null && parsed in range) { "$label: valor fuera de rango." }
+            return parsed
+        }
+        fun optionalDouble(value: String, label: String, min: Double, max: Double): Double? {
+            if (value.isBlank()) return null
+            val parsed = value.replace(',', '.').toDoubleOrNull()
+            require(parsed != null && parsed in min..max) { "$label: valor fuera de rango." }
+            return parsed
+        }
+        val request = try {
+            PatientCheckinRequest(
+                weight = optionalDouble(draft.weight, "Peso", 1.0, 500.0),
+                adherence = adherence,
+                hunger = optionalInt(draft.hunger, "Hambre", 0..10),
+                energy = optionalInt(draft.energy, "Energía", 0..10),
+                sleepQuality = optionalInt(draft.sleepQuality, "Calidad del sueño", 0..10),
+                sleepHours = optionalDouble(draft.sleepHours, "Horas de sueño", 0.0, 24.0),
+                training = optionalInt(draft.training, "Entrenamiento", 0..10),
+                difficulties = draft.difficulties.trim().takeIf { it.isNotEmpty() },
+                barriers = draft.barriers.distinct(),
+                notes = draft.notes.trim().takeIf { it.isNotEmpty() }
+            )
+        } catch (ex: IllegalArgumentException) {
+            showMessage(ex.message ?: "Revisa los valores introducidos.", true)
+            return
+        }
+        runRequest {
+            val saved = draft.copy(submissionPending = true)
+            offline.cacheValue(accountId, "checkin-draft", saved)
+            try {
+                val response = PortalService.api.submitCheckin(saved.idempotencyKey, request)
+                offline.invalidate(accountId, "checkin-draft")
+                val latest = runCatching { PortalService.api.currentCheckin() }.getOrNull() ?: response
+                val history = runCatching { PortalService.api.checkinHistory() }.getOrNull()
+                    ?: (listOf(latest) + _state.value.checkinHistory.filterNot { it.id == latest.id })
+                offline.cacheValue(accountId, "checkin-current", latest)
+                offline.cacheValue(accountId, "checkin-history", history)
+                _state.value = _state.value.copy(currentCheckin = latest, checkinHistory = history,
+                    checkinDraft = PatientCheckinDraft(), checkinSubmissionPending = false,
+                    message = "Revisión semanal enviada correctamente.", error = false)
+            } catch (ex: IOException) {
+                offline.cacheValue(accountId, "checkin-draft", saved)
+                _state.value = _state.value.copy(checkinDraft = saved, checkinSubmissionPending = true,
+                    message = "No se ha podido confirmar el envío. La revisión está guardada de forma segura. Reintenta con el mismo botón cuando vuelva la conexión; se reutilizará la misma clave para evitar duplicados.",
+                    error = false)
+            } catch (ex: HttpException) {
+                if (ex.code() == 409) {
+                    val latest = runCatching { PortalService.api.currentCheckin() }.getOrNull()
+                    val history = runCatching { PortalService.api.checkinHistory() }.getOrNull()
+                    if (latest != null) {
+                        offline.invalidate(accountId, "checkin-draft")
+                        if (history != null) offline.cacheValue(accountId, "checkin-history", history)
+                        offline.cacheValue(accountId, "checkin-current", latest)
+                        _state.value = _state.value.copy(currentCheckin = latest,
+                            checkinHistory = history ?: _state.value.checkinHistory,
+                            checkinDraft = PatientCheckinDraft(), checkinSubmissionPending = false,
+                            message = "Esta semana ya consta una revisión enviada. Hemos actualizado tus datos.", error = false)
+                    } else {
+                        val next = saved.copy(idempotencyKey = UUID.randomUUID().toString(), submissionPending = false)
+                        offline.cacheValue(accountId, "checkin-draft", next)
+                        _state.value = _state.value.copy(checkinDraft = next, checkinSubmissionPending = false,
+                            message = "La revisión no se ha aceptado. Comprueba si ya existe una revisión de esta semana antes de volver a enviarla.", error = true)
+                    }
+                } else if (ex.code() >= 500 || ex.code() == 429) {
+                    offline.cacheValue(accountId, "checkin-draft", saved)
+                    _state.value = _state.value.copy(checkinDraft = saved, checkinSubmissionPending = true,
+                        message = "El servidor no ha confirmado el envío. Reintenta con la misma clave para evitar duplicados.", error = false)
+                } else {
+                    val next = saved.copy(idempotencyKey = UUID.randomUUID().toString(), submissionPending = false)
+                    offline.cacheValue(accountId, "checkin-draft", next)
+                    _state.value = _state.value.copy(checkinDraft = next, checkinSubmissionPending = false,
+                        message = if (ex.code() == 401 || ex.code() == 403) "La sesión ha caducado o el portal no permite enviar la revisión." else "Revisa los datos de la revisión semanal (HTTP ${ex.code()}).",
+                        error = true)
+                }
+            }
+        }
+    }
+
+    fun cancelAppointment(appointmentId: Int) {
+        if (_state.value.busy) return
+        runRequest {
+            PortalService.api.cancelPatientAppointment(appointmentId)
+            val accountId = _state.value.profile?.clientId
+            val updated = PortalService.api.appointments()
+            _state.value = _state.value.copy(appointments = updated, appointmentsLoaded = true,
+                message = "Cita cancelada correctamente.", error = false)
+            if (accountId != null) offline.cacheValue(accountId, "appointments", updated)
+        }
+    }
+
+    fun openDocument(documentId: Long) {
+        if (_state.value.busy) return
+        runRequest {
+            val context = getApplication<Application>()
+            val body = PortalService.api.downloadPatientDocument(documentId)
+            val documentFolder = File(context.cacheDir, "patient-documents").apply { mkdirs() }
+            val file = File(documentFolder, "dietoexpress-document-$documentId.pdf")
+            body.byteStream().use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (file.length() <= 0L || file.length() > 20L * 1024L * 1024L) {
+                file.delete()
+                throw IOException("El documento descargado no es válido.")
+            }
+            val uri = FileProvider.getUriForFile(context, BuildConfig.APPLICATION_ID + ".fileprovider", file)
+            val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/pdf")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (intent.resolveActivity(context.packageManager) == null) {
+                showMessage("No hay ninguna aplicación instalada para abrir archivos PDF.", true)
+                return@runRequest
+            }
+            context.startActivity(intent)
+            val accountId = _state.value.profile?.clientId
+            val documents = PortalService.api.documents()
+            _state.value = _state.value.copy(documents = documents, documentsLoaded = true,
+                message = "Documento abierto. Si requiere firma, ya puedes registrar su aceptación.", error = false)
+            if (accountId != null) offline.cacheValue(accountId, "documents", documents)
+        }
+    }
+
+    fun acceptDocument(documentId: Long) {
+        if (_state.value.busy) return
+        runRequest {
+            PortalService.api.acceptDocument(documentId)
+            val accountId = _state.value.profile?.clientId
+            val documents = PortalService.api.documents()
+            _state.value = _state.value.copy(documents = documents, documentsLoaded = true,
+                message = "Documento aceptado correctamente.", error = false)
+            if (accountId != null) offline.cacheValue(accountId, "documents", documents)
+        }
+    }
+
+    fun recordTrainingSession(session: com.dietoexpress.mobile.data.TrainingSession) {
+        if (_state.value.busy || session.completedAt != null) return
+        runRequest {
+            PortalService.api.recordTrainingSession(session.id,
+                PatientTrainingRecordRequest(actualDurationMinutes = session.durationMinutes))
+            val accountId = _state.value.profile?.clientId
+            val training = PortalService.api.trainingSessions()
+            _state.value = _state.value.copy(training = training, trainingLoaded = true,
+                message = "Entrenamiento registrado correctamente.", error = false)
+            if (accountId != null) offline.cacheValue(accountId, "training", training)
+        }
+    }
+
     fun loadCheckin() {
         if (_state.value.busy || _state.value.checkinLoaded) return
         runRequest {
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val eligibilityResult = offline.readThrough(accountId, "checkin-eligibility", CheckinEligibility::class.java) { PortalService.api.checkinEligibility() }
             val eligibility = eligibilityResult.value
+            val savedDraft = offline.cachedValue<PatientCheckinDraft>(accountId, "checkin-draft", PatientCheckinDraft::class.java)
+                ?: _state.value.checkinDraft
             val currentResult = if (eligibility.eligible) offline.readThrough<PatientCheckin?>(accountId, "checkin-current", PatientCheckin::class.java) { PortalService.api.currentCheckin() } else null
             val historyResult = if (eligibility.eligible) {
                 val type = TypeToken.getParameterized(List::class.java, PatientCheckin::class.java).type
@@ -529,6 +708,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val stale = eligibilityResult.fromCache || currentResult?.fromCache == true || historyResult?.fromCache == true
             _state.value = _state.value.copy(checkinEligibility = eligibility, currentCheckin = currentResult?.value,
                 checkinHistory = historyResult?.value ?: emptyList(), checkinLoaded = true, section = "progress",
+                checkinDraft = savedDraft, checkinSubmissionPending = savedDraft.submissionPending,
                 message = if (stale) "Sin conexión: se muestran los últimos datos de seguimiento guardados." else null, error = false)
         }
     }

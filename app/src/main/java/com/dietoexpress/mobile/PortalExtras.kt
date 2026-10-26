@@ -108,7 +108,7 @@ internal fun PatientMessagesContent(
 }
 
 @Composable
-internal fun TrainingPortalContent(training: TrainingEnvelope?, loaded: Boolean, busy: Boolean, onRetry: () -> Unit) {
+internal fun TrainingPortalContent(training: TrainingEnvelope?, loaded: Boolean, busy: Boolean, onRecordSession: (com.dietoexpress.mobile.data.TrainingSession) -> Unit, onRetry: () -> Unit) {
     when {
         busy && !loaded -> Text("Cargando tu planificación…", color = MaterialTheme.colorScheme.onSurfaceVariant)
         !loaded -> Button(onClick = onRetry) { Text("Cargar entrenamientos") }
@@ -139,6 +139,11 @@ internal fun TrainingPortalContent(training: TrainingEnvelope?, loaded: Boolean,
                             HorizontalDivider()
                             Text("Ejercicios", fontWeight = FontWeight.SemiBold)
                             Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (session.completedAt == null) {
+                            Button(onClick = { onRecordSession(session) }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                                Text("Marcar como realizada")
+                            }
                         }
                     }
                 }
