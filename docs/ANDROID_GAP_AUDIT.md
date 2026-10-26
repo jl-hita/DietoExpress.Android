@@ -20,7 +20,7 @@ La app ya no es un simple prototipo de login: implementa buena parte del portal 
 | Mensajes | Lectura, borrador y envío implementados; outbox cifrada e idempotente | Validar en dispositivo pérdida de respuesta, muerte del proceso, reconexión y cambio de cuenta. |
 | Notificaciones | FCM y navegación a mensajes/citas implementados | Verificar icono de barra de estado (PR #30), permiso denegado, duplicados y recepción en segundo plano en más de una versión Android. |
 | Videoconsultas | Cliente LiveKit y política de ventana implementados | Pendiente de validación manual del usuario; no se considera bloqueada por el código, pero falta confirmación en dispositivo. |
-| Entrenamiento | Consulta y registro de sesión completada | Duración real, esfuerzo percibido y notas no se editan antes del registro. |
+| Entrenamiento | Consulta y registro de sesión completada | Validar en dispositivo real el registro de duración real, RPE y notas. |
 | Seguimiento semanal | Formulario, validación, borrador cifrado y clave idempotente persistida | Validar envío, pérdida de respuesta y límites semanales en dispositivo. |
 | Evolución | Gráfica de peso basada en revisiones semanales | Faltan gráficas de biometrías fuera del check-in. |
 | Funciones profesionales | Deliberadamente fuera de alcance | Mantener la web como interfaz principal del nutricionista; no priorizar agenda profesional nativa. |
@@ -51,7 +51,7 @@ Por tanto, la base offline existe, pero **P0 offline-first no debe darse por ter
 2. **Cerrar P0 offline**: ejecutar el checklist manual de reinicio, pérdida de respuesta, reconexión y cambio de cuenta; la CI compila las pruebas instrumentadas, pero no ejecuta emulador.
 3. Validar el formulario de revisión semanal y el reintento seguro con pérdida de respuesta.
 4. Añadir evolución de biometrías distintas del peso registrado en el check-in.
-5. Completar registro de entrenamiento con duración real/RPE/notas, edición de perfil y reprogramación de citas si el backend lo soporta.
+5. Valorar edición de perfil y reprogramación de citas si el backend lo soporta; el registro de entrenamiento ya admite duración real/RPE/notas.
 6. Cierre de publicación: accesibilidad, privacidad, soporte y requisitos de Google Play.
 
 ## Checklist manual para cerrar P0 offline
