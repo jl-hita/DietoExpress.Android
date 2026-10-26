@@ -33,7 +33,7 @@ La revisión semanal se guarda como borrador offline, pero no se envía automát
 
 ## Documentación de configuración y publicación
 
-Consulta [docs/ANDROID_SETUP.md](docs/ANDROID_SETUP.md) para configurar Firebase, la URL del backend, la firma estable, GitHub Actions y las comprobaciones antes de distribuir una APK.
+Consulta [docs/ANDROID_SETUP.md](docs/ANDROID_SETUP.md) para configurar la URL del backend, compilar, instalar y firmar APKs, configurar GitHub Actions y revisar los requisitos antes de distribuir.
 
 ## Requisitos y compilación
 
@@ -41,6 +41,8 @@ Consulta [docs/ANDROID_SETUP.md](docs/ANDROID_SETUP.md) para configurar Firebase
 - JDK 17.
 - SDK Android 36.
 - Gradle Wrapper incluido.
+
+Firebase ya está configurado en el `gradle.properties` versionado del proyecto. Para una compilación normal no necesitas copiar esos cuatro valores ni crear secretos Firebase en GitHub. Puedes clonar el repositorio y compilar directamente.
 
 Windows (PowerShell):
 
@@ -58,21 +60,22 @@ Linux/macOS:
 
 APK debug: `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Configuración local
+## Configuración local opcional
 
-Las propiedades Firebase se pueden definir en `%USERPROFILE%\.gradle\gradle.properties` (Windows) o `~/.gradle/gradle.properties` (Linux/macOS):
+No es necesario configurar Firebase en el equipo: los valores de cliente están en el `gradle.properties` versionado. Si necesitas apuntar a otra instalación del backend o probar otro proyecto Firebase, puedes sobrescribir propiedades desde el archivo personal de Gradle: `%USERPROFILE%\.gradle\gradle.properties` (Windows) o `~/.gradle/gradle.properties` (Linux/macOS). Por ejemplo:
 
 ```properties
-dietoexpressFirebaseApiKey=...
-dietoexpressFirebaseApplicationId=...
-dietoexpressFirebaseProjectId=...
-dietoexpressFirebaseSenderId=...
 dietoexpressApiBaseUrl=https://jlhitap.duckdns.org/api
+# Opcional: solo si necesitas sustituir la configuración Firebase del proyecto.
+# dietoexpressFirebaseApiKey=...
+# dietoexpressFirebaseApplicationId=...
+# dietoexpressFirebaseProjectId=...
+# dietoexpressFirebaseSenderId=...
 ```
 
-**Importante:** en el estado actual de `main`, los cuatro valores Firebase también están presentes en el `gradle.properties` versionado del proyecto. Por eso no son exclusivamente locales y pueden prevalecer sobre la configuración del usuario. Consulta [la guía de configuración](docs/ANDROID_SETUP.md) antes de moverlos; la CI debe seguir recibiendo la configuración necesaria. No guardar credenciales de servidor, service-account JSON, contraseñas, passcodes, cookies ni keystores en el repositorio.
+Los cuatro valores Firebase identifican la aplicación cliente; no son credenciales administrativas. Aun así, restringe la API key a las APIs y aplicaciones necesarias cuando sea posible. **Nunca** guardes en el repositorio credenciales de servidor, service-account JSON, contraseñas, tokens, cookies ni el keystore de firma.
 
-La firma estable de APK usa las variables de entorno `ANDROID_SIGNING_KEYSTORE_PATH`, `ANDROID_SIGNING_KEYSTORE_PASSWORD`, `ANDROID_SIGNING_KEY_ALIAS` y `ANDROID_SIGNING_KEY_PASSWORD`. En CI, verifica qué secretos mapea realmente el workflow y cómo provisiona el archivo keystore. No generar builds de actualización con una clave diferente de la usada para la instalación existente.
+La firma estable de APK usa las variables de entorno `ANDROID_SIGNING_KEYSTORE_PATH`, `ANDROID_SIGNING_KEYSTORE_PASSWORD`, `ANDROID_SIGNING_KEY_ALIAS` y `ANDROID_SIGNING_KEY_PASSWORD`. En CI, el workflow obtiene la clave desde secretos de GitHub y prepara el archivo keystore temporalmente.
 
 ## Compatibilidad obligatoria con el backend
 
