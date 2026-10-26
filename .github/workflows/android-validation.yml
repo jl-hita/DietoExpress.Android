@@ -49,9 +49,12 @@ jobs:
         if: github.ref == 'refs/heads/main'
         env:
           ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [[ -z "${ANDROID_SIGNING_KEYSTORE_BASE64}" || -z "${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}" || -z "${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}" || -z "${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}" ]]; then
+          if [[ -z "${ANDROID_SIGNING_KEYSTORE_BASE64}" || -z "${ANDROID_SIGNING_KEYSTORE_PASSWORD}" || -z "${ANDROID_SIGNING_KEY_ALIAS}" || -z "${ANDROID_SIGNING_KEY_PASSWORD}" ]]; then
             echo "::error::Configura los cuatro secretos ANDROID_SIGNING_* antes de generar APKs en main."
             exit 1
           fi
