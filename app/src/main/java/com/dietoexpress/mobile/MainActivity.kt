@@ -328,6 +328,7 @@ class MainActivity : ComponentActivity() {
                                         current = state.currentCheckin,
                                         history = state.checkinHistory,
                                         weightHistory = state.profile?.weightHistory.orEmpty(),
+                                        biometricHistory = state.biometricHistory,
                                         draft = state.checkinDraft,
                                         submissionPending = state.checkinSubmissionPending,
                                         loaded = state.checkinLoaded,
@@ -1036,6 +1037,7 @@ private fun ProgressContent(
     current: PatientCheckin?,
     history: List<PatientCheckin>,
     weightHistory: List<com.dietoexpress.mobile.data.WeightEntry>,
+    biometricHistory: List<com.dietoexpress.mobile.data.PatientBiometricMeasurement>,
     draft: PatientCheckinDraft,
     submissionPending: Boolean,
     loaded: Boolean,
@@ -1056,48 +1058,7 @@ private fun ProgressContent(
                     Text("Revisa tus hábitos y sigue la evolución de tu peso.", color = Color(0xFFE2F0E8))
                 }
             }
-            val biometricPoints = weightHistory.filter { it.weight > 0.0 }.sortedBy { it.date }.takeLast(12)
-            val weightPoints: List<Pair<String, Double>> = if (biometricPoints.size >= 2) {
-                biometricPoints.map { it.date to it.weight }
-            } else {
-                history.filter { it.weight != null }
-                    .sortedBy { it.weekStart ?: it.submittedAt.orEmpty() }.takeLast(12)
-                    .map { (it.weekStart ?: it.submittedAt?.take(10).orEmpty()) to it.weight!! }
-            }
-            if (weightPoints.size >= 2) {
-                Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Evolución del peso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-                        val weights = weightPoints.map { it.second }
-                        val minWeight = (weights.minOrNull() ?: 0.0) - 1.0
-                        val maxWeight = (weights.maxOrNull() ?: 1.0) + 1.0
-                        Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
-                            val range = (maxWeight - minWeight).coerceAtLeast(1.0)
-                            val points = weights.mapIndexed { index, value ->
-                                Offset(
-                                    x = if (weights.size == 1) size.width / 2 else size.width * index / (weights.size - 1),
-                                    y = size.height - ((value - minWeight) / range * size.height).toFloat()
-                                )
-                            }
-                            for (index in 0 until points.lastIndex) {
-                                drawLine(Forest, points[index], points[index + 1], strokeWidth = 5f, cap = StrokeCap.Round)
-                            }
-                            points.forEach { drawCircle(Forest, radius = 6f, center = it) }
-                        }
-                        val first = weightPoints.first()
-                        val last = weightPoints.last()
-                        Text("${number(first.second)} kg (${dateLabel(first.first)}) → ${number(last.second)} kg (${dateLabel(last.first)})",
-                            color = Muted, style = MaterialTheme.typography.bodySmall)
-                        if (biometricPoints.size >= 2) {
-                            Text("Basado en mediciones biométricas del historial.", color = Muted, style = MaterialTheme.typography.bodySmall)
-                        } else {
-                            Text("Basado en las revisiones semanales.", color = Muted, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            } else {
-                Text("La gráfica de peso aparecerá cuando haya al menos dos mediciones registradas.", color = Muted)
-            }
+            BiometricEvolutionChart(history, weightHistory, biometricHistory)
             if (current != null) {
                 Text("Revisión de esta semana", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 CheckinCard(current)
@@ -1167,6 +1128,101 @@ private fun ProgressContent(
                 history.forEach { CheckinCard(it) }
             }
         }
+    }
+}
+
+@Composable
+private fun BiometricEvolutionChart(
+    checkins: List<PatientCheckin>,
+    weightHistory: List<com.dietoexpress.mobile.data.WeightEntry>,
+    biometricHistory: List<com.dietoexpress.mobile.data.PatientBiometricMeasurement>
+) {
+    var selectedMetric by remember { mutableStateOf("weight") }
+    val metricOptions = listOf(
+        "weight" to "Peso", "height" to "Altura", "bodyFat" to "% grasa",
+        "muscleMass" to "Masa muscular", "visceralFat" to "Grasa visceral",
+        "waist" to "Cintura", "hip" to "Cadera"
+    )
+    fun metricValue(entry: com.dietoexpress.mobile.data.PatientBiometricMeasurement, key: String): Double? = when (key) {
+        "weight" -> entry.weight
+        "height" -> entry.height
+        "bodyFat" -> entry.bodyFat
+        "muscleMass" -> entry.muscleMass
+        "visceralFat" -> entry.visceralFat
+        "waist" -> entry.waist
+        "hip" -> entry.hip
+        else -> null
+    }
+    val availableMetrics = metricOptions.filter { (key, _) ->
+        biometricHistory.count { metricValue(it, key) != null } >= 2 ||
+            (key == "weight" && (weightHistory.size >= 2 || checkins.count { it.weight != null } >= 2))
+    }
+    val activeMetric = if (availableMetrics.any { it.first == selectedMetric }) selectedMetric
+        else availableMetrics.firstOrNull()?.first ?: "weight"
+    val metricLabel = metricOptions.firstOrNull { it.first == activeMetric }?.second ?: "Peso"
+    val unit = when (activeMetric) {
+        "weight", "muscleMass" -> "kg"
+        "height", "waist", "hip" -> "cm"
+        "bodyFat" -> "%"
+        "visceralFat" -> "nivel"
+        else -> ""
+    }
+    val metricPoints: List<Pair<String, Double>> = if (activeMetric == "weight" &&
+        biometricHistory.count { it.weight != null } < 2) {
+        if (weightHistory.size >= 2) {
+            weightHistory.filter { it.weight > 0.0 }.sortedBy { it.date }.takeLast(12).map { it.date to it.weight }
+        } else {
+            checkins.filter { it.weight != null }
+                .sortedBy { it.weekStart ?: it.submittedAt.orEmpty() }.takeLast(12)
+                .map { (it.weekStart ?: it.submittedAt?.take(10).orEmpty()) to it.weight!! }
+        }
+    } else {
+        biometricHistory.mapNotNull { entry -> metricValue(entry, activeMetric)?.let { entry.date to it } }
+            .sortedBy { it.first }.takeLast(12)
+    }
+    if (availableMetrics.size > 1) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            availableMetrics.forEach { (key, label) ->
+                if (key == activeMetric) {
+                    Button(onClick = { selectedMetric = key }) { Text(label) }
+                } else {
+                    OutlinedButton(onClick = { selectedMetric = key }) { Text(label) }
+                }
+            }
+        }
+    }
+    if (metricPoints.size >= 2) {
+        Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Evolución de " + metricLabel.lowercase(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+                val values = metricPoints.map { it.second }
+                val minValue = (values.minOrNull() ?: 0.0) - 1.0
+                val maxValue = (values.maxOrNull() ?: 1.0) + 1.0
+                Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
+                    val range = (maxValue - minValue).coerceAtLeast(1.0)
+                    val points = values.mapIndexed { index, value ->
+                        Offset(
+                            x = if (values.size == 1) size.width / 2 else size.width * index / (values.size - 1),
+                            y = size.height - ((value - minValue) / range * size.height).toFloat()
+                        )
+                    }
+                    for (index in 0 until points.lastIndex) {
+                        drawLine(Forest, points[index], points[index + 1], strokeWidth = 5f, cap = StrokeCap.Round)
+                    }
+                    points.forEach { drawCircle(Forest, radius = 6f, center = it) }
+                }
+                val first = metricPoints.first()
+                val last = metricPoints.last()
+                Text(number(first.second) + " " + unit + " (" + dateLabel(first.first) + ") → " +
+                    number(last.second) + " " + unit + " (" + dateLabel(last.first) + ")",
+                    color = Muted, style = MaterialTheme.typography.bodySmall)
+                Text(if (activeMetric == "weight" && biometricHistory.count { it.weight != null } < 2)
+                    "Basado en mediciones del perfil o revisiones semanales."
+                    else "Basado en el historial biométrico.", color = Muted, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    } else {
+        Text("La gráfica de " + metricLabel.lowercase() + " aparecerá cuando haya al menos dos mediciones.", color = Muted)
     }
 }
 

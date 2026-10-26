@@ -22,7 +22,7 @@ La lista anterior describe funcionalidad presente en el código; no significa qu
 ## Funciones pendientes o incompletas
 
 - Formulario de revisión semanal con validación, borrador local cifrado y reintento idempotente seguro si se pierde la respuesta.
-- Gráfica de evolución de peso basada en mediciones del perfil, con respaldo de revisiones semanales.
+- Gráficas de evolución de peso, altura, grasa corporal, masa muscular, grasa visceral, cintura y cadera cuando hay mediciones suficientes.
 - Edición del perfil y visor PDF integrado (la app usa el visor PDF externo).
 - Reprogramación de citas. Validar en dispositivo real el registro de entrenamiento con duración real, esfuerzo percibido y notas.
 - Validación dinámica del ciclo offline: recuperación tras reinicio, pérdida de respuesta después del commit, cambio de cuenta y errores de sincronización. El perfil ya ofrece un panel para revisar operaciones pendientes y conflictos.
