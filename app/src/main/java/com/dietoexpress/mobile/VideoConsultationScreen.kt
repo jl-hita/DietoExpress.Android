@@ -63,6 +63,8 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
     var connected by remember { mutableStateOf(false) }
     var access by remember { mutableStateOf<com.dietoexpress.mobile.data.VideoAccessResponse?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var connectionStatus by remember { mutableStateOf("Preparando la sala…") }
+    var retryNonce by remember { mutableStateOf(0) }
     var remoteVideoTrack by remember { mutableStateOf<VideoTrack?>(null) }
     var renderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
 
@@ -89,17 +91,42 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
 
     LaunchedEffect(room) {
         room.events.collect { event ->
-            if (event is RoomEvent.TrackSubscribed) {
-                val track = event.track as? VideoTrack
-                if (track != null) {
-                    remoteVideoTrack = track
-                    renderer?.let { track.addRenderer(it) }
+            when (event) {
+                is RoomEvent.TrackSubscribed -> {
+                    val track = event.track as? VideoTrack
+                    if (track != null) {
+                        remoteVideoTrack = track
+                        renderer?.let { track.addRenderer(it) }
+                    }
                 }
+                is RoomEvent.Reconnecting -> {
+                    connectionStatus = "Se ha interrumpido la conexión. Reconectando…"
+                    connected = false
+                    appointmentId?.let { id ->
+                        withContext(Dispatchers.IO) {
+                            runCatching { PortalService.api.recordVideoEvent(id, VideoEventRequest("reconnecting")) }
+                        }
+                    }
+                }
+                is RoomEvent.Reconnected -> {
+                    connectionStatus = "Conectado"
+                    connected = true
+                    appointmentId?.let { id ->
+                        withContext(Dispatchers.IO) {
+                            runCatching { PortalService.api.recordVideoEvent(id, VideoEventRequest("reconnected")) }
+                        }
+                    }
+                }
+                is RoomEvent.Disconnected -> {
+                    connectionStatus = "Desconectado"
+                    connected = false
+                }
+                else -> Unit
             }
         }
     }
 
-    LaunchedEffect(appointmentId, microphoneGranted) {
+    LaunchedEffect(appointmentId, microphoneGranted, retryNonce) {
         val id = appointmentId
         if (id == null) {
             error = "No se ha seleccionado ninguna cita."
@@ -108,6 +135,7 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
         if (!microphoneGranted || connected || connecting || access != null) return@LaunchedEffect
         connecting = true
         error = null
+        connectionStatus = "Conectando…"
         try {
             val meeting = withContext(Dispatchers.IO) { PortalService.api.videoAccess(id) }
             if (!meeting.provider.equals("livekit", true)) {
@@ -119,10 +147,14 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
             room.localParticipant.setMicrophoneEnabled(true)
             if (cameraGranted) room.localParticipant.setCameraEnabled(true)
             connected = true
+            connectionStatus = "Conectado"
             withContext(Dispatchers.IO) {
                 runCatching { PortalService.api.recordVideoEvent(id, VideoEventRequest("connected")) }
             }
         } catch (ex: HttpException) {
+            runCatching { room.disconnect() }
+            access = null
+            connectionStatus = "No conectado"
             error = when (ex.code()) {
                 401, 403 -> "Tu sesión ha caducado o no tienes acceso a esta cita. Vuelve a iniciar sesión."
                 409 -> "La sala todavía no está disponible o el acceso ha expirado. Comprueba la fecha y hora de la cita."
@@ -131,6 +163,9 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
             }
             withContext(Dispatchers.IO) { runCatching { PortalService.api.recordVideoEvent(id, VideoEventRequest("failed")) } }
         } catch (_: Exception) {
+            runCatching { room.disconnect() }
+            access = null
+            connectionStatus = "No conectado"
             error = "No se ha podido conectar a la videoconsulta. Comprueba tu conexión y vuelve a intentarlo."
             withContext(Dispatchers.IO) { runCatching { PortalService.api.recordVideoEvent(id, VideoEventRequest("failed")) } }
         } finally {
@@ -174,7 +209,7 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
                 )
                 if (remoteVideoTrack == null) {
                     Text(
-                        if (connecting) "Conectando con tu profesional…" else if (connected) "Conectado. Esperando el vídeo de la otra persona…" else "Preparando la sala…",
+                        if (connected) "Conectado. Esperando el vídeo de la otra persona…" else connectionStatus,
                         color = androidx.compose.ui.graphics.Color.White,
                         modifier = Modifier.padding(20.dp)
                     )
@@ -183,13 +218,35 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
             }
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (error != null && microphoneGranted) {
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        runCatching { room.disconnect() }
+                        access = null
+                        connected = false
+                        retryNonce += 1
+                    }
+                },
+                enabled = !connecting,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Reintentar conexión") }
+        }
+        if (!microphoneGranted) {
+            OutlinedButton(
+                onClick = {
+                    permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA))
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Volver a solicitar permisos") }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = {
                     if (!connected) return@OutlinedButton
                     scope.launch {
-                        microphoneEnabled = !microphoneEnabled
-                        runCatching { room.localParticipant.setMicrophoneEnabled(microphoneEnabled) }
+                        val next = !microphoneEnabled
+                        if (runCatching { room.localParticipant.setMicrophoneEnabled(next) }.isSuccess) microphoneEnabled = next
                     }
                 },
                 enabled = connected,
@@ -199,8 +256,8 @@ fun VideoConsultationScreen(appointmentId: Int?, onExit: () -> Unit) {
                 onClick = {
                     if (!connected || !cameraGranted) return@OutlinedButton
                     scope.launch {
-                        cameraEnabled = !cameraEnabled
-                        runCatching { room.localParticipant.setCameraEnabled(cameraEnabled) }
+                        val next = !cameraEnabled
+                        if (runCatching { room.localParticipant.setCameraEnabled(next) }.isSuccess) cameraEnabled = next
                     }
                 },
                 enabled = connected && cameraGranted,
