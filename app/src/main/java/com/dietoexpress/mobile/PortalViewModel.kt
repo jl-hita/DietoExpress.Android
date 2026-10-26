@@ -40,6 +40,14 @@ import java.io.IOException
 import java.io.File
 import java.util.UUID
 
+data class OfflineOperationSummary(
+    val id: String,
+    val operationType: String,
+    val status: String,
+    val createdAtEpochMs: Long,
+    val lastError: String? = null
+)
+
 data class PortalUiState(
     val emailOrPhone: String = "",
     val passcode: String = "",
@@ -71,6 +79,7 @@ data class PortalUiState(
     val checkinLoaded: Boolean = false,
     val checkinDraft: PatientCheckinDraft = PatientCheckinDraft(),
     val checkinSubmissionPending: Boolean = false,
+    val offlineOperations: List<OfflineOperationSummary> = emptyList(),
     val section: String = "home",
     val videoAppointmentId: Int? = null,
     val busy: Boolean = false,
@@ -126,6 +135,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
                     messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
                     checkinDraft = PatientCheckinDraft(), checkinSubmissionPending = false,
+                    offlineOperations = emptyList(),
                     section = "home", videoAppointmentId = null, message = null, error = false
                 )
                 PushNotifications.registerCurrentToken(getApplication<Application>(), profile.clientId)
@@ -174,7 +184,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             "messages" -> loadMessages()
             "training" -> loadTraining()
             "progress" -> loadCheckin()
-            "profile" -> refreshProfile()
+            "profile" -> { refreshProfile(); refreshOfflineOperations() }
             "video" -> Unit
         }
     }
@@ -710,6 +720,37 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 checkinHistory = historyResult?.value ?: emptyList(), checkinLoaded = true, section = "progress",
                 checkinDraft = savedDraft, checkinSubmissionPending = savedDraft.submissionPending,
                 message = if (stale) "Sin conexión: se muestran los últimos datos de seguimiento guardados." else null, error = false)
+        }
+    }
+
+    fun refreshOfflineOperations() {
+        val accountId = _state.value.profile?.clientId ?: return
+        viewModelScope.launch {
+            val operations = runCatching { offline.allOperations(accountId) }.getOrDefault(emptyList())
+                .map { OfflineOperationSummary(it.id, it.operationType, it.status, it.createdAtEpochMs, it.lastError) }
+            if (_state.value.profile?.clientId == accountId) {
+                _state.value = _state.value.copy(offlineOperations = operations)
+            }
+        }
+    }
+
+    fun retryPendingSync() {
+        val accountId = _state.value.profile?.clientId ?: return
+        offline.retryPendingOperations(accountId)
+        refreshOfflineOperations()
+        showMessage("Hemos programado la sincronización de las operaciones pendientes.", false)
+    }
+
+    fun discardOfflineOperation(operationId: String) {
+        val accountId = _state.value.profile?.clientId ?: return
+        if (_state.value.busy) return
+        runRequest {
+            val discarded = offline.discardTerminalOperation(accountId, operationId)
+            refreshOfflineOperations()
+            showMessage(
+                if (discarded) "Operación descartada del dispositivo." else "Solo se pueden descartar operaciones fallidas o en conflicto.",
+                !discarded
+            )
         }
     }
 

@@ -12,7 +12,7 @@ La app está en desarrollo y **todavía no es una versión publicable**.
 - Sesión por cookie protegida; la cookie se conserva cifrada con Android Keystore para restaurar sesión entre reinicios.
 - Perfil de paciente y dieta activa, con caché cifrada para consulta sin conexión.
 - Consulta de citas y disponibilidad, solicitud de cita con el nutricionista asignado y búsqueda pública de profesionales con flujo de reserva.
-- Consulta de documentos asignados, lista de la compra, sesiones de entrenamiento y revisiones de seguimiento.
+- Consulta de documentos asignados y lista de la compra; descarga/lectura de PDF, aceptación documental explícita, registro de entrenamientos y revisiones semanales.
 - Mensajería con borradores cifrados, outbox persistente y reintentos con clave `Idempotency-Key`.
 - Notificaciones push FCM con navegación a mensajes/citas y videoconsultas nativas con LiveKit.
 - Caché Room cifrada por cuenta, reintentos con WorkManager y aislamiento de las operaciones pendientes entre cuentas.
@@ -21,15 +21,15 @@ La lista anterior describe funcionalidad presente en el código; no significa qu
 
 ## Funciones pendientes o incompletas
 
-- Formulario nativo para enviar la revisión semanal (el portal Android solo consulta elegibilidad, revisión actual e historial).
-- Gráficas de evolución de peso y otras mediciones.
-- Aceptación de documentos desde la app (el endpoint está declarado en el cliente, pero no hay flujo de UI).
-- Cancelación de citas desde la app y acciones para registrar el entrenamiento realizado.
-- Resolver el ciclo offline completo de forma dinámica: recuperación tras reinicio, pérdida de respuesta después del commit, cambio de cuenta y errores de sincronización. Solo las escrituras con contrato idempotente seguro se pueden poner en cola.
-- Validación manual en dispositivo real de iconos, notificaciones en segundo plano, videoconsultas, permisos y experiencia de accesibilidad.
+- Formulario de revisión semanal con validación, borrador local cifrado y reintento idempotente seguro si se pierde la respuesta.
+- Gráfica de evolución de peso a partir de las revisiones semanales.
+- Edición del perfil y visor PDF integrado (la app usa el visor PDF externo).
+- Reprogramación de citas y edición de duración real/esfuerzo/notas del entrenamiento.
+- Validación dinámica del ciclo offline: recuperación tras reinicio, pérdida de respuesta después del commit, cambio de cuenta y errores de sincronización. El perfil ya ofrece un panel para revisar operaciones pendientes y conflictos.
+- Validación manual en dispositivo real de iconos, notificaciones en segundo plano, videoconsultas, permisos y accesibilidad.
 - Revisión de privacidad, requisitos de Google Play, enlaces de soporte y preparación de publicación.
 
-Ver [la auditoría de brechas](docs/ANDROID_GAP_AUDIT.md) y la política offline en [docs/OFFLINE_ENDPOINT_AUDIT.md](docs/OFFLINE_ENDPOINT_AUDIT.md).
+La revisión semanal se guarda como borrador offline, pero no se envía automáticamente: el backend asigna la semana al recibir la petición. Las escrituras sin contrato seguro siguen siendo online. Ver [la auditoría de brechas](docs/ANDROID_GAP_AUDIT.md) y la política offline en [docs/OFFLINE_ENDPOINT_AUDIT.md](docs/OFFLINE_ENDPOINT_AUDIT.md).
 
 ## Requisitos y compilación
 

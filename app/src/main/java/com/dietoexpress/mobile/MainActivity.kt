@@ -344,8 +344,12 @@ class MainActivity : ComponentActivity() {
                                         nutritionist = state.profile?.nutritionistName,
                                         hasDiet = state.profile?.hasActiveDiet == true,
                                         busy = state.busy,
+                                        offlineOperations = state.offlineOperations,
                                         onRefresh = vm::refreshProfile,
-                                        onLogout = vm::logout
+                                        onLogout = vm::logout,
+                                        onRefreshOfflineOperations = vm::refreshOfflineOperations,
+                                        onRetryPendingSync = vm::retryPendingSync,
+                                        onDiscardOfflineOperation = vm::discardOfflineOperation
                                     )
                                     else -> HomeContent(
                                         name = state.profile?.fullName.orEmpty(),
@@ -1179,9 +1183,14 @@ private fun ProfileContent(
     nutritionist: String?,
     hasDiet: Boolean,
     busy: Boolean,
+    offlineOperations: List<OfflineOperationSummary>,
     onRefresh: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onRefreshOfflineOperations: () -> Unit,
+    onRetryPendingSync: () -> Unit,
+    onDiscardOfflineOperation: (String) -> Unit
 ) {
+    var discardTarget by remember { mutableStateOf<OfflineOperationSummary?>(null) }
     Card(shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(modifier = Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(modifier = Modifier.size(76.dp).background(Sage, CircleShape), contentAlignment = Alignment.Center) {
@@ -1191,7 +1200,7 @@ private fun ProfileContent(
             Text("Tu información personal", color = Muted, style = MaterialTheme.typography.bodyMedium)
             HorizontalDivider(color = Line)
             ProfileRow("Edad", age?.let { "$it años" } ?: "Sin datos")
-            ProfileRow("Peso actual", weight?.let { "${number(it)} kg" } ?: "Sin datos")
+            ProfileRow("Peso actual", weight?.let { "\${number(it)} kg" } ?: "Sin datos")
             ProfileRow("Altura", height?.let { "$it cm" } ?: "Sin datos")
             ProfileRow("Dieta activa", if (hasDiet) "Sí" else "Todavía no")
             clinic?.takeIf { it.isNotBlank() }?.let { ProfileRow("Centro", it) }
@@ -1199,6 +1208,71 @@ private fun ProfileContent(
             Button(onClick = onRefresh, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Actualizar información") }
             TextButton(onClick = onLogout, enabled = !busy) { Text("Cerrar sesión", color = Muted) }
         }
+    }
+    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Sincronización sin conexión", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+            Text("Los mensajes pendientes se conservan cifrados en este dispositivo. Las operaciones en conflicto no se reenvían automáticamente.", color = Muted)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onRefreshOfflineOperations, enabled = !busy, modifier = Modifier.weight(1f)) {
+                    Text("Actualizar estado")
+                }
+                if (offlineOperations.any { it.status == "PENDING" || it.status == "NEEDS_AUTH" }) {
+                    Button(onClick = onRetryPendingSync, enabled = !busy, modifier = Modifier.weight(1f)) {
+                        Text("Sincronizar")
+                    }
+                }
+            }
+            if (offlineOperations.isEmpty()) {
+                Text("No hay operaciones pendientes ni errores guardados.", color = Forest, fontWeight = FontWeight.SemiBold)
+            } else {
+                offlineOperations.sortedByDescending { it.createdAtEpochMs }.take(10).forEach { operation ->
+                    HorizontalDivider(color = Line)
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            when (operation.operationType) {
+                                "SEND_PATIENT_MESSAGE" -> "Enviar mensaje"
+                                "MARK_MESSAGES_READ" -> "Actualizar estado de lectura"
+                                else -> "Operación del portal"
+                            },
+                            fontWeight = FontWeight.SemiBold,
+                            color = Ink
+                        )
+                        Text(
+                            when (operation.status) {
+                                "PENDING" -> "Pendiente de sincronización"
+                                "NEEDS_AUTH" -> "Necesita una sesión válida"
+                                "FAILED" -> "Fallida; no se reintentará automáticamente"
+                                "CONFLICT" -> "En conflicto; requiere revisión"
+                                else -> operation.status
+                            },
+                            color = if (operation.status == "CONFLICT" || operation.status == "FAILED") Amber else Muted,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        operation.lastError?.takeIf { it.isNotBlank() }?.let {
+                            Text(it, color = Muted, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (operation.status == "FAILED" || operation.status == "CONFLICT") {
+                            TextButton(onClick = { discardTarget = operation }, enabled = !busy) {
+                                Text("Descartar operación")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    discardTarget?.let { operation ->
+        AlertDialog(
+            onDismissRequest = { discardTarget = null },
+            title = { Text("Descartar operación") },
+            text = { Text("Se eliminará del dispositivo la operación pendiente. Si era un mensaje que no llegó al servidor, tendrás que redactarlo y enviarlo de nuevo. ¿Quieres continuar?") },
+            confirmButton = {
+                Button(onClick = { discardTarget = null; onDiscardOfflineOperation(operation.id) }) { Text("Descartar") }
+            },
+            dismissButton = { TextButton(onClick = { discardTarget = null }) { Text("Volver") } }
+        )
     }
 }
 
