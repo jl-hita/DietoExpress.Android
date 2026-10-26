@@ -118,7 +118,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
                     section = "home", videoAppointmentId = null, message = null, error = false
                 )
-                PushNotifications.registerCurrentToken(getApplication<Application>())
+                PushNotifications.registerCurrentToken(getApplication<Application>(), profile.clientId)
             }
         }
     }
