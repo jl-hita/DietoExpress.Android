@@ -66,7 +66,7 @@ adb devices
 .\\gradlew.bat --no-daemon :app:installDebug
 ```
 
-Alternativamente, copia el APK a un dispositivo e instálalo; Android puede pedir autorización para instalar desde esa fuente. En Linux/macOS usa `./gradlew` en lugar de ` .\\gradlew.bat`.
+Alternativamente, copia el APK a un dispositivo e instálalo; Android puede pedir autorización para instalar desde esa fuente. En Linux/macOS usa `./gradlew` en lugar de `./gradlew.bat`.
 
 ## 4. Configurar la firma estable en tu PC
 
