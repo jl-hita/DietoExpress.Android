@@ -202,7 +202,13 @@ data class PatientMessage(
 
 data class TrainingEnvelope(
     val enabled: Boolean,
-    val sessions: List<TrainingSession> = emptyList()
+    val sessions: List<TrainingSession> = emptyList(),
+    val adaptationRecommendation: TrainingAdaptationRecommendation? = null
+)
+
+data class TrainingAdaptationRecommendation(
+    val action: String,
+    val explanation: String
 )
 
 data class TrainingSession(
@@ -219,7 +225,12 @@ data class TrainingSession(
     val actualDurationMinutes: Int? = null,
     val sessionRpe: Double? = null,
     val recordNotes: String? = null,
-    val exercisePrescription: String? = null
+    val exercisePrescription: String? = null,
+    val outcome: String? = null,
+    val nonCompletionReason: String? = null,
+    val recoveryRating: String? = null,
+    val painSignal: String? = null,
+    val progressionTargetAchieved: Boolean? = null
 )
 
 data class SendPatientMessageRequest(val body: String)
@@ -277,7 +288,12 @@ data class PatientTrainingRecordRequest(
     val completedAt: String? = null,
     val actualDurationMinutes: Int? = null,
     val sessionRpe: Double? = null,
-    val notes: String? = null
+    val notes: String? = null,
+    val outcome: String? = null,
+    val nonCompletionReason: String? = null,
+    val recoveryRating: String? = null,
+    val painSignal: String? = null,
+    val progressionTargetAchieved: Boolean? = null
 )
 
 interface PortalApi {
