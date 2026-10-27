@@ -705,30 +705,55 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun recordTrainingSession(
         session: com.dietoexpress.mobile.data.TrainingSession,
-        actualDurationMinutes: Int?,
-        sessionRpe: Double?,
-        notes: String?
+        request: PatientTrainingRecordRequest
     ) {
-        if (_state.value.busy || session.completedAt != null) return
-        if (actualDurationMinutes != null && actualDurationMinutes !in 1..1440) {
+        if (_state.value.busy || (session.completedAt != null && session.outcome != "not_completed")) return
+
+        val outcome = request.outcome
+        val reason = request.nonCompletionReason
+        if (outcome !in setOf("completed", "partial", "not_completed")) {
+            showMessage("Indica cómo fue la sesión.", true)
+            return
+        }
+        if (outcome != "completed" && reason !in setOf("time", "fatigue", "equipment", "motivation", "illness", "other")) {
+            showMessage("Indica el motivo por el que no has completado la sesión.", true)
+            return
+        }
+        if (outcome == "completed" && reason !in setOf(null, "none")) {
+            showMessage("Una sesión completada no puede tener un motivo de no finalización.", true)
+            return
+        }
+        if (request.actualDurationMinutes != null && request.actualDurationMinutes !in 1..1440) {
             showMessage("La duración debe estar entre 1 y 1440 minutos.", true)
             return
         }
-        if (sessionRpe != null && sessionRpe !in 0.0..10.0) {
+        if (outcome != "not_completed" && request.actualDurationMinutes == null) {
+            showMessage("Indica la duración realizada.", true)
+            return
+        }
+        if (request.sessionRpe != null && request.sessionRpe !in 0.0..10.0) {
             showMessage("El RPE debe estar entre 0 y 10.", true)
             return
         }
-        if ((notes?.length ?: 0) > 2000) {
-            showMessage("Las notas no pueden superar los 2000 caracteres.", true)
+        if (outcome != "not_completed" && request.sessionRpe == null) {
+            showMessage("Indica el esfuerzo percibido de la sesión.", true)
+            return
+        }
+        if (request.recoveryRating !in setOf("unknown", "good", "partial", "insufficient") ||
+            request.painSignal !in setOf("none", "new_or_worsening")) {
+            showMessage("Revisa las respuestas de recuperación y molestias.", true)
+            return
+        }
+        if ((request.notes?.length ?: 0) > 4000) {
+            showMessage("Las notas no pueden superar los 4000 caracteres.", true)
             return
         }
         runRequest {
-            PortalService.api.recordTrainingSession(session.id,
-                PatientTrainingRecordRequest(actualDurationMinutes = actualDurationMinutes, sessionRpe = sessionRpe, notes = notes?.trim()?.takeIf { it.isNotEmpty() }))
+            PortalService.api.recordTrainingSession(session.id, request)
             val accountId = _state.value.profile?.clientId
             val training = PortalService.api.trainingSessions()
             _state.value = _state.value.copy(training = training, trainingLoaded = true,
-                message = "Entrenamiento registrado correctamente.", error = false)
+                message = "Registro de entrenamiento guardado.", error = false)
             if (accountId != null) offline.cacheValue(accountId, "training", training)
         }
     }
