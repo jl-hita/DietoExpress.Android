@@ -37,6 +37,13 @@ Esto incluye, como mínimo:
 4. No desplegar un cambio incompatible antes de que la app publicada pueda tolerarlo, salvo que se haya acordado una migración coordinada.
 5. Registrar explícitamente la revisión incluso cuando la conclusión sea “sin impacto”.
 
+## Check-in estructurado de entrenamiento (octubre de 2026)
+
+- `GET /api/portal/training/sessions` puede devolver `adaptationRecommendation` y cada sesión puede incluir `outcome`, `nonCompletionReason`, `recoveryRating`, `painSignal` y `progressionTargetAchieved`. Son campos aditivos; los payloads antiguos siguen siendo válidos.
+- `POST /api/portal/training/sessions/{sessionId}/record` acepta esos campos de feedback de forma opcional junto a duración, RPE y notas. El backend mantiene compatibilidad con clientes antiguos y no borra el feedback estructurado cuando una petición antigua omite esos campos.
+- Android presenta ahora el check-in estructurado y la recomendación del motor. Los envíos se hacen online y actualizan el registro único de sesión/paciente; no se añaden a la outbox offline. No se debe habilitar esa cola hasta definir y probar idempotencia de petición, conflictos, cambio de cuenta y reintentos tras timeout.
+- La recomendación es informativa y no aplica cambios al plan. Dolor nuevo o creciente requiere detener el ejercicio implicado y consultar con el profesional; la app no diagnostica ni sustituye la revisión profesional.
+
 ## Revisión de idempotencia (octubre de 2026)
 
 - `PATCH /api/messages/patient/read` conserva ruta y cuerpo y admite `Idempotency-Key`.

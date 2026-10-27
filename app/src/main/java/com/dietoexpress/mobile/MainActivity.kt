@@ -323,7 +323,7 @@ class MainActivity : ComponentActivity() {
                                         busy = state.busy, onDraftChange = vm::updateMessageDraft,
                                         onSend = vm::sendMessage, onRetry = { vm.openSection("messages") }
                                     )
-                                    "training" -> TrainingPortalContent(state.training, state.trainingLoaded, state.busy, vm::recordTrainingSession) { vm.openSection("training") }
+                                    "training" -> TrainingFeedbackContent(state.training, state.trainingLoaded, state.busy, vm::recordTrainingSession) { vm.openSection("training") }
                                     "progress" -> ProgressContent(
                                         eligibilityMessage = state.checkinEligibility?.message,
                                         eligible = state.checkinEligibility?.eligible,
