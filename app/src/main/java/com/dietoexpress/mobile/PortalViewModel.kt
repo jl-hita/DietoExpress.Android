@@ -707,7 +707,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         session: com.dietoexpress.mobile.data.TrainingSession,
         request: PatientTrainingRecordRequest
     ) {
-        if (_state.value.busy || (session.completedAt != null && session.outcome != "not_completed")) return
+        if (_state.value.busy) return
 
         val outcome = request.outcome
         val reason = request.nonCompletionReason
