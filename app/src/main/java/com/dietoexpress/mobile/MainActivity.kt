@@ -145,7 +145,9 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(publicRoute, state.profile?.clientId) {
                         if (publicRoute == "portal" && state.profile != null) vm.loadNutritionistTransfer()
                     }
-                    if (publicRoute != "portal") {
+                    if (resolveStartupDestination(state.initializing, state.profile != null) == StartupDestination.INITIALIZING) {
+                        StartupScreen()
+                    } else if (publicRoute != "portal") {
                         PublicDirectoryScreen(
                             initialBooking = publicRoute == "booking",
                             onBack = { publicRoute = "portal" },
