@@ -711,11 +711,11 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
 
         val outcome = request.outcome
         val reason = request.nonCompletionReason
-        if (outcome !in setOf("completed", "partial", "not_completed")) {
+        if (outcome == null || outcome !in setOf("completed", "partial", "not_completed")) {
             showMessage("Indica cómo fue la sesión.", true)
             return
         }
-        if (outcome != "completed" && reason !in setOf("time", "fatigue", "equipment", "motivation", "illness", "other")) {
+        if (outcome != "completed" && (reason == null || reason !in setOf("time", "fatigue", "equipment", "motivation", "illness", "other"))) {
             showMessage("Indica el motivo por el que no has completado la sesión.", true)
             return
         }
@@ -739,8 +739,8 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             showMessage("Indica el esfuerzo percibido de la sesión.", true)
             return
         }
-        if (request.recoveryRating !in setOf("unknown", "good", "partial", "insufficient") ||
-            request.painSignal !in setOf("none", "new_or_worsening")) {
+        if (request.recoveryRating == null || request.recoveryRating !in setOf("unknown", "good", "partial", "insufficient") ||
+            request.painSignal == null || request.painSignal !in setOf("none", "new_or_worsening")) {
             showMessage("Revisa las respuestas de recuperación y molestias.", true)
             return
         }
