@@ -399,6 +399,29 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+private fun StartupScreen() {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Forest
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "DietoExpress",
+                color = Color.White,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            CircularProgressIndicator(color = Color.White)
+        }
+    }
+}
+
+@Composable
 private fun LoginScreen(
     emailOrPhone: String,
     passcode: String,
