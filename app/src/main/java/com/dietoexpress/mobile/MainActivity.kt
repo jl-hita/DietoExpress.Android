@@ -145,7 +145,9 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(publicRoute, state.profile?.clientId) {
                         if (publicRoute == "portal" && state.profile != null) vm.loadNutritionistTransfer()
                     }
-                    if (publicRoute != "portal") {
+                    if (resolveStartupDestination(state.initializing, state.profile != null) == StartupDestination.INITIALIZING) {
+                        StartupScreen()
+                    } else if (publicRoute != "portal") {
                         PublicDirectoryScreen(
                             initialBooking = publicRoute == "booking",
                             onBack = { publicRoute = "portal" },
@@ -392,6 +394,29 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StartupScreen() {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Forest
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "DietoExpress",
+                color = Color.White,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            CircularProgressIndicator(color = Color.White)
         }
     }
 }
