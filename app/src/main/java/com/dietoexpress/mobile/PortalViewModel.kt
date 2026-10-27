@@ -50,6 +50,7 @@ data class OfflineOperationSummary(
 )
 
 data class PortalUiState(
+    val initializing: Boolean = true,
     val emailOrPhone: String = "",
     val passcode: String = "",
     val linkEmail: String = "",
@@ -92,22 +93,28 @@ data class PortalUiState(
 
 class PortalViewModel(application: Application) : AndroidViewModel(application) {
     private val offline = OfflineRepository(application)
+    private val _state = MutableStateFlow(PortalUiState())
+    val state: StateFlow<PortalUiState> = _state.asStateFlow()
 
     init {
         PortalService.initialize(application)
         viewModelScope.launch {
-            val cachedProfile = offline.restoreLastProfile()
-            if (cachedProfile != null && _state.value.profile == null && !_state.value.busy) {
-                _state.value = _state.value.copy(
-                    profile = cachedProfile,
-                    message = "Perfil recuperado del dispositivo; puede estar desactualizado hasta sincronizarse.",
-                    error = false
-                )
+            try {
+                val cachedProfile = offline.restoreLastProfile()
+                if (cachedProfile != null && _state.value.profile == null && !_state.value.busy) {
+                    _state.value = _state.value.copy(
+                        profile = cachedProfile,
+                        message = "Perfil recuperado del dispositivo; puede estar desactualizado hasta sincronizarse.",
+                        error = false
+                    )
+                }
+            } catch (_: Exception) {
+                // A cache read failure must not leave the app stuck on the startup screen.
+            } finally {
+                _state.value = _state.value.copy(initializing = false)
             }
         }
     }
-    private val _state = MutableStateFlow(PortalUiState())
-    val state: StateFlow<PortalUiState> = _state.asStateFlow()
 
     fun updateEmailOrPhone(value: String) { _state.value = _state.value.copy(emailOrPhone = value) }
     fun updatePasscode(value: String) { _state.value = _state.value.copy(passcode = value) }
