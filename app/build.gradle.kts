@@ -51,7 +51,9 @@ android {
             if (hasStableSigning) {
                 signingConfig = signingConfigs.getByName("stable")
             }
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
@@ -72,6 +74,8 @@ dependencies {
     androidTestImplementation(composeBom)
 
     implementation("androidx.activity:activity-compose:1.11.0")
+    // Override legacy transitive fragment versions flagged by Google Play.
+    implementation("androidx.fragment:fragment:1.8.9")
     implementation("androidx.core:core-splashscreen:1.2.0")
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
