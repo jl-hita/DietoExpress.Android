@@ -230,7 +230,32 @@ data class TrainingSession(
     val nonCompletionReason: String? = null,
     val recoveryRating: String? = null,
     val painSignal: String? = null,
-    val progressionTargetAchieved: Boolean? = null
+    val progressionTargetAchieved: Boolean? = null,
+    val exercisePrescriptionData: StructuredTrainingPrescription? = null
+)
+
+data class StructuredTrainingPrescription(
+    val engineVersion: String? = null,
+    val goal: String? = null,
+    val weekNumber: Int? = null,
+    val day: String? = null,
+    val estimatedDurationMinutes: Int? = null,
+    val exercises: List<StructuredTrainingExercise> = emptyList()
+)
+
+data class StructuredTrainingExercise(
+    val exerciseId: String? = null,
+    val catalogVersion: String? = null,
+    val exerciseNameSnapshot: String? = null,
+    val order: Int? = null,
+    val sets: Int? = null,
+    val minRepetitions: Int? = null,
+    val maxRepetitions: Int? = null,
+    val targetRepetitionsInReserve: Double? = null,
+    val restSeconds: Int? = null,
+    val progressionRule: Int? = null,
+    val primaryMuscleGroups: List<String> = emptyList(),
+    val secondaryMuscleGroups: List<String> = emptyList()
 )
 
 data class SendPatientMessageRequest(val body: String)
