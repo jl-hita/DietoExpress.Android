@@ -144,7 +144,7 @@ private fun TrainingSessionCard(
             if (structuredPrescription != null) {
                 Text("Ejercicios, series y descansos", fontWeight = FontWeight.SemiBold)
                 structuredPrescription.weekNumber?.let { week ->
-                    Text("Semana $week · ${structuredPrescription.estimatedDurationMinutes ?: session.durationMinutes ?: \"—\"} min",
+                    Text("Semana $week · ${structuredPrescription.estimatedDurationMinutes ?: session.durationMinutes ?: "—"} min",
                         color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 structuredPrescription.exercises.forEachIndexed { index, exercise ->
@@ -152,17 +152,17 @@ private fun TrainingSessionCard(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
-                        Text("${exercise.order ?: index + 1}. ${exercise.exerciseNameSnapshot ?: \"Ejercicio\"}",
+                        Text("${exercise.order ?: index + 1}. ${exercise.exerciseNameSnapshot ?: "Ejercicio"}",
                             fontWeight = FontWeight.SemiBold)
-                        Text("${exercise.sets ?: \"—\"} series × ${exercise.minRepetitions ?: \"—\"}–${exercise.maxRepetitions ?: \"—\"} repeticiones")
-                        Text("RIR ${exercise.targetRepetitionsInReserve?.toString() ?: \"—\"} · Descanso ${exercise.restSeconds ?: \"—\"} s",
+                        Text("${exercise.sets ?: "—"} series × ${exercise.minRepetitions ?: "—"}–${exercise.maxRepetitions ?: "—"} repeticiones")
+                        Text("RIR ${exercise.targetRepetitionsInReserve?.toString() ?: "—"} · Descanso ${exercise.restSeconds ?: "—"} s",
                             color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                         if (exercise.primaryMuscleGroups.isNotEmpty()) {
-                            Text("Principal: ${exercise.primaryMuscleGroups.joinToString(\", \") { trainingMuscleLabel(it) }}",
+                            Text("Principal: ${exercise.primaryMuscleGroups.joinToString(", ") { trainingMuscleLabel(it) }}",
                                 color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                         }
                         if (exercise.secondaryMuscleGroups.isNotEmpty()) {
-                            Text("Secundario: ${exercise.secondaryMuscleGroups.joinToString(\", \") { trainingMuscleLabel(it) }}",
+                            Text("Secundario: ${exercise.secondaryMuscleGroups.joinToString(", ") { trainingMuscleLabel(it) }}",
                                 color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                         }
                         Text("Progresión: ${trainingProgressionLabel(exercise.progressionRule)}",
