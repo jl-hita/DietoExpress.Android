@@ -231,7 +231,8 @@ data class TrainingSession(
     val recoveryRating: String? = null,
     val painSignal: String? = null,
     val progressionTargetAchieved: Boolean? = null,
-    val exercisePrescriptionData: StructuredTrainingPrescription? = null
+    val exercisePrescriptionData: StructuredTrainingPrescription? = null,
+    val exerciseFeedback: List<TrainingExerciseFeedback> = emptyList()
 )
 
 data class StructuredTrainingPrescription(
@@ -309,6 +310,14 @@ data class PatientCheckinDraft(
     val submissionPending: Boolean = false
 )
 
+data class TrainingExerciseFeedback(
+    val exerciseId: String? = null,
+    val exerciseName: String,
+    val plannedSets: Int,
+    val completedSets: Int,
+    val skippedSetReason: String? = null
+)
+
 data class PatientTrainingRecordRequest(
     val completedAt: String? = null,
     val actualDurationMinutes: Int? = null,
@@ -318,7 +327,8 @@ data class PatientTrainingRecordRequest(
     val nonCompletionReason: String? = null,
     val recoveryRating: String? = null,
     val painSignal: String? = null,
-    val progressionTargetAchieved: Boolean? = null
+    val progressionTargetAchieved: Boolean? = null,
+    val exerciseFeedback: List<TrainingExerciseFeedback> = emptyList()
 )
 
 interface PortalApi {
