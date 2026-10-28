@@ -148,8 +148,30 @@ private fun TrainingSessionCard(
     }
     var rpe by remember(session.id, session.sessionRpe) { mutableStateOf(session.sessionRpe?.toString().orEmpty()) }
     var notes by remember(session.id, session.recordNotes) { mutableStateOf(session.recordNotes.orEmpty()) }
-    val completedSets = remember(session.id) { mutableStateMapOf<String, String>() }
-    val skippedReasons = remember(session.id) { mutableStateMapOf<String, String>() }
+    val completedSets = remember(session.id, session.exerciseFeedback) {
+        mutableStateMapOf<String, String>().apply {
+            session.exerciseFeedback.forEach { feedback ->
+                val exercise = session.exercisePrescriptionData?.exercises?.firstOrNull {
+                    it.exerciseId == feedback.exerciseId || it.exerciseNameSnapshot == feedback.exerciseName
+                }
+                val key = exercise?.exerciseId ?: "order-${exercise?.order ?: 0}"
+                put(key, feedback.completedSets.toString())
+            }
+        }
+    }
+    val skippedReasons = remember(session.id, session.exerciseFeedback) {
+        mutableStateMapOf<String, String>().apply {
+            session.exerciseFeedback.forEach { feedback ->
+                if (feedback.skippedSetReason != null) {
+                    val exercise = session.exercisePrescriptionData?.exercises?.firstOrNull {
+                        it.exerciseId == feedback.exerciseId || it.exerciseNameSnapshot == feedback.exerciseName
+                    }
+                    val key = exercise?.exerciseId ?: "order-${exercise?.order ?: 0}"
+                    put(key, feedback.skippedSetReason)
+                }
+            }
+        }
+    }
 
     val missed = outcome == "not_completed"
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
