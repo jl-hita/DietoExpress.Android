@@ -75,3 +75,10 @@ Esto incluye, como mínimo:
 La clasificación de rutas, permisos, sensibilidad, retención y viabilidad offline está en [`OFFLINE_ENDPOINT_AUDIT.md`](OFFLINE_ENDPOINT_AUDIT.md). La regla central es no encolar escrituras cuyo contrato no permita reintentos seguros: mensajes del paciente reutilizan un UUID persistido como `Idempotency-Key`; las reservas públicas, cancelaciones, check-ins y aceptaciones documentales siguen siendo solo online.
 
 La caché cifrada aplica TTL por familia, conserva snapshots vencidos durante un máximo de 30 días para consulta offline claramente señalada, y se invalida en logout o cuando una respuesta online confirma que ya no existe la dieta. Los 401/403 no se ocultan con caché: se limpia el estado de sesión local y se exige autenticación. Las operaciones con HTTP 409 quedan en estado persistente `CONFLICT`, fuera de la cola de reintentos automáticos.
+
+
+## Registro de entrenamiento por ejercicio (octubre de 2026)
+
+El check-in de `POST /api/portal/training/sessions/{sessionId}/record` puede incluir `exerciseFeedback`, una lista con `exerciseId`, nombre de referencia, series planificadas, series completadas y motivo de las series omitidas. Se valida que los recuentos estén dentro de rango, que no haya ejercicios duplicados y que cada omisión tenga motivo. El backend conserva este detalle en JSONB y lo devuelve en `GET /api/portal/training/sessions`; los clientes antiguos pueden omitir el campo sin borrar el registro previo.
+
+La recomendación conservadora mantiene prioridad para el dolor nuevo o creciente. Si el volumen real registrado es inferior al 80 % del planificado, se recomienda pausar la progresión y revisar el contexto con el profesional. No se cambia el plan automáticamente ni se encola este registro para reintento offline: requiere conexión y respuesta confirmada del backend.
