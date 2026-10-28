@@ -215,16 +215,21 @@ private fun TrainingSessionCard(
                         Text("Progresión: ${trainingProgressionLabel(exercise.progressionRule)}",
                             color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                         val key = exercise.exerciseId ?: "order-${exercise.order ?: index}"
-                        OutlinedTextField(
-                            value = completedSets[key].orEmpty(),
-                            onValueChange = { value -> if (value.isEmpty() || value.all(Char::isDigit)) completedSets[key] = value },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Series realizadas (de ${exercise.sets ?: "?"})") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            enabled = !busy
-                        )
                         val planned = exercise.sets ?: 0
+                        if (planned > 0) {
+                            OutlinedTextField(
+                                value = completedSets[key].orEmpty(),
+                                onValueChange = { value -> if (value.isEmpty() || value.all(Char::isDigit)) completedSets[key] = value },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Series realizadas (de $planned)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                enabled = !busy
+                            )
+                        } else {
+                            Text("No hay un número de series prescritas con el que comparar el volumen real.", color = TrainingMuted,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
                         val done = completedSets[key]?.toIntOrNull()
                         if (done != null && done in 0 until planned) {
                             TrainingChoiceField("Motivo de las series omitidas", skippedReasons[key].orEmpty(), listOf(
@@ -279,7 +284,7 @@ private fun TrainingSessionCard(
             }
             OutlinedTextField(value = notes, onValueChange = { notes = it }, modifier = Modifier.fillMaxWidth(),
                 label = { Text("Notas opcionales") }, minLines = 2, maxLines = 4, enabled = !busy)
-            val exerciseFeedbackReady = structuredPrescription == null || structuredPrescription.exercises.all { exercise ->
+            val exerciseFeedbackReady = structuredPrescription == null || structuredPrescription.exercises.filter { (it.sets ?: 0) > 0 }.all { exercise ->
                 val key = exercise.exerciseId ?: "order-${exercise.order ?: structuredPrescription.exercises.indexOf(exercise)}"
                 val planned = exercise.sets ?: 0
                 val done = completedSets[key]?.toIntOrNull()
@@ -297,7 +302,7 @@ private fun TrainingSessionCard(
                     recoveryRating = recovery,
                     painSignal = pain,
                     progressionTargetAchieved = progression.toBooleanStrictOrNull(),
-                    exerciseFeedback = structuredPrescription?.exercises.orEmpty().mapIndexed { index, exercise ->
+                    exerciseFeedback = structuredPrescription?.exercises.orEmpty().filter { (it.sets ?: 0) > 0 }.mapIndexed { index, exercise ->
                         val key = exercise.exerciseId ?: "order-${exercise.order ?: index}"
                         TrainingExerciseFeedback(
                             exerciseId = exercise.exerciseId,
