@@ -50,7 +50,7 @@ internal fun TrainingFeedbackContent(
     onRetry: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text("Entrenamiento", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
