@@ -90,6 +90,29 @@ internal fun TrainingFeedbackContent(
     }
 }
 
+private fun trainingMuscleLabel(value: String): String = when (value) {
+    "Chest" -> "Pecho"
+    "Lats" -> "Dorsales"
+    "UpperBack" -> "Espalda alta"
+    "Deltoids" -> "Deltoides"
+    "Biceps" -> "Bíceps"
+    "Triceps" -> "Tríceps"
+    "Forearms" -> "Antebrazos"
+    "Abdominals" -> "Abdominales"
+    "Obliques" -> "Oblicuos"
+    "ErectorSpinae" -> "Erectores espinales"
+    "Glutes" -> "Glúteos"
+    "Quadriceps" -> "Cuádriceps"
+    "Hamstrings" -> "Isquiotibiales"
+    "Calves" -> "Gemelos"
+    else -> value
+}
+
+private fun trainingProgressionLabel(rule: Int?): String = when (rule) {
+    1 -> "Doble progresión"
+    2 -> "Aumentar carga dentro de límites"
+    else -> "Sin progresión automática definida"
+}
 @Composable
 private fun TrainingSessionCard(
     session: TrainingSession,
@@ -117,9 +140,40 @@ private fun TrainingSessionCard(
             session.durationMinutes?.let { Text("Duración prevista: $it min", color = TrainingMuted) }
             session.intensityTarget?.takeIf { it.isNotBlank() }?.let { Text(it, color = TrainingMuted) }
             session.instructions?.takeIf { it.isNotBlank() }?.let { Text(it) }
-            session.exercisePrescription?.takeIf { it.isNotBlank() }?.let {
+            val structuredPrescription = session.exercisePrescriptionData?.takeIf { it.exercises.isNotEmpty() }
+            if (structuredPrescription != null) {
                 Text("Ejercicios, series y descansos", fontWeight = FontWeight.SemiBold)
-                Text(it)
+                structuredPrescription.weekNumber?.let { week ->
+                    Text("Semana $week · ${structuredPrescription.estimatedDurationMinutes ?: session.durationMinutes ?: "—"} min",
+                        color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                }
+                structuredPrescription.exercises.forEachIndexed { index, exercise ->
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text("${exercise.order ?: index + 1}. ${exercise.exerciseNameSnapshot ?: "Ejercicio"}",
+                            fontWeight = FontWeight.SemiBold)
+                        Text("${exercise.sets ?: "—"} series × ${exercise.minRepetitions ?: "—"}–${exercise.maxRepetitions ?: "—"} repeticiones")
+                        Text("RIR ${exercise.targetRepetitionsInReserve?.toString() ?: "—"} · Descanso ${exercise.restSeconds ?: "—"} s",
+                            color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                        if (exercise.primaryMuscleGroups.isNotEmpty()) {
+                            Text("Principal: ${exercise.primaryMuscleGroups.joinToString(", ") { trainingMuscleLabel(it) }}",
+                                color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (exercise.secondaryMuscleGroups.isNotEmpty()) {
+                            Text("Secundario: ${exercise.secondaryMuscleGroups.joinToString(", ") { trainingMuscleLabel(it) }}",
+                                color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("Progresión: ${trainingProgressionLabel(exercise.progressionRule)}",
+                            color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            } else {
+                session.exercisePrescription?.takeIf { it.isNotBlank() }?.let {
+                    Text("Ejercicios, series y descansos", fontWeight = FontWeight.SemiBold)
+                    Text(it)
+                }
             }
             if (session.completedAt != null) {
                 Text("Último registro: ${session.actualDurationMinutes ?: "—"} min · RPE ${session.sessionRpe ?: "—"}",
