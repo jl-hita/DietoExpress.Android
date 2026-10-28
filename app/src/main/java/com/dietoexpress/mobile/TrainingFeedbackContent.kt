@@ -91,6 +91,21 @@ internal fun TrainingFeedbackContent(
 }
 
 private fun trainingMuscleLabel(value: String): String = when (value) {
+    // Numeric values are used by existing JSONB snapshots serialized before string-enum conversion.
+    "0" -> "Pecho"
+    "1" -> "Dorsales"
+    "2" -> "Espalda alta"
+    "3" -> "Deltoides"
+    "4" -> "Bíceps"
+    "5" -> "Tríceps"
+    "6" -> "Antebrazos"
+    "7" -> "Abdominales"
+    "8" -> "Oblicuos"
+    "9" -> "Erectores espinales"
+    "10" -> "Glúteos"
+    "11" -> "Cuádriceps"
+    "12" -> "Isquiotibiales"
+    "13" -> "Gemelos"
     "Chest" -> "Pecho"
     "Lats" -> "Dorsales"
     "UpperBack" -> "Espalda alta"
