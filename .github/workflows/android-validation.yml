@@ -22,7 +22,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,8 +41,19 @@ jobs:
       - name: Run unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
 
-      - name: Compile instrumented tests (no emulator)
+      - name: Compile instrumented tests
         run: gradle --no-daemon :app:compileDebugAndroidTestKotlin
+
+      # Compile-only checks cannot catch runtime failures in Room, Keystore or Android lifecycle.
+      - name: Run instrumented tests on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: gradle --no-daemon :app:connectedDebugAndroidTest
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
