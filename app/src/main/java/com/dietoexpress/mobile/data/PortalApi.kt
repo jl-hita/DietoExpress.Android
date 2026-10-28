@@ -231,7 +231,8 @@ data class TrainingSession(
     val recoveryRating: String? = null,
     val painSignal: String? = null,
     val progressionTargetAchieved: Boolean? = null,
-    val exercisePrescriptionData: StructuredTrainingPrescription? = null
+    val exercisePrescriptionData: StructuredTrainingPrescription? = null,
+    val exerciseFeedback: List<TrainingExerciseFeedback> = emptyList()
 )
 
 data class StructuredTrainingPrescription(
