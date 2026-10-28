@@ -154,7 +154,10 @@ private fun TrainingSessionCard(
                 val exercise = session.exercisePrescriptionData?.exercises?.firstOrNull {
                     it.exerciseId == feedback.exerciseId || it.exerciseNameSnapshot == feedback.exerciseName
                 }
-                val key = exercise?.exerciseId ?: "order-${exercise?.order ?: 0}"
+                val index = session.exercisePrescriptionData?.exercises?.indexOfFirst {
+                    it.exerciseId == feedback.exerciseId || it.exerciseNameSnapshot == feedback.exerciseName
+                } ?: -1
+                val key = exercise?.exerciseId ?: "order-${exercise?.order ?: index.coerceAtLeast(0)}"
                 put(key, feedback.completedSets.toString())
             }
         }
@@ -166,7 +169,10 @@ private fun TrainingSessionCard(
                     val exercise = session.exercisePrescriptionData?.exercises?.firstOrNull {
                         it.exerciseId == feedback.exerciseId || it.exerciseNameSnapshot == feedback.exerciseName
                     }
-                    val key = exercise?.exerciseId ?: "order-${exercise?.order ?: 0}"
+                    val index = session.exercisePrescriptionData?.exercises?.indexOfFirst {
+                        it.exerciseId == feedback.exerciseId || it.exerciseNameSnapshot == feedback.exerciseName
+                    } ?: -1
+                    val key = exercise?.exerciseId ?: "order-${exercise?.order ?: index.coerceAtLeast(0)}"
                     put(key, feedback.skippedSetReason)
                 }
             }
@@ -298,7 +304,8 @@ private fun TrainingSessionCard(
                             exerciseName = exercise.exerciseNameSnapshot ?: "Ejercicio ${index + 1}",
                             plannedSets = exercise.sets ?: 0,
                             completedSets = completedSets[key]?.toIntOrNull() ?: -1,
-                            skippedSetReason = skippedReasons[key]
+                            skippedSetReason = if ((completedSets[key]?.toIntOrNull() ?: -1) < (exercise.sets ?: 0))
+                                skippedReasons[key] else null
                         )
                     }
                 ))
