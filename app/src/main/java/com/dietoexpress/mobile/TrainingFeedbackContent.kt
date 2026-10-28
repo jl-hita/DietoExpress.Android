@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.dietoexpress.mobile.data.PatientTrainingRecordRequest
 import com.dietoexpress.mobile.data.TrainingEnvelope
+import com.dietoexpress.mobile.data.TrainingExerciseFeedback
 import com.dietoexpress.mobile.data.TrainingSession
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -146,6 +148,8 @@ private fun TrainingSessionCard(
     }
     var rpe by remember(session.id, session.sessionRpe) { mutableStateOf(session.sessionRpe?.toString().orEmpty()) }
     var notes by remember(session.id, session.recordNotes) { mutableStateOf(session.recordNotes.orEmpty()) }
+    val completedSets = remember(session.id) { mutableStateMapOf<String, String>() }
+    val skippedReasons = remember(session.id) { mutableStateMapOf<String, String>() }
 
     val missed = outcome == "not_completed"
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
@@ -182,6 +186,30 @@ private fun TrainingSessionCard(
                         }
                         Text("Progresión: ${trainingProgressionLabel(exercise.progressionRule)}",
                             color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                        val key = exercise.exerciseId ?: "order-${exercise.order ?: index}"
+                        OutlinedTextField(
+                            value = completedSets[key].orEmpty(),
+                            onValueChange = { value -> if (value.isEmpty() || value.all(Char::isDigit)) completedSets[key] = value },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Series realizadas (de ${exercise.sets ?: "?"})") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            enabled = !busy
+                        )
+                        val planned = exercise.sets ?: 0
+                        val done = completedSets[key]?.toIntOrNull()
+                        if (done != null && done in 0 until planned) {
+                            TrainingChoiceField("Motivo de las series omitidas", skippedReasons[key].orEmpty(), listOf(
+                                "" to "Selecciona un motivo",
+                                "fatigue" to "Fatiga o esfuerzo excesivo",
+                                "time" to "Falta de tiempo",
+                                "equipment" to "Falta de material",
+                                "motivation" to "Falta de motivación",
+                                "illness" to "Enfermedad",
+                                "pain" to "Dolor o molestias",
+                                "other" to "Otro"
+                            )) { skippedReasons[key] = it }
+                        }
                     }
                 }
             } else {
@@ -223,6 +251,13 @@ private fun TrainingSessionCard(
             }
             OutlinedTextField(value = notes, onValueChange = { notes = it }, modifier = Modifier.fillMaxWidth(),
                 label = { Text("Notas opcionales") }, minLines = 2, maxLines = 4, enabled = !busy)
+            val exerciseFeedbackReady = structuredPrescription == null || structuredPrescription.exercises.all { exercise ->
+                val key = exercise.exerciseId ?: "order-${exercise.order ?: structuredPrescription.exercises.indexOf(exercise)}"
+                val planned = exercise.sets ?: 0
+                val done = completedSets[key]?.toIntOrNull()
+                done != null && planned > 0 && done in 0..planned &&
+                    (done == planned || skippedReasons[key] in setOf("fatigue", "time", "equipment", "motivation", "illness", "pain", "other"))
+            }
             Button(onClick = {
                 onRecord(session, PatientTrainingRecordRequest(
                     completedAt = if (missed) null else java.time.Instant.now().toString(),
@@ -233,7 +268,17 @@ private fun TrainingSessionCard(
                     nonCompletionReason = if (outcome == "completed") "none" else reason,
                     recoveryRating = recovery,
                     painSignal = pain,
-                    progressionTargetAchieved = progression.toBooleanStrictOrNull()
+                    progressionTargetAchieved = progression.toBooleanStrictOrNull(),
+                    exerciseFeedback = structuredPrescription?.exercises.orEmpty().mapIndexed { index, exercise ->
+                        val key = exercise.exerciseId ?: "order-${exercise.order ?: index}"
+                        TrainingExerciseFeedback(
+                            exerciseId = exercise.exerciseId,
+                            exerciseName = exercise.exerciseNameSnapshot ?: "Ejercicio ${index + 1}",
+                            plannedSets = exercise.sets ?: 0,
+                            completedSets = completedSets[key]?.toIntOrNull() ?: -1,
+                            skippedSetReason = skippedReasons[key]
+                        )
+                    }
                 ))
             }, modifier = Modifier.fillMaxWidth(), enabled = !busy) {
                 Text(if (busy) "Guardando…" else "Guardar check-in")
