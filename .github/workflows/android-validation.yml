@@ -47,6 +47,10 @@ jobs:
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
+      # Exercises R8/resource shrinking on every PR; CI intentionally builds an unsigned release.
+      - name: Build minified release APK
+        run: gradle --no-daemon :app:assembleRelease
+
       # Solo se publica el APK de diagnóstico desde main; el AAB de Play se genera localmente en Android Studio.
       - name: Upload debug APK for testing
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
