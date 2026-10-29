@@ -66,6 +66,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -189,7 +192,7 @@ class MainActivity : ComponentActivity() {
                                         NavigationBarItem(
                                             selected = state.section == item.first,
                                             onClick = { vm.openSection(item.first) },
-                                            icon = { Text(item.third, fontSize = 21.sp, fontWeight = FontWeight.Medium) },
+                                            icon = { Text(item.third, modifier = Modifier.clearAndSetSemantics { }, fontSize = 21.sp, fontWeight = FontWeight.Medium) },
                                             label = { Text(item.second, fontSize = 11.sp) },
                                             alwaysShowLabel = true
                                         )
@@ -221,7 +224,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                                            IconButton(onClick = { showingNotifications = true }, modifier = Modifier.fillMaxSize()) {
+                                            IconButton(onClick = { showingNotifications = true }, modifier = Modifier.fillMaxSize().semantics { contentDescription = "Abrir notificaciones" }) {
                                                 Text("🔔", fontSize = 23.sp)
                                             }
                                             if (state.unreadMessagesCount > 0) {
@@ -774,9 +777,9 @@ private fun MealBlock(meal: DietMeal) {
                 ?: item.exchangeGroupName?.takeIf { it.isNotBlank() }
                 ?: "Alimento"
             val amount = when {
-                item.grams != null -> "${number(item.grams)} g"
-                item.exchangeCount != null -> "${number(item.exchangeCount)} intercambios"
-                item.recipeServings != null -> "${number(item.recipeServings)} raciones"
+                item.grams != null -> "${formatNumber(item.grams)} g"
+                item.exchangeCount != null -> "${formatNumber(item.exchangeCount)} intercambios"
+                item.recipeServings != null -> "${formatNumber(item.recipeServings)} raciones"
                 else -> null
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
@@ -784,7 +787,7 @@ private fun MealBlock(meal: DietMeal) {
                     Text(name, color = Ink)
                     amount?.let { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
                 }
-                item.kcal?.let { Text("${number(it)} kcal", color = Muted, style = MaterialTheme.typography.bodySmall) }
+                item.kcal?.let { Text("${formatNumber(it)} kcal", color = Muted, style = MaterialTheme.typography.bodySmall) }
             }
         }
     }
@@ -864,7 +867,7 @@ private fun AppointmentsContent(
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 10.dp)
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(dateLabel(dateSlots.first().startsAt), fontWeight = FontWeight.Bold)
+                                    Text(formatDateLabel(dateSlots.first().startsAt), fontWeight = FontWeight.Bold)
                                     Text("${dateSlots.size} horarios", style = MaterialTheme.typography.labelSmall)
                                 }
                             }
@@ -875,7 +878,7 @@ private fun AppointmentsContent(
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 10.dp)
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(dateLabel(dateSlots.first().startsAt), fontWeight = FontWeight.SemiBold)
+                                    Text(formatDateLabel(dateSlots.first().startsAt), fontWeight = FontWeight.SemiBold)
                                     Text("${dateSlots.size} horarios", style = MaterialTheme.typography.labelSmall)
                                 }
                             }
@@ -899,14 +902,14 @@ private fun AppointmentsContent(
                                             modifier = Modifier.fillMaxWidth().height(52.dp),
                                             shape = RoundedCornerShape(12.dp),
                                             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                                        ) { Text(timeLabel(slot.startsAt), fontWeight = FontWeight.Bold) }
+                                        ) { Text(formatTimeLabel(slot.startsAt), fontWeight = FontWeight.Bold) }
                                     } else {
                                         OutlinedButton(
                                             onClick = { selectedSlotStart = slot.startsAt },
                                             modifier = Modifier.fillMaxWidth().height(52.dp),
                                             shape = RoundedCornerShape(12.dp),
                                             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                                        ) { Text(timeLabel(slot.startsAt), fontWeight = FontWeight.SemiBold) }
+                                        ) { Text(formatTimeLabel(slot.startsAt), fontWeight = FontWeight.SemiBold) }
                                     }
                                 }
                             }
@@ -922,7 +925,7 @@ private fun AppointmentsContent(
                     ) {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("Horario seleccionado", style = MaterialTheme.typography.labelLarge, color = ForestDark)
-                            Text("${dateLabel(slot.startsAt)} · ${timeLabel(slot.startsAt)}", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
+                            Text("${formatDateLabel(slot.startsAt)} · ${formatTimeLabel(slot.startsAt)}", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
                             Text("¿Cómo prefieres la consulta?", color = Muted)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(
@@ -998,8 +1001,8 @@ private fun AppointmentCard(appointment: PatientAppointment, onJoinVideo: ((Int)
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(dateLabel(appointment.startsAt), fontWeight = FontWeight.Bold, color = Ink)
-                    Text(timeLabel(appointment.startsAt), color = Forest, fontWeight = FontWeight.SemiBold)
+                    Text(formatDateLabel(appointment.startsAt), fontWeight = FontWeight.Bold, color = Ink)
+                    Text(formatTimeLabel(appointment.startsAt), color = Forest, fontWeight = FontWeight.SemiBold)
                 }
                 StatusPill(appointment.status, appointment.endsAt)
             }
@@ -1246,7 +1249,11 @@ private fun BiometricEvolutionChart(
                 val values = metricPoints.map { it.second }
                 val minValue = (values.minOrNull() ?: 0.0) - 1.0
                 val maxValue = (values.maxOrNull() ?: 1.0) + 1.0
-                Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
+                Canvas(
+                    modifier = Modifier.fillMaxWidth().height(160.dp).semantics {
+                        contentDescription = "Gráfica de $metricLabel. Valor inicial ${formatNumber(metricPoints.first().second)} $unit; valor más reciente ${formatNumber(metricPoints.last().second)} $unit."
+                    }
+                ) {
                     val range = (maxValue - minValue).coerceAtLeast(1.0)
                     val points = values.mapIndexed { index, value ->
                         Offset(
@@ -1261,8 +1268,8 @@ private fun BiometricEvolutionChart(
                 }
                 val first = metricPoints.first()
                 val last = metricPoints.last()
-                Text(number(first.second) + " " + unit + " (" + dateLabel(first.first) + ") → " +
-                    number(last.second) + " " + unit + " (" + dateLabel(last.first) + ")",
+                Text(formatNumber(first.second) + " " + unit + " (" + formatDateLabel(first.first) + ") → " +
+                    formatNumber(last.second) + " " + unit + " (" + formatDateLabel(last.first) + ")",
                     color = Muted, style = MaterialTheme.typography.bodySmall)
                 Text(if (activeMetric == "weight" && biometricHistory.count { it.weight != null } < 2)
                     "Basado en mediciones del perfil o revisiones semanales."
@@ -1278,8 +1285,8 @@ private fun BiometricEvolutionChart(
 private fun CheckinCard(item: PatientCheckin) {
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text(item.weekStart?.let(::dateLabel) ?: item.submittedAt?.take(10)?.let(::dateLabel) ?: "Revisión", color = Forest, fontWeight = FontWeight.Bold)
-            item.weight?.let { ProfileRow("Peso", "${number(it)} kg") }
+            Text(item.weekStart?.let(::formatDateLabel) ?: item.submittedAt?.take(10)?.let(::formatDateLabel) ?: "Revisión", color = Forest, fontWeight = FontWeight.Bold)
+            item.weight?.let { ProfileRow("Peso", "${formatNumber(it)} kg") }
             item.adherence?.let { ProfileRow("Adherencia", "$it %") }
             item.hunger?.let { ProfileRow("Hambre", "$it / 10") }
             item.energy?.let { ProfileRow("Energía", "$it / 10") }
@@ -1317,7 +1324,7 @@ private fun ProfileContent(
             Text("Tu información personal", color = Muted, style = MaterialTheme.typography.bodyMedium)
             HorizontalDivider(color = Line)
             ProfileRow("Edad", age?.let { "$it años" } ?: "Sin datos")
-            ProfileRow("Peso actual", weight?.let { "${number(it)} kg" } ?: "Sin datos")
+            ProfileRow("Peso actual", weight?.let { "${formatNumber(it)} kg" } ?: "Sin datos")
             ProfileRow("Altura", height?.let { "$it cm" } ?: "Sin datos")
             ProfileRow("Dieta activa", if (hasDiet) "Sí" else "Todavía no")
             clinic?.takeIf { it.isNotBlank() }?.let { ProfileRow("Centro", it) }
@@ -1397,7 +1404,7 @@ private fun ProfileContent(
 private fun MacroRow(label: String, value: Double?, unit: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, color = Muted)
-        Text(value?.let { "${number(it)} $unit" } ?: "Sin objetivo", fontWeight = FontWeight.SemiBold, color = Ink)
+        Text(value?.let { "${formatNumber(it)} $unit" } ?: "Sin objetivo", fontWeight = FontWeight.SemiBold, color = Ink)
     }
 }
 
@@ -1489,13 +1496,3 @@ private fun sectionTitle(section: String): String = when (section) {
 
 private fun initials(name: String): String = name.trim().split(Regex("\\s+")).filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1).uppercase() }.ifBlank { "D" }
 
-private fun dateLabel(value: String): String = try {
-    val date = value.take(10).split("-")
-    if (date.size == 3) "${date[2]}/${date[1]}/${date[0]}" else value
-} catch (_: Exception) { value }
-
-private fun timeLabel(value: String): String = try {
-    value.substringAfter("T").take(5).ifBlank { "Hora pendiente" }
-} catch (_: Exception) { "Hora pendiente" }
-
-private fun number(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else "%.1f".format(value)

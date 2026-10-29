@@ -71,3 +71,13 @@ Por tanto, la base offline existe, pero **P0 offline-first no debe darse por ter
 - No enviar una operación de una cuenta con la cookie de otra.
 - No reintentar automáticamente una escritura hasta que la idempotencia y los conflictos estén definidos en backend.
 - Cada cambio de endpoint del backend requiere revisar expresamente el impacto en `jl-hita/DietoExpress.Android`.
+
+
+## Mejora de calidad Android — 29/10/2026
+
+- Los iconos decorativos de la navegación inferior dejan de anunciar glifos ambiguos a TalkBack; se conserva la etiqueta visible de cada destino.
+- El botón del centro de notificaciones tiene una descripción accesible explícita.
+- La gráfica biométrica expone una descripción con la métrica, el primer valor y el más reciente, además de mantener el resumen textual visible.
+- El formato común de fecha valida fechas ISO antes de mostrarlas como DD/MM/YYYY; los valores desconocidos se conservan sin reinterpretarlos. La hora solo se muestra si tiene formato HH:mm válido.
+- Se añaden pruebas unitarias de formato de fechas, timestamps, entradas inválidas y formato numérico con configuración española.
+- Esta mejora no sustituye las pruebas manuales de accesibilidad, escalado de texto ni el checklist offline del dispositivo real. La prioridad P0 offline sigue abierta hasta validar pérdida de respuesta tras commit, reinicio y cambio de cuenta.
