@@ -5,6 +5,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -36,10 +41,62 @@ import com.dietoexpress.mobile.data.TrainingEnvelope
 import com.dietoexpress.mobile.data.TrainingExerciseFeedback
 import com.dietoexpress.mobile.data.TrainingSession
 import java.time.LocalDate
+import java.time.DayOfWeek
+import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 
 private val TrainingForest = Color(0xFF176B52)
 private val TrainingMuted = Color(0xFF687970)
+
+private data class TrainingWeekSummary(
+    val weekStart: LocalDate, val sessions: Int, val totalSets: Int, val averageRir: Double?,
+    val loadIndex: Int, val volumePct: Float, val frequencyPct: Float, val intensityPct: Float
+)
+
+private fun buildTrainingWeekSummaries(sessions: List<TrainingSession>): List<TrainingWeekSummary> {
+    val grouped = sessions.mapNotNull { session ->
+        val date = runCatching { LocalDate.parse(session.scheduledDate.take(10)) }.getOrNull() ?: return@mapNotNull null
+        date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) to session
+    }.groupBy({ it.first }, { it.second }).toSortedMap()
+    val raw = grouped.map { (start, weekSessions) ->
+        val exercises = weekSessions.flatMap { it.exercisePrescriptionData?.exercises.orEmpty() }
+        val sets = exercises.sumOf { (it.sets ?: 0).coerceAtLeast(0) }
+        val rirs = exercises.mapNotNull { it.targetRepetitionsInReserve?.takeIf { rir -> rir in 0.0..10.0 } }
+        val averageRir = rirs.takeIf { it.isNotEmpty() }?.average()
+        val intensity = averageRir?.let { (10.0 - it).coerceIn(0.0, 10.0) }
+        val load = sets * (intensity?.let { 0.7 + it / 10.0 * 0.6 } ?: 1.0) * (1.0 + (weekSessions.size - 2).coerceAtLeast(0) * 0.05)
+        Triple(start, Triple(weekSessions.size, sets, averageRir), load)
+    }
+    val maxSets = (raw.maxOfOrNull { it.second.second } ?: 1).coerceAtLeast(1)
+    val maxFrequency = (raw.maxOfOrNull { it.second.first } ?: 1).coerceAtLeast(1)
+    val maxLoad = (raw.maxOfOrNull { it.third } ?: 1.0).coerceAtLeast(1.0)
+    return raw.map { (start, metrics, load) ->
+        val intensity = metrics.third?.let { ((10.0 - it).coerceIn(0.0, 10.0) / 10.0).toFloat() } ?: 0f
+        TrainingWeekSummary(start, metrics.first, metrics.second, metrics.third, (load / maxLoad * 100).toInt(),
+            metrics.second.toFloat() / maxSets, metrics.first.toFloat() / maxFrequency, intensity)
+    }.takeLast(6)
+}
+
+@Composable
+private fun LoadLegendDot(color: Color, label: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box(Modifier.padding(top = 4.dp).width(8.dp).height(8.dp).clip(CircleShape).background(color))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = TrainingMuted)
+    }
+}
+
+@Composable
+private fun TrainingLoadBar(label: String, value: String, fraction: Float, color: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = TrainingMuted)
+            Text(value, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = Color(0xFF263D32))
+        }
+        Box(modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(50)).background(Color(0xFFE9F0EC))) {
+            Box(modifier = Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).height(7.dp).clip(RoundedCornerShape(50)).background(color))
+        }
+    }
+}
 
 @Composable
 internal fun TrainingFeedbackContent(
@@ -49,12 +106,20 @@ internal fun TrainingFeedbackContent(
     onRecord: (TrainingSession, PatientTrainingRecordRequest) -> Unit,
     onRetry: () -> Unit
 ) {
+    val weekSummaries = remember(envelope?.sessions) { buildTrainingWeekSummaries(envelope?.sessions.orEmpty()) }
+
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text("Entrenamiento", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Registra cómo te ha ido para que tu profesional pueda revisar la planificación.", color = TrainingMuted)
+        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = TrainingForest)) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("TU PLAN, PASO A PASO", style = MaterialTheme.typography.labelMedium, color = Color(0xFFBCE8D1), fontWeight = FontWeight.Bold)
+                Text("Entrena con un plan hecho para ti", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Consulta tus sesiones, sigue cada ejercicio y comparte cómo te has sentido con tu profesional.", color = Color(0xFFE4F3EA))
+            }
+        }
 
         if (!loaded && busy) {
             Box(modifier = Modifier.fillMaxWidth().padding(28.dp)) { CircularProgressIndicator() }
@@ -75,6 +140,31 @@ internal fun TrainingFeedbackContent(
                         Text(recommendation.explanation)
                         Text("Esta orientación no modifica tu plan. Consulta con tu profesional antes de cambiar el entrenamiento.",
                             style = MaterialTheme.typography.bodySmall, color = TrainingMuted)
+                    }
+                }
+            }
+            if (weekSummaries.isNotEmpty()) {
+                Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Text("La carga de tu plan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TrainingForest)
+                        Text("Resumen semanal de volumen, frecuencia e intensidad prescrita.", color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LoadLegendDot(Color(0xFF25845F), "Volumen")
+                            LoadLegendDot(Color(0xFF438FCA), "Frecuencia")
+                            LoadLegendDot(Color(0xFFDF9D43), "Intensidad")
+                        }
+                        weekSummaries.forEach { week ->
+                            Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Semana del ${week.weekStart.format(DateTimeFormatter.ofPattern("dd/MM"))}", fontWeight = FontWeight.SemiBold)
+                                    Text("${week.loadIndex}/100", color = TrainingForest, fontWeight = FontWeight.Bold)
+                                }
+                                TrainingLoadBar("Volumen", "${week.totalSets} series", week.volumePct, Color(0xFF25845F))
+                                TrainingLoadBar("Frecuencia", "${week.sessions} sesiones", week.frequencyPct, Color(0xFF438FCA))
+                                TrainingLoadBar("Intensidad · RIR", week.averageRir?.let { "RIR ${"%.1f".format(java.util.Locale.ROOT, it)}" } ?: "No indicada", week.intensityPct, Color(0xFFDF9D43))
+                            }
+                        }
+                        Text("El índice compara las semanas de tu plan. La intensidad se muestra como RIR (repeticiones en reserva); no representa kilos levantados.", style = MaterialTheme.typography.bodySmall, color = TrainingMuted)
                     }
                 }
             }
@@ -195,9 +285,14 @@ private fun TrainingSessionCard(
                         color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 structuredPrescription.exercises.forEachIndexed { index, exercise ->
-                    Column(
+                    Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F8F6))
+                    ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(13.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Text("${exercise.order ?: index + 1}. ${exercise.exerciseNameSnapshot ?: "Ejercicio"}",
                             fontWeight = FontWeight.SemiBold)
@@ -243,6 +338,7 @@ private fun TrainingSessionCard(
                                 "other" to "Otro"
                             )) { skippedReasons[key] = it }
                         }
+                    }
                     }
                 }
             } else {
