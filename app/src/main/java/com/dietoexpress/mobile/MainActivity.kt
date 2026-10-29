@@ -1285,7 +1285,7 @@ private fun BiometricEvolutionChart(
 private fun CheckinCard(item: PatientCheckin) {
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text(item.weekStart?.let(::dateLabel) ?: item.submittedAt?.take(10)?.let(::dateLabel) ?: "Revisión", color = Forest, fontWeight = FontWeight.Bold)
+            Text(item.weekStart?.let(::formatDateLabel) ?: item.submittedAt?.take(10)?.let(::formatDateLabel) ?: "Revisión", color = Forest, fontWeight = FontWeight.Bold)
             item.weight?.let { ProfileRow("Peso", "${formatNumber(it)} kg") }
             item.adherence?.let { ProfileRow("Adherencia", "$it %") }
             item.hunger?.let { ProfileRow("Hambre", "$it / 10") }
