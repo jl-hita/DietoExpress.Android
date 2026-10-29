@@ -364,6 +364,14 @@ class MainActivity : ComponentActivity() {
                                         name = state.profile?.fullName.orEmpty(),
                                         clinic = state.profile?.clinicName,
                                         hasDiet = state.profile?.hasActiveDiet == true,
+                                        currentWeight = state.profile?.currentWeight,
+                                        weightHistory = state.profile?.weightHistory.orEmpty(),
+                                        nextAppointment = state.appointments
+                                            .filter { appointment ->
+                                                (appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)) &&
+                                                    runCatching { java.time.Instant.parse(appointment.startsAt).isAfter(java.time.Instant.now()) }.getOrDefault(false)
+                                            }
+                                            .minByOrNull { it.startsAt },
                                         nutritionist = state.nutritionistRelationship?.nutritionistName ?: state.profile?.nutritionistName,
                                         isClinic = state.nutritionistRelationship?.isClinic == true,
                                         hasPendingClinicReassignment = state.nutritionistRelationship?.hasPendingClinicReassignment == true,
@@ -563,6 +571,9 @@ private fun HomeContent(
     name: String,
     clinic: String?,
     hasDiet: Boolean,
+    currentWeight: Double?,
+    weightHistory: List<com.dietoexpress.mobile.data.WeightEntry>,
+    nextAppointment: PatientAppointment?,
     nutritionist: String?,
     isClinic: Boolean,
     hasPendingClinicReassignment: Boolean,
@@ -601,6 +612,13 @@ private fun HomeContent(
                 ) { Text(if (hasDiet) "Consultar mi dieta  →" else "Consultar mi plan  →", fontWeight = FontWeight.SemiBold) }
             }
         }
+        PatientValueDashboard(
+            currentWeight = currentWeight,
+            weightHistory = weightHistory,
+            nextAppointment = nextAppointment,
+            onProgress = onProgress,
+            onAppointments = onAppointments
+        )
         if (!nutritionist.isNullOrBlank()) {
             Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Row(modifier = Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
