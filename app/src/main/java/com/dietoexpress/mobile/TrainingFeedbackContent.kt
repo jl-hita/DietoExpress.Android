@@ -1,5 +1,6 @@
 package com.dietoexpress.mobile
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +53,15 @@ private data class TrainingWeekSummary(
     val weekStart: LocalDate, val sessions: Int, val totalSets: Int, val averageRir: Double?,
     val loadIndex: Int, val volumePct: Float, val frequencyPct: Float, val intensityPct: Float
 )
+
+internal fun upcomingTrainingSessions(sessions: List<TrainingSession>, today: LocalDate = LocalDate.now()): List<TrainingSession> {
+    val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    val nextWeekEnd = currentWeekStart.plusWeeks(2).minusDays(1)
+    return sessions.filter { session ->
+        val date = runCatching { LocalDate.parse(session.scheduledDate.take(10)) }.getOrNull()
+        date != null && date in currentWeekStart..nextWeekEnd
+    }.sortedBy { it.scheduledDate }
+}
 
 private fun buildTrainingWeekSummaries(sessions: List<TrainingSession>): List<TrainingWeekSummary> {
     val grouped = sessions.mapNotNull { session ->
@@ -107,18 +117,22 @@ internal fun TrainingFeedbackContent(
     onRetry: () -> Unit
 ) {
     val weekSummaries = remember(envelope?.sessions) { buildTrainingWeekSummaries(envelope?.sessions.orEmpty()) }
+    val visibleSessions = remember(envelope?.sessions) { upcomingTrainingSessions(envelope?.sessions.orEmpty()) }
+    var selectedSessionId by remember { mutableStateOf<Int?>(null) }
+    val selectedSession = visibleSessions.firstOrNull { it.id == selectedSessionId }
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text("Entrenamiento", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = TrainingForest)) {
-            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text("TU PLAN, PASO A PASO", style = MaterialTheme.typography.labelMedium, color = Color(0xFFBCE8D1), fontWeight = FontWeight.Bold)
-                Text("Entrena con un plan hecho para ti", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold)
-                Text("Consulta tus sesiones, sigue cada ejercicio y comparte cómo te has sentido con tu profesional.", color = Color(0xFFE4F3EA))
-            }
+        Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = TrainingForest)) {
+            Text(
+                "Tu plan, paso a paso",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold
+            )
         }
 
         if (!loaded && busy) {
@@ -168,16 +182,61 @@ internal fun TrainingFeedbackContent(
                     }
                 }
             }
-            if (envelope.sessions.isEmpty()) {
-                Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("No hay sesiones programadas", fontWeight = FontWeight.SemiBold)
-                        Text("Cuando tu profesional añada sesiones, aparecerán aquí.", color = TrainingMuted)
-                        OutlinedButton(onClick = onRetry, enabled = !busy) { Text("Actualizar") }
+            if (selectedSession != null) {
+                OutlinedButton(onClick = { selectedSessionId = null }, enabled = !busy) {
+                    Text("← Volver a mis entrenamientos")
+                }
+                TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
+            } else {
+                Text(
+                    "Esta semana y la siguiente",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TrainingForest
+                )
+                if (visibleSessions.isEmpty()) {
+                    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("No hay sesiones próximas", fontWeight = FontWeight.SemiBold)
+                            Text("Aquí aparecerán los entrenamientos de esta semana y de la siguiente.", color = TrainingMuted)
+                            OutlinedButton(onClick = onRetry, enabled = !busy) { Text("Actualizar") }
+                        }
+                    }
+                } else {
+                    visibleSessions.forEach { session ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { selectedSessionId = session.id },
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(session.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "${dateLabel(session.scheduledDate)} · ${session.sessionType.replaceFirstChar { it.uppercase() }}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TrainingMuted
+                                    )
+                                    session.durationMinutes?.let { Text("$it min", style = MaterialTheme.typography.labelSmall, color = TrainingMuted) }
+                                }
+                                Column(horizontalAlignment = androidx.compose.ui.Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text(
+                                        if (session.completedAt != null) "Completada" else "Pendiente",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TrainingForest,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text("Ver sesión  ›", color = TrainingForest, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
                 }
             }
-            envelope.sessions.forEach { session -> TrainingSessionCard(session = session, busy = busy, onRecord = onRecord) }
         }
     }
 }
