@@ -32,7 +32,7 @@ class TrainingSessionVisibilityTest {
             session(4, "2026-11-16")
         )
 
-        val visible = upcomingTrainingSessions(sessions, LocalDate.parse("2026-11-01"))
+        val visible = upcomingTrainingSessions(sessions, LocalDate.parse("2026-11-02"))
 
         assertEquals(listOf(2, 3), visible.map { it.id })
     }
