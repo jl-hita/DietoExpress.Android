@@ -758,7 +758,12 @@ private fun AppointmentsContent(
     onBookAppointment: () -> Unit,
     onRequestAppointment: (com.dietoexpress.mobile.data.AppointmentSlot, String) -> Unit,
     onJoinVideo: (Int) -> Unit,
-    onCancelAppointment: (Int) -> Unit
+    onCancelAppointment: (Int) -> Unit,
+    isClinic: Boolean,
+    hasPendingClinicReassignment: Boolean,
+    onProgress: () -> Unit,
+    onLeaveNutritionist: () -> Unit,
+    onRequestClinicReassignment: () -> Unit
 ) {
     var selectedDate by remember(slots) { mutableStateOf(slots.firstOrNull()?.startsAt?.take(10)) }
     var selectedSlotStart by remember(slots) { mutableStateOf<String?>(null) }
@@ -790,6 +795,22 @@ private fun AppointmentsContent(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = onProgress, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+            Text("Registrar seguimiento de dieta")
+        }
+        if (hasAssignedNutritionist) {
+            OutlinedButton(onClick = onLeaveNutritionist, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Text("Cambiar de nutricionista")
+            }
+            if (isClinic) {
+                OutlinedButton(
+                    onClick = onRequestClinicReassignment,
+                    enabled = !busy && !hasPendingClinicReassignment,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text(if (hasPendingClinicReassignment) "Reasignación solicitada" else "Solicitar reasignación en la clínica") }
+            }
+        }
         if (upcomingAppointments.isNotEmpty()) {
             Text("Próximas citas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
             upcomingAppointments.forEach { appointment -> AppointmentCard(appointment, onJoinVideo) }
