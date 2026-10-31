@@ -373,31 +373,26 @@ class MainActivity : ComponentActivity() {
                                     )
                                     else -> HomeContent(
                                         name = state.profile?.fullName.orEmpty(),
-                                        clinic = state.profile?.clinicName,
-                                        hasDiet = state.profile?.hasActiveDiet == true,
-                                        currentWeight = state.profile?.currentWeight,
-                                        weightHistory = state.profile?.weightHistory.orEmpty(),
                                         nextAppointment = state.appointments
                                             .filter { appointment ->
                                                 (appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)) &&
                                                     runCatching { java.time.Instant.parse(appointment.startsAt).isAfter(java.time.Instant.now()) }.getOrDefault(false)
                                             }
                                             .minByOrNull { it.startsAt },
-                                        nutritionist = state.nutritionistRelationship?.nutritionistName ?: state.profile?.nutritionistName,
-                                        isClinic = state.nutritionistRelationship?.isClinic == true,
-                                        hasPendingClinicReassignment = state.nutritionistRelationship?.hasPendingClinicReassignment == true,
-                                        busy = state.busy,
-                                        onDiet = { vm.openSection("diet") },
+                                        nextTraining = state.training?.sessions.orEmpty()
+                                            .filter { session ->
+                                                val activeStatus = session.status?.lowercase() !in setOf("completed", "cancelled", "not_completed")
+                                                val activeOutcome = session.outcome?.lowercase() !in setOf("completed", "not_completed", "cancelled")
+                                                val futureDate = runCatching { java.time.LocalDate.parse(session.scheduledDate.take(10)) >= java.time.LocalDate.now() }.getOrDefault(false)
+                                                activeStatus && activeOutcome && futureDate
+                                            }
+                                            .minByOrNull { it.scheduledDate },
                                         onAppointments = { vm.openSection("appointments") },
-                                        onProgress = { vm.openSection("progress") },
                                         onDocuments = { vm.openSection("documents") },
                                         onShopping = { vm.openSection("shopping") },
                                         onMessages = { vm.openSection("messages") },
                                         onTraining = { vm.openSection("training") },
-                                        onProfile = { vm.openSection("profile") },
-                                        onBookAppointment = { if (state.nutritionistRelationship?.hasAssignedNutritionist ?: !state.profile?.nutritionistName.isNullOrBlank()) vm.openSection("appointments") else publicRoute = "directory" },
-                                        onLeaveNutritionist = { vm.requestNutritionistChange("leave_and_find_new") },
-                                        onRequestClinicReassignment = { vm.requestNutritionistChange("clinic_reassignment") }
+                                        onProfile = { vm.openSection("profile") }
                                     )
                                 }
 
