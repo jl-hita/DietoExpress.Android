@@ -157,7 +157,7 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(state.profile?.clientId) {
                         if (state.profile != null) {
                             snapshotFlow { state.busy }.first { isBusy -> !isBusy }
-                            vm.openSection("home")
+                            vm.loadHomeHighlights()
                         }
                     }
                     if (resolveStartupDestination(state.initializing, state.profile != null) == StartupDestination.INITIALIZING) {
