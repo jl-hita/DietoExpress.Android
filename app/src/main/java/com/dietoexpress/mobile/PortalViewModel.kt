@@ -187,6 +187,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         )
         loadNutritionistTransfer()
         when (section) {
+            "home" -> loadHomeHighlights()
             "diet" -> loadDiet()
             "appointments" -> loadAppointments()
             "documents" -> loadDocuments()
@@ -221,6 +222,30 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: Exception) {
                 // Keep the last known notification state when offline or when the service is unavailable.
             }
+        }
+    }
+
+    /** Loads only the two time-sensitive cards needed by Home, without fetching appointment slots. */
+    fun loadHomeHighlights() {
+        if (_state.value.busy || (_state.value.appointmentsLoaded && _state.value.trainingLoaded)) return
+        runRequest {
+            val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+            val current = _state.value
+            val appointments = if (current.appointmentsLoaded) current.appointments else {
+                val type = TypeToken.getParameterized(List::class.java, PatientAppointment::class.java).type
+                offline.readThrough(accountId, "appointments", type) { PortalService.api.appointments() }.value
+            }
+            val training = if (current.trainingLoaded) current.training else {
+                offline.readThrough(accountId, "training", TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }.value
+            }
+            _state.value = _state.value.copy(
+                appointments = appointments,
+                appointmentsLoaded = true,
+                training = training,
+                trainingLoaded = true,
+                message = null,
+                error = false
+            )
         }
     }
 
