@@ -187,6 +187,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         )
         loadNutritionistTransfer()
         when (section) {
+            "home" -> loadHomeHighlights()
             "diet" -> loadDiet()
             "appointments" -> loadAppointments()
             "documents" -> loadDocuments()
@@ -221,6 +222,32 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: Exception) {
                 // Keep the last known notification state when offline or when the service is unavailable.
             }
+        }
+    }
+
+    /** Loads only the two time-sensitive cards needed by Home, without fetching appointment slots. */
+    fun loadHomeHighlights() {
+        if (_state.value.busy) return
+        runRequest {
+            val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+            val current = _state.value
+            // Refresh on each Home visit; readThrough serves the encrypted local cache if offline.
+            val appointments = runCatching {
+                val type = TypeToken.getParameterized(List::class.java, PatientAppointment::class.java).type
+                offline.readThrough(accountId, "appointments", type) { PortalService.api.appointments() }.value
+            }.getOrNull()
+            val training = runCatching {
+                offline.readThrough(accountId, "training", TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }.value
+            }.getOrNull()
+            // A failure in one highlight must not hide the other one on Home.
+            _state.value = _state.value.copy(
+                appointments = appointments ?: current.appointments,
+                appointmentsLoaded = appointments != null || current.appointmentsLoaded,
+                training = training ?: current.training,
+                trainingLoaded = training != null || current.trainingLoaded,
+                message = null,
+                error = false
+            )
         }
     }
 

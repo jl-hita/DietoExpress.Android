@@ -13,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
@@ -71,6 +73,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import com.dietoexpress.mobile.data.DietDay
 import com.dietoexpress.mobile.data.DietDetail
@@ -82,6 +85,7 @@ import com.dietoexpress.mobile.data.PatientDocument
 import com.dietoexpress.mobile.data.PatientMessage
 import com.dietoexpress.mobile.data.ShoppingCategory
 import com.dietoexpress.mobile.data.TrainingEnvelope
+import com.dietoexpress.mobile.data.TrainingSession
 
 private val Forest = Color(0xFF176B52)
 private val ForestDark = Color(0xFF104B3B)
@@ -150,6 +154,12 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(publicRoute, state.profile?.clientId) {
                         if (publicRoute == "portal" && state.profile != null) vm.loadNutritionistTransfer()
                     }
+                    LaunchedEffect(state.profile?.clientId) {
+                        if (state.profile != null) {
+                            snapshotFlow { state.busy }.first { isBusy -> !isBusy }
+                            vm.loadHomeHighlights()
+                        }
+                    }
                     if (resolveStartupDestination(state.initializing, state.profile != null) == StartupDestination.INITIALIZING) {
                         StartupScreen()
                     } else if (publicRoute != "portal") {
@@ -181,16 +191,16 @@ class MainActivity : ComponentActivity() {
                                     val items = listOf(
                                         Triple("home", "Inicio", "⌂"),
                                         Triple("diet", "Mi dieta", "≋"),
-                                        Triple("appointments", "Citas", "◷"),
+                                        Triple("training", "Entrenamiento", "⌁"),
                                         Triple("progress", "Progreso", "↗"),
-                                        Triple("profile", "Perfil", "○")
+                                        Triple("appointments", "Citas", "◷")
                                     )
                                     items.forEach { item ->
                                         NavigationBarItem(
                                             selected = state.section == item.first,
                                             onClick = { vm.openSection(item.first) },
                                             icon = { Text(item.third, fontSize = 21.sp, fontWeight = FontWeight.Medium) },
-                                            label = { Text(item.second, fontSize = 11.sp) },
+                                            label = { Text(item.second, fontSize = 9.sp, maxLines = 1) },
                                             alwaysShowLabel = true
                                         )
                                     }
@@ -234,7 +244,8 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                         Box(
-                                            modifier = Modifier.size(44.dp).background(Sage, CircleShape),
+                                            modifier = Modifier.size(44.dp).background(Sage, CircleShape)
+                                                .clickable { vm.openSection("profile") },
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(initials(state.profile?.fullName.orEmpty()), color = ForestDark, fontWeight = FontWeight.Bold)
@@ -312,7 +323,12 @@ class MainActivity : ComponentActivity() {
                                         onBookAppointment = { publicRoute = "directory" },
                                         onRequestAppointment = vm::requestAppointment,
                                         onJoinVideo = vm::openVideoAppointment,
-                                        onCancelAppointment = vm::cancelAppointment
+                                        onCancelAppointment = vm::cancelAppointment,
+                                        isClinic = state.nutritionistRelationship?.isClinic == true,
+                                        hasPendingClinicReassignment = state.nutritionistRelationship?.hasPendingClinicReassignment == true,
+                                        onProgress = { vm.openSection("progress") },
+                                        onLeaveNutritionist = { vm.requestNutritionistChange("leave_and_find_new") },
+                                        onRequestClinicReassignment = { vm.requestNutritionistChange("clinic_reassignment") }
                                     )
                                     "documents" -> DocumentsContent(
                                         documents = state.documents,
@@ -362,31 +378,26 @@ class MainActivity : ComponentActivity() {
                                     )
                                     else -> HomeContent(
                                         name = state.profile?.fullName.orEmpty(),
-                                        clinic = state.profile?.clinicName,
-                                        hasDiet = state.profile?.hasActiveDiet == true,
-                                        currentWeight = state.profile?.currentWeight,
-                                        weightHistory = state.profile?.weightHistory.orEmpty(),
                                         nextAppointment = state.appointments
                                             .filter { appointment ->
                                                 (appointment.status.equals("confirmed", true) || appointment.status.equals("requested", true)) &&
                                                     runCatching { java.time.Instant.parse(appointment.startsAt).isAfter(java.time.Instant.now()) }.getOrDefault(false)
                                             }
                                             .minByOrNull { it.startsAt },
-                                        nutritionist = state.nutritionistRelationship?.nutritionistName ?: state.profile?.nutritionistName,
-                                        isClinic = state.nutritionistRelationship?.isClinic == true,
-                                        hasPendingClinicReassignment = state.nutritionistRelationship?.hasPendingClinicReassignment == true,
-                                        busy = state.busy,
-                                        onDiet = { vm.openSection("diet") },
+                                        nextTraining = state.training?.takeIf { it.enabled }?.sessions.orEmpty()
+                                            .filter { session ->
+                                                val activeStatus = session.status?.lowercase() !in setOf("completed", "cancelled", "not_completed")
+                                                val activeOutcome = session.outcome?.lowercase() !in setOf("completed", "not_completed", "cancelled")
+                                                val futureDate = runCatching { java.time.LocalDate.parse(session.scheduledDate.take(10)) >= java.time.LocalDate.now() }.getOrDefault(false)
+                                                activeStatus && activeOutcome && futureDate
+                                            }
+                                            .minByOrNull { it.scheduledDate },
                                         onAppointments = { vm.openSection("appointments") },
-                                        onProgress = { vm.openSection("progress") },
                                         onDocuments = { vm.openSection("documents") },
                                         onShopping = { vm.openSection("shopping") },
                                         onMessages = { vm.openSection("messages") },
                                         onTraining = { vm.openSection("training") },
-                                        onProfile = { vm.openSection("profile") },
-                                        onBookAppointment = { if (state.nutritionistRelationship?.hasAssignedNutritionist ?: !state.profile?.nutritionistName.isNullOrBlank()) vm.openSection("appointments") else publicRoute = "directory" },
-                                        onLeaveNutritionist = { vm.requestNutritionistChange("leave_and_find_new") },
-                                        onRequestClinicReassignment = { vm.requestNutritionistChange("clinic_reassignment") }
+                                        onProfile = { vm.openSection("profile") }
                                     )
                                 }
 
@@ -569,124 +580,74 @@ private fun NotificationCenterContent(
 @Composable
 private fun HomeContent(
     name: String,
-    clinic: String?,
-    hasDiet: Boolean,
-    currentWeight: Double?,
-    weightHistory: List<com.dietoexpress.mobile.data.WeightEntry>,
     nextAppointment: PatientAppointment?,
-    nutritionist: String?,
-    isClinic: Boolean,
-    hasPendingClinicReassignment: Boolean,
-    busy: Boolean,
-    onDiet: () -> Unit,
+    nextTraining: TrainingSession?,
     onAppointments: () -> Unit,
-    onProgress: () -> Unit,
     onDocuments: () -> Unit,
     onShopping: () -> Unit,
     onMessages: () -> Unit,
     onTraining: () -> Unit,
-    onProfile: () -> Unit,
-    onBookAppointment: () -> Unit,
-    onLeaveNutritionist: () -> Unit,
-    onRequestClinicReassignment: () -> Unit
+    onProfile: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = Forest)
-        ) {
-            Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("TU BIENESTAR, A TU RITMO", color = Color(0xFFC8E4D4), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                Text("Hola, ${name.substringBefore(" ").ifBlank { "bienvenido/a" }}", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text(
-                    if (hasDiet) "Tu plan nutricional está listo para acompañarte hoy." else "Aquí encontrarás tu plan y el seguimiento de tu proceso.",
-                    color = Color(0xFFE2F0E8),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(Modifier.height(4.dp))
-                Button(
-                    onClick = onDiet,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Forest)
-                ) { Text(if (hasDiet) "Consultar mi dieta  →" else "Consultar mi plan  →", fontWeight = FontWeight.SemiBold) }
-            }
-        }
-        PatientValueDashboard(
-            currentWeight = currentWeight,
-            weightHistory = weightHistory,
-            nextAppointment = nextAppointment,
-            onProgress = onProgress,
-            onAppointments = onAppointments
+        Text(
+            "Hola, ${name.substringBefore(" ").ifBlank { "bienvenido/a" }}",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = Ink
         )
-        if (!nutritionist.isNullOrBlank()) {
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Row(modifier = Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(42.dp).background(Sage, CircleShape), contentAlignment = Alignment.Center) {
-                        Text("＋", color = Forest, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        nextTraining?.let { session ->
+            Card(
+                onClick = onTraining,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = Forest)
+            ) {
+                Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(48.dp).background(Color(0xFF2C8066), RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
+                        Text("⌁", color = Color.White, fontSize = 25.sp)
                     }
                     Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Tu equipo de cuidado", fontWeight = FontWeight.SemiBold, color = Ink)
-                        clinic?.takeIf { it.isNotBlank() }?.let { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
-                        nutritionist?.takeIf { it.isNotBlank() }?.let { Text("Profesional: $it", color = Muted, style = MaterialTheme.typography.bodySmall) }
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = onBookAppointment,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text("Reservar consulta") }
-                        OutlinedButton(
-                            onClick = onLeaveNutritionist,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !busy && !hasPendingClinicReassignment,
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text("Buscar otro nutricionista") }
-                        if (isClinic) {
-                            OutlinedButton(
-                                onClick = onRequestClinicReassignment,
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !busy && !hasPendingClinicReassignment,
-                                shape = RoundedCornerShape(12.dp)
-                            ) { Text(if (hasPendingClinicReassignment) "Reasignación solicitada" else "Solicitar reasignación en la clínica") }
-                        }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("Próximo entrenamiento", color = Color(0xFFC8E4D4), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text(session.title, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        Text("${dateLabel(session.scheduledDate)} · ${session.durationMinutes?.let { "$it min" } ?: session.sessionType}", color = Color(0xFFE2F0E8), style = MaterialTheme.typography.bodySmall)
                     }
-                }
-            }
-        } else {
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Tu equipo de cuidado", fontWeight = FontWeight.SemiBold, color = Ink)
-                    Text("Encuentra un profesional y solicita tu primera cita.", color = Muted, style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = onBookAppointment, shape = RoundedCornerShape(12.dp)) { Text("Buscar nutricionista y reservar") }
-                    if (isClinic) {
-                        OutlinedButton(
-                            onClick = onRequestClinicReassignment,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !busy && !hasPendingClinicReassignment,
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text(if (hasPendingClinicReassignment) "Reasignación solicitada" else "Solicitar reasignación en la clínica") }
-                    }
+                    Text("Ver →", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }
-        Text("Accesos rápidos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ShortcutCard("Mi dieta", "Plan y comidas", "≋", Modifier.weight(1f), onDiet)
-            ShortcutCard("Mis citas", "Agenda", "◷", Modifier.weight(1f), onAppointments)
+        nextAppointment?.let { appointment ->
+            Card(
+                onClick = onAppointments,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(48.dp).background(Sage, RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
+                        Text("◷", color = Forest, fontSize = 24.sp)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("Próxima cita", color = Muted, style = MaterialTheme.typography.labelMedium)
+                        Text(dateLabel(appointment.startsAt), color = Ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        Text("${timeLabel(appointment.startsAt)} · ${appointment.modality?.takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() } ?: "Consulta"}", color = Muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text("Ver →", color = Forest, fontWeight = FontWeight.Bold)
+                }
+            }
         }
+        Text("Accesos rápidos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ShortcutCard("Seguimiento", "Tu evolución", "↗", Modifier.weight(1f), onProgress)
+            ShortcutCard("Mis citas", "Próxima cita y seguimiento", "◷", Modifier.weight(1f), onAppointments)
             ShortcutCard("Documentos", "Archivos y consentimientos", "▤", Modifier.weight(1f), onDocuments)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ShortcutCard("Lista de compra", "Ingredientes del plan", "✓", Modifier.weight(1f), onShopping)
             ShortcutCard("Mensajes", "Habla con tu profesional", "✉", Modifier.weight(1f), onMessages)
         }
-        ShortcutCard("Entrenamiento", "Tus sesiones deportivas", "⌁", Modifier.fillMaxWidth(), onTraining)
-        OutlinedButton(onClick = onProfile, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), enabled = !busy) {
-            Text("Ver mi perfil")
-        }
+        ShortcutCard("Perfil", "Datos y configuración", "○", Modifier.fillMaxWidth(), onProfile)
     }
 }
 
@@ -802,7 +763,12 @@ private fun AppointmentsContent(
     onBookAppointment: () -> Unit,
     onRequestAppointment: (com.dietoexpress.mobile.data.AppointmentSlot, String) -> Unit,
     onJoinVideo: (Int) -> Unit,
-    onCancelAppointment: (Int) -> Unit
+    onCancelAppointment: (Int) -> Unit,
+    isClinic: Boolean,
+    hasPendingClinicReassignment: Boolean,
+    onProgress: () -> Unit,
+    onLeaveNutritionist: () -> Unit,
+    onRequestClinicReassignment: () -> Unit
 ) {
     var selectedDate by remember(slots) { mutableStateOf(slots.firstOrNull()?.startsAt?.take(10)) }
     var selectedSlotStart by remember(slots) { mutableStateOf<String?>(null) }
@@ -834,6 +800,22 @@ private fun AppointmentsContent(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = onProgress, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+            Text("Registrar seguimiento de dieta")
+        }
+        if (hasAssignedNutritionist) {
+            OutlinedButton(onClick = onLeaveNutritionist, enabled = !busy && !hasPendingClinicReassignment, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Text("Cambiar de nutricionista")
+            }
+            if (isClinic) {
+                OutlinedButton(
+                    onClick = onRequestClinicReassignment,
+                    enabled = !busy && !hasPendingClinicReassignment,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text(if (hasPendingClinicReassignment) "Reasignación solicitada" else "Solicitar reasignación en la clínica") }
+            }
+        }
         if (upcomingAppointments.isNotEmpty()) {
             Text("Próximas citas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
             upcomingAppointments.forEach { appointment -> AppointmentCard(appointment, onJoinVideo) }
@@ -1476,6 +1458,7 @@ private fun StatusPill(status: String, endsAt: String?) {
 }
 
 private fun sectionTitle(section: String): String = when (section) {
+    "home" -> "Inicio"
     "diet" -> "Mi dieta"
     "appointments" -> "Mis citas"
     "documents" -> "Mis documentos"
