@@ -231,18 +231,19 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         runRequest {
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val current = _state.value
-            val appointments = if (current.appointmentsLoaded) current.appointments else {
+            val appointments = if (current.appointmentsLoaded) current.appointments else runCatching {
                 val type = TypeToken.getParameterized(List::class.java, PatientAppointment::class.java).type
                 offline.readThrough(accountId, "appointments", type) { PortalService.api.appointments() }.value
-            }
-            val training = if (current.trainingLoaded) current.training else {
+            }.getOrNull()
+            val training = if (current.trainingLoaded) current.training else runCatching {
                 offline.readThrough(accountId, "training", TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }.value
-            }
+            }.getOrNull()
+            // A failure in one highlight must not hide the other one on Home.
             _state.value = _state.value.copy(
-                appointments = appointments,
-                appointmentsLoaded = true,
-                training = training,
-                trainingLoaded = true,
+                appointments = appointments ?: current.appointments,
+                appointmentsLoaded = appointments != null || current.appointmentsLoaded,
+                training = training ?: current.training,
+                trainingLoaded = training != null || current.trainingLoaded,
                 message = null,
                 error = false
             )
