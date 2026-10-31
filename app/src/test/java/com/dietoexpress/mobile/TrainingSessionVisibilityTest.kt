@@ -58,7 +58,7 @@ class TrainingSessionVisibilityTest {
     @Test
     fun paginationAvailabilityDependsOnSessionsOutsideCurrentWindow() {
         val today = LocalDate.parse("2026-11-04")
-        val sessions = listOf(session(1, "2026-10-19"), session(2, "2026-11-20"), session(3, "2026-12-01"))
+        val sessions = listOf(session(1, "2026-10-19"), session(2, "2026-11-20"), session(3, "2026-11-29"))
 
         assertEquals(true, hasTrainingSessionsBefore(sessions, today, 0))
         assertEquals(true, hasTrainingSessionsAfter(sessions, today, 0))
