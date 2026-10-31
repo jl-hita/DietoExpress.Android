@@ -238,7 +238,6 @@ internal fun TrainingFeedbackContent(
             }
         }
     }
-}
 
 private fun trainingMuscleLabel(value: String): String = when (value) {
     // Numeric values are used by existing JSONB snapshots serialized before string-enum conversion.
