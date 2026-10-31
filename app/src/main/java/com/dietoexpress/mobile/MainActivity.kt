@@ -384,7 +384,7 @@ class MainActivity : ComponentActivity() {
                                                     runCatching { java.time.Instant.parse(appointment.startsAt).isAfter(java.time.Instant.now()) }.getOrDefault(false)
                                             }
                                             .minByOrNull { it.startsAt },
-                                        nextTraining = state.training?.sessions.orEmpty()
+                                        nextTraining = state.training?.takeIf { it.enabled }?.sessions.orEmpty()
                                             .filter { session ->
                                                 val activeStatus = session.status?.lowercase() !in setOf("completed", "cancelled", "not_completed")
                                                 val activeOutcome = session.outcome?.lowercase() !in setOf("completed", "not_completed", "cancelled")
