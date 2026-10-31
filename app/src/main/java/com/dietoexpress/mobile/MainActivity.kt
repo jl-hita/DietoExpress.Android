@@ -151,7 +151,6 @@ class MainActivity : ComponentActivity() {
                     }
                     LaunchedEffect(publicRoute, state.profile?.clientId, state.busy) {
                         if (publicRoute == "portal" && state.profile != null && !state.busy) {
-                            vm.loadNutritionistTransfer()
                             vm.openSection("home")
                         }
                     }
@@ -195,7 +194,7 @@ class MainActivity : ComponentActivity() {
                                             selected = state.section == item.first,
                                             onClick = { vm.openSection(item.first) },
                                             icon = { Text(item.third, fontSize = 21.sp, fontWeight = FontWeight.Medium) },
-                                            label = { Text(item.second, fontSize = 11.sp) },
+                                            label = { Text(item.second, fontSize = 9.sp, maxLines = 1) },
                                             alwaysShowLabel = true
                                         )
                                     }
@@ -799,7 +798,7 @@ private fun AppointmentsContent(
             Text("Registrar seguimiento de dieta")
         }
         if (hasAssignedNutritionist) {
-            OutlinedButton(onClick = onLeaveNutritionist, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+            OutlinedButton(onClick = onLeaveNutritionist, enabled = !busy && !hasPendingClinicReassignment, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
                 Text("Cambiar de nutricionista")
             }
             if (isClinic) {
@@ -1453,6 +1452,7 @@ private fun StatusPill(status: String, endsAt: String?) {
 }
 
 private fun sectionTitle(section: String): String = when (section) {
+    "home" -> "Inicio"
     "diet" -> "Mi dieta"
     "appointments" -> "Mis citas"
     "documents" -> "Mis documentos"
