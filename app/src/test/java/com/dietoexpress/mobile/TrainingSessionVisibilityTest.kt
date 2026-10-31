@@ -41,8 +41,8 @@ class TrainingSessionVisibilityTest {
     fun paginatesInConsecutiveTwoWeekBlocks() {
         val today = LocalDate.parse("2026-11-04")
         val sessions = listOf(
-            session(1, "2026-10-18"),
-            session(2, "2026-10-19"),
+            session(1, "2026-10-19"),
+            session(2, "2026-10-20"),
             session(3, "2026-11-02"),
             session(4, "2026-11-15"),
             session(5, "2026-11-16"),
