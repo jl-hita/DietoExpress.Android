@@ -54,13 +54,31 @@ private data class TrainingWeekSummary(
     val loadIndex: Int, val volumePct: Float, val frequencyPct: Float, val intensityPct: Float
 )
 
-internal fun upcomingTrainingSessions(sessions: List<TrainingSession>, today: LocalDate = LocalDate.now()): List<TrainingSession> {
-    val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val nextWeekEnd = currentWeekStart.plusWeeks(2).minusDays(1)
+internal fun upcomingTrainingSessions(
+    sessions: List<TrainingSession>,
+    today: LocalDate = LocalDate.now(),
+    pageOffset: Int = 0
+): List<TrainingSession> {
+    val periodStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(pageOffset * 2L)
+    val periodEnd = periodStart.plusWeeks(2).minusDays(1)
     return sessions.filter { session ->
         val date = runCatching { LocalDate.parse(session.scheduledDate.take(10)) }.getOrNull()
-        date != null && date in currentWeekStart..nextWeekEnd
+        date != null && date in periodStart..periodEnd
     }.sortedBy { it.scheduledDate }
+}
+
+internal fun hasTrainingSessionsBefore(sessions: List<TrainingSession>, today: LocalDate, pageOffset: Int): Boolean {
+    val periodStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(pageOffset * 2L)
+    return sessions.any { session ->
+        runCatching { LocalDate.parse(session.scheduledDate.take(10)) }.getOrNull()?.isBefore(periodStart) == true
+    }
+}
+
+internal fun hasTrainingSessionsAfter(sessions: List<TrainingSession>, today: LocalDate, pageOffset: Int): Boolean {
+    val periodEnd = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(pageOffset * 2L + 2).minusDays(1)
+    return sessions.any { session ->
+        runCatching { LocalDate.parse(session.scheduledDate.take(10)) }.getOrNull()?.isAfter(periodEnd) == true
+    }
 }
 
 private fun buildTrainingWeekSummaries(sessions: List<TrainingSession>): List<TrainingWeekSummary> {
@@ -117,7 +135,20 @@ internal fun TrainingFeedbackContent(
     onRetry: () -> Unit
 ) {
     val weekSummaries = remember(envelope?.sessions) { buildTrainingWeekSummaries(envelope?.sessions.orEmpty()) }
-    val visibleSessions = remember(envelope?.sessions) { upcomingTrainingSessions(envelope?.sessions.orEmpty()) }
+    var trainingPageOffset by remember { mutableStateOf(0) }
+    val allSessions = envelope?.sessions.orEmpty()
+    val visibleSessions = remember(allSessions, trainingPageOffset) {
+        upcomingTrainingSessions(allSessions, pageOffset = trainingPageOffset)
+    }
+    val canGoBack = remember(allSessions, trainingPageOffset) {
+        hasTrainingSessionsBefore(allSessions, LocalDate.now(), trainingPageOffset)
+    }
+    val canGoForward = remember(allSessions, trainingPageOffset) {
+        hasTrainingSessionsAfter(allSessions, LocalDate.now(), trainingPageOffset)
+    }
+    val pageStart = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(trainingPageOffset * 2L)
+    val pageEnd = pageStart.plusWeeks(2).minusDays(1)
+    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM")
     var selectedSessionId by remember { mutableStateOf<Int?>(null) }
     val selectedSession = visibleSessions.firstOrNull { it.id == selectedSessionId }
 
@@ -187,17 +218,32 @@ internal fun TrainingFeedbackContent(
                     }
                 }
             }
-                Text(
-                    "Esta semana y la siguiente",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = TrainingForest
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (trainingPageOffset == 0) "Esta semana y la siguiente" else "Entrenamientos · ${pageStart.format(dateFormatter)}–${pageEnd.format(dateFormatter)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TrainingForest
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(onClick = { trainingPageOffset -= 1 }, enabled = canGoBack && !busy) {
+                            Text("← Anteriores")
+                        }
+                        Text("${trainingPageOffset + 1}", color = TrainingMuted, style = MaterialTheme.typography.labelMedium)
+                        OutlinedButton(onClick = { trainingPageOffset += 1 }, enabled = canGoForward && !busy) {
+                            Text("Siguientes →")
+                        }
+                    }
+                }
                 if (visibleSessions.isEmpty()) {
                     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("No hay sesiones próximas", fontWeight = FontWeight.SemiBold)
-                            Text("Aquí aparecerán los entrenamientos de esta semana y de la siguiente.", color = TrainingMuted)
+                            Text("No hay sesiones programadas en este periodo de dos semanas.", color = TrainingMuted)
                             OutlinedButton(onClick = onRetry, enabled = !busy) { Text("Actualizar") }
                         }
                     }
