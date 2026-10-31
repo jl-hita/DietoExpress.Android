@@ -227,15 +227,16 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Loads only the two time-sensitive cards needed by Home, without fetching appointment slots. */
     fun loadHomeHighlights() {
-        if (_state.value.busy || (_state.value.appointmentsLoaded && _state.value.trainingLoaded)) return
+        if (_state.value.busy) return
         runRequest {
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val current = _state.value
-            val appointments = if (current.appointmentsLoaded) current.appointments else runCatching {
+            // Refresh on each Home visit; readThrough serves the encrypted local cache if offline.
+            val appointments = runCatching {
                 val type = TypeToken.getParameterized(List::class.java, PatientAppointment::class.java).type
                 offline.readThrough(accountId, "appointments", type) { PortalService.api.appointments() }.value
             }.getOrNull()
-            val training = if (current.trainingLoaded) current.training else runCatching {
+            val training = runCatching {
                 offline.readThrough(accountId, "training", TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }.value
             }.getOrNull()
             // A failure in one highlight must not hide the other one on Home.
