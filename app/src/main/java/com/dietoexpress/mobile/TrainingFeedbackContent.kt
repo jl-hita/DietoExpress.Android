@@ -145,6 +145,11 @@ internal fun TrainingFeedbackContent(
                     OutlinedButton(onClick = onRetry, enabled = !busy) { Text("Actualizar") }
                 }
             }
+        } else if (selectedSession != null) {
+            OutlinedButton(onClick = { selectedSessionId = null }, enabled = !busy) {
+                Text("← Volver a mis entrenamientos")
+            }
+            TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
         } else {
             envelope.adaptationRecommendation?.let { recommendation ->
                 Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE7F2EC))) {
@@ -182,12 +187,6 @@ internal fun TrainingFeedbackContent(
                     }
                 }
             }
-            if (selectedSession != null) {
-                OutlinedButton(onClick = { selectedSessionId = null }, enabled = !busy) {
-                    Text("← Volver a mis entrenamientos")
-                }
-                TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
-            } else {
                 Text(
                     "Esta semana y la siguiente",
                     style = MaterialTheme.typography.titleMedium,
