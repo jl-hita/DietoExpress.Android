@@ -149,8 +149,8 @@ class MainActivity : ComponentActivity() {
                             delay(60_000)
                         }
                     }
-                    LaunchedEffect(publicRoute, state.profile?.clientId) {
-                        if (publicRoute == "portal" && state.profile != null) {
+                    LaunchedEffect(publicRoute, state.profile?.clientId, state.busy) {
+                        if (publicRoute == "portal" && state.profile != null && !state.busy) {
                             vm.loadNutritionistTransfer()
                             vm.openSection("home")
                         }
