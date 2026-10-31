@@ -58,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
@@ -72,6 +73,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import com.dietoexpress.mobile.data.DietDay
 import com.dietoexpress.mobile.data.DietDetail
@@ -149,8 +151,12 @@ class MainActivity : ComponentActivity() {
                             delay(60_000)
                         }
                     }
-                    LaunchedEffect(publicRoute, state.profile?.clientId, state.busy) {
-                        if (publicRoute == "portal" && state.profile != null && !state.busy) {
+                    LaunchedEffect(publicRoute, state.profile?.clientId) {
+                        if (publicRoute == "portal" && state.profile != null) vm.loadNutritionistTransfer()
+                    }
+                    LaunchedEffect(state.profile?.clientId) {
+                        if (state.profile != null) {
+                            snapshotFlow { state.busy }.first { isBusy -> !isBusy }
                             vm.openSection("home")
                         }
                     }
