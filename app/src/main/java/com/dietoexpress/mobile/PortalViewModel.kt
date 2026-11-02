@@ -68,6 +68,7 @@ data class PortalUiState(
     val documentsLoaded: Boolean = false,
     val shoppingList: List<ShoppingCategory> = emptyList(),
     val shoppingLoaded: Boolean = false,
+    val purchasedShoppingItemIds: Set<Int> = emptySet(),
     val messages: List<PatientMessage> = emptyList(),
     val messagesLoaded: Boolean = false,
     val notificationMessages: List<PatientMessage> = emptyList(),
@@ -402,9 +403,34 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val type = TypeToken.getParameterized(List::class.java, ShoppingCategory::class.java).type
             val result = offline.readThrough(accountId, "shopping-list", type) { PortalService.api.shoppingList() }
-            _state.value = _state.value.copy(shoppingList = result.value, shoppingLoaded = true, section = "shopping",
-                message = if (result.fromCache) "Sin conexión: se muestra la última lista guardada. Comprueba los alérgenos antes de comprar." else null, error = false)
+            val savedPurchasedIds = getApplication<Application>()
+                .getSharedPreferences("shopping_list_state", 0)
+                .getStringSet("purchased_$accountId", mutableSetOf())
+                .orEmpty()
+                .mapNotNull { it.toIntOrNull() }
+                .toSet()
+            _state.value = _state.value.copy(
+                shoppingList = result.value,
+                shoppingLoaded = true,
+                purchasedShoppingItemIds = savedPurchasedIds,
+                section = "shopping",
+                message = if (result.fromCache) "Sin conexión: se muestra la última lista guardada. Comprueba los alérgenos antes de comprar." else null,
+                error = false
+            )
         }
+    }
+
+    fun toggleShoppingItemPurchased(foodId: Int) {
+        val accountId = _state.value.profile?.clientId ?: return
+        val updated = _state.value.purchasedShoppingItemIds.toMutableSet().apply {
+            if (!add(foodId)) remove(foodId)
+        }.toSet()
+        _state.value = _state.value.copy(purchasedShoppingItemIds = updated)
+        getApplication<Application>()
+            .getSharedPreferences("shopping_list_state", 0)
+            .edit()
+            .putStringSet("purchased_$accountId", updated.map(Int::toString).toMutableSet())
+            .apply()
     }
 
     fun loadMessages() {
