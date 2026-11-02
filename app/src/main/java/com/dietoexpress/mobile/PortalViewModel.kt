@@ -40,6 +40,31 @@ import retrofit2.HttpException
 import java.io.IOException
 import java.io.File
 import java.util.UUID
+import java.security.MessageDigest
+
+private fun shoppingListFingerprint(categories: List<ShoppingCategory>): String {
+    val canonical = categories
+        .flatMap { it.items }
+        .sortedWith(compareBy({ it.foodId }, { it.foodName }, { it.category }))
+        .joinToString("\n") { item ->
+            listOf(
+                item.foodId.toString(),
+                item.foodName,
+                item.category,
+                item.totalGrams.toString(),
+                item.roundedGrams.toString(),
+                item.commercialDescription.orEmpty(),
+                item.allergenTags.sorted().joinToString(","),
+                item.traceTags.sorted().joinToString(","),
+                item.allergenDataStatus.orEmpty(),
+                item.allergenDataAvailable.toString(),
+                item.requiresAllergenCheck.toString()
+            ).joinToString("\u001F") { value -> "${value.length}:$value" }
+        }
+    return MessageDigest.getInstance("SHA-256")
+        .digest(canonical.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte -> "%02x".format(byte) }
+}
 
 data class OfflineOperationSummary(
     val id: String,
@@ -403,12 +428,24 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val type = TypeToken.getParameterized(List::class.java, ShoppingCategory::class.java).type
             val result = offline.readThrough(accountId, "shopping-list", type) { PortalService.api.shoppingList() }
-            val savedPurchasedIds = getApplication<Application>()
+            val shoppingPreferences = getApplication<Application>()
                 .getSharedPreferences("shopping_list_state", 0)
-                .getStringSet("purchased_$accountId", mutableSetOf())
-                .orEmpty()
-                .mapNotNull { it.toIntOrNull() }
-                .toSet()
+            val currentFingerprint = shoppingListFingerprint(result.value)
+            val savedFingerprint = shoppingPreferences.getString("fingerprint_$accountId", null)
+            val savedPurchasedIds = if (savedFingerprint == currentFingerprint) {
+                shoppingPreferences.getStringSet("purchased_$accountId", mutableSetOf())
+                    .orEmpty()
+                    .mapNotNull { it.toIntOrNull() }
+                    .toSet()
+            } else {
+                // A changed shopping list represents a new purchase checklist: never carry
+                // checked products over from the previous diet/list revision.
+                shoppingPreferences.edit()
+                    .putString("fingerprint_$accountId", currentFingerprint)
+                    .putStringSet("purchased_$accountId", mutableSetOf())
+                    .apply()
+                emptySet()
+            }
             _state.value = _state.value.copy(
                 shoppingList = result.value,
                 shoppingLoaded = true,
