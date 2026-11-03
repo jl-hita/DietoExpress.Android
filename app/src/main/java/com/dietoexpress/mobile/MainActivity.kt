@@ -338,7 +338,14 @@ class MainActivity : ComponentActivity() {
                                         onOpenDocument = vm::openDocument,
                                         onAcceptDocument = vm::acceptDocument
                                     )
-                                    "shopping" -> ShoppingPortalContent(state.shoppingList, state.shoppingLoaded, state.busy) { vm.openSection("shopping") }
+                                    "shopping" -> ShoppingPortalContent(
+                                        categories = state.shoppingList,
+                                        purchasedItemIds = state.purchasedShoppingItemIds,
+                                        loaded = state.shoppingLoaded,
+                                        busy = state.busy,
+                                        onTogglePurchased = vm::toggleShoppingItemPurchased,
+                                        onRetry = { vm.openSection("shopping") }
+                                    )
                                     "messages" -> PatientMessagesContent(
                                         messages = state.messages, loaded = state.messagesLoaded, draft = state.messageDraft,
                                         busy = state.busy, onDraftChange = vm::updateMessageDraft,

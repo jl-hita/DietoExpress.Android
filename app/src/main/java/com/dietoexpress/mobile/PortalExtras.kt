@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -27,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dietoexpress.mobile.data.PatientMessage
@@ -34,30 +36,62 @@ import com.dietoexpress.mobile.data.ShoppingCategory
 import com.dietoexpress.mobile.data.TrainingEnvelope
 
 @Composable
-internal fun ShoppingPortalContent(categories: List<ShoppingCategory>, loaded: Boolean, busy: Boolean, onRetry: () -> Unit) {
+internal fun ShoppingPortalContent(
+    categories: List<ShoppingCategory>,
+    purchasedItemIds: Set<Int>,
+    loaded: Boolean,
+    busy: Boolean,
+    onTogglePurchased: (Int) -> Unit,
+    onRetry: () -> Unit
+) {
+    val items = categories.flatMap { it.items }
     when {
         busy && !loaded -> Text("Preparando tu lista de la compra…", color = MaterialTheme.colorScheme.onSurfaceVariant)
         !loaded -> Button(onClick = onRetry) { Text("Cargar lista de la compra") }
-        categories.isEmpty() -> Text("No hay lista disponible. Necesitas un plan nutricional activo.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        else -> categories.forEach { category ->
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(category.category, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    category.items.forEach { item ->
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(item.foodName, fontWeight = FontWeight.SemiBold)
-                                item.commercialDescription?.takeIf { it.isNotBlank() }?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
-                                if (!item.allergenDataAvailable || item.requiresAllergenCheck) {
-                                    Text("Comprueba los alérgenos en el envase", color = Color(0xFF94651B), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                                } else if (item.allergenTags.isNotEmpty()) {
-                                    Text("Alérgenos: ${item.allergenTags.joinToString()}", color = Color(0xFF94651B), style = MaterialTheme.typography.bodySmall)
-                                }
+        items.isEmpty() -> Text("No hay lista disponible. Necesitas un plan nutricional activo.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        else -> Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "${purchasedItemIds.intersect(items.map { it.foodId }.toSet()).size} de ${items.size} productos comprados",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelMedium
+                )
+                items.forEachIndexed { index, item ->
+                    if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    val purchased = item.foodId in purchasedItemIds
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = purchased,
+                            onCheckedChange = { onTogglePurchased(item.foodId) }
+                        )
+                        Column(
+                            Modifier.weight(1f).padding(start = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(
+                                item.foodName,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (purchased) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                                textDecoration = if (purchased) TextDecoration.LineThrough else TextDecoration.None
+                            )
+                            item.commercialDescription?.takeIf { it.isNotBlank() }?.let {
+                                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                             }
-                            Spacer(Modifier.width(10.dp))
-                            Text("${item.roundedGrams.toInt()} g", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            if (!item.allergenDataAvailable || item.requiresAllergenCheck) {
+                                Text("Comprueba los alérgenos en el envase", color = Color(0xFF94651B), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                            } else if (item.allergenTags.isNotEmpty()) {
+                                Text("Alérgenos: ${item.allergenTags.joinToString()}", color = Color(0xFF94651B), style = MaterialTheme.typography.bodySmall)
+                            }
                         }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "${item.roundedGrams.toInt()} g",
+                            color = if (purchased) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
