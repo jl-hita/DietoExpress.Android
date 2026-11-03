@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -76,6 +78,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import com.dietoexpress.mobile.data.DietDay
@@ -690,30 +693,45 @@ private fun DietContent(diet: DietDetail?, loaded: Boolean, busy: Boolean, onRet
         onAction = onRetry
     )
     else {
+        val days = remember(diet.days) { diet.days.sortedBy { it.dayIndex } }
+        val dayRequesters = remember(days) { days.map { androidx.compose.foundation.relocation.BringIntoViewRequester() } }
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
         Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Forest)) {
-            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("PLAN ACTIVO", color = Color(0xFFC8E4D4), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                Text(diet.name, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                diet.dietType?.takeIf { it.isNotBlank() }?.let { Text(it, color = Color(0xFFE2F0E8)) }
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("OBJETIVOS DIARIOS", color = Color(0xFFC8E4D4), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                MacroRow("Energía", diet.targetKcal, "kcal", Color(0xFFE2F0E8), Color.White)
+                MacroRow("Proteínas", diet.targetProtein, "g", Color(0xFFE2F0E8), Color.White)
+                MacroRow("Hidratos", diet.targetCarbs, "g", Color(0xFFE2F0E8), Color.White)
+                MacroRow("Grasas", diet.targetFat, "g", Color(0xFFE2F0E8), Color.White)
             }
         }
-        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Objetivos diarios", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                MacroRow("Energía", diet.targetKcal, "kcal")
-                MacroRow("Proteínas", diet.targetProtein, "g")
-                MacroRow("Hidratos", diet.targetCarbs, "g")
-                MacroRow("Grasas", diet.targetFat, "g")
+        if (days.isEmpty()) {
+            EmptyCard("Tu menú se está preparando", "Todavía no hay días de menú disponibles.")
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                days.forEachIndexed { index, day ->
+                    OutlinedButton(
+                        onClick = { scope.launch { dayRequesters[index].bringIntoView() } },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 9.dp)
+                    ) {
+                        Text("Día ${day.dayIndex + 1}", fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    }
+                }
+            }
+            days.forEachIndexed { index, day ->
+                DietDayCard(day, Modifier.bringIntoViewRequester(dayRequesters[index]))
             }
         }
-        if (diet.days.isEmpty()) EmptyCard("Tu menú se está preparando", "Todavía no hay días de menú disponibles.")
-        else diet.days.sortedBy { it.dayIndex }.forEach { day -> DietDayCard(day) }
     }
 }
 
 @Composable
-private fun DietDayCard(day: DietDay) {
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+private fun DietDayCard(day: DietDay, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(38.dp).background(Sage, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
@@ -1390,10 +1408,10 @@ private fun ProfileContent(
 }
 
 @Composable
-private fun MacroRow(label: String, value: Double?, unit: String) {
+private fun MacroRow(label: String, value: Double?, unit: String, labelColor: Color = Muted, valueColor: Color = Ink) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = Muted)
-        Text(value?.let { "${formatNumber(it)} $unit" } ?: "Sin objetivo", fontWeight = FontWeight.SemiBold, color = Ink)
+        Text(label, color = labelColor)
+        Text(value?.let { "${formatNumber(it)} $unit" } ?: "Sin objetivo", fontWeight = FontWeight.SemiBold, color = valueColor)
     }
 }
 
