@@ -80,9 +80,7 @@ internal fun ShoppingPortalContent(
                             item.commercialDescription?.takeIf { it.isNotBlank() }?.let {
                                 Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                             }
-                            if (!item.allergenDataAvailable || item.requiresAllergenCheck) {
-                                Text("Comprueba los alérgenos en el envase", color = Color(0xFF94651B), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                            } else if (item.allergenTags.isNotEmpty()) {
+                            if (item.allergenDataAvailable && !item.requiresAllergenCheck && item.allergenTags.isNotEmpty()) {
                                 Text("Alérgenos: ${item.allergenTags.joinToString()}", color = Color(0xFF94651B), style = MaterialTheme.typography.bodySmall)
                             }
                         }
