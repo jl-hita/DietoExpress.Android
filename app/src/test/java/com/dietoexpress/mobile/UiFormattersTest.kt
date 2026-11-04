@@ -1,6 +1,7 @@
 package com.dietoexpress.mobile
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import com.dietoexpress.mobile.data.DietMealItem
 import java.util.Locale
@@ -55,7 +56,7 @@ class UiFormattersTest {
 
         assertEquals(200.5, totals.kcal!!, 0.001)
         assertEquals(14.0, totals.protein!!, 0.001)
-        assertEquals(null, totals.carbs)
+        assertNull(totals.carbs)
         assertEquals(5.5, totals.fat!!, 0.001)
         assertEquals(true, totals.hasAnyValue)
     }
@@ -64,10 +65,10 @@ class UiFormattersTest {
     fun mealNutritionIsEmptyWhenNoItemHasNutrientData() {
         val totals = calculateMealNutrition(listOf(DietMealItem(id = 1)))
 
-        assertEquals(null, totals.kcal)
-        assertEquals(null, totals.protein)
-        assertEquals(null, totals.carbs)
-        assertEquals(null, totals.fat)
+        assertNull(totals.kcal)
+        assertNull(totals.protein)
+        assertNull(totals.carbs)
+        assertNull(totals.fat)
         assertEquals(false, totals.hasAnyValue)
     }
 
