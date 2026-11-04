@@ -56,7 +56,7 @@ class UiFormattersTest {
 
         assertEquals(200.5, totals.kcal!!, 0.001)
         assertEquals(14.0, totals.protein!!, 0.001)
-        assertNull(totals.carbs)
+        assertEquals(15.0, totals.carbs!!, 0.001)
         assertEquals(5.5, totals.fat!!, 0.001)
         assertEquals(true, totals.hasAnyValue)
     }
