@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.time.temporal.TemporalAccessor
 import java.util.Locale
+import com.dietoexpress.mobile.data.DietMealItem
 
 private val spanishDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("dd/MM/uuuu", Locale("es", "ES"))
@@ -41,4 +42,30 @@ internal fun formatNumber(value: Double): String {
         minimumFractionDigits = 0
         roundingMode = RoundingMode.HALF_UP
     }.format(value)
+}
+
+
+internal data class MealNutritionTotals(
+    val kcal: Double?,
+    val protein: Double?,
+    val carbs: Double?,
+    val fat: Double?
+) {
+    val hasAnyValue: Boolean
+        get() = kcal != null || protein != null || carbs != null || fat != null
+}
+
+/** Adds the known nutrient values for all items in a meal; unknown values stay unknown. */
+internal fun calculateMealNutrition(items: List<DietMealItem>): MealNutritionTotals {
+    fun total(value: (DietMealItem) -> Double?): Double? {
+        val knownValues = items.mapNotNull(value)
+        return knownValues.takeIf { it.isNotEmpty() }?.sum()
+    }
+
+    return MealNutritionTotals(
+        kcal = total { it.kcal },
+        protein = total { it.protein },
+        carbs = total { it.carbs },
+        fat = total { it.fat }
+    )
 }
