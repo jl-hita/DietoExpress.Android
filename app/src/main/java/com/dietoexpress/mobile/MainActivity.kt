@@ -776,6 +776,37 @@ private fun MealBlock(meal: DietMeal) {
                 item.kcal?.let { Text("${formatNumber(it)} kcal", color = Muted, style = MaterialTheme.typography.bodySmall) }
             }
         }
+        val nutrition = calculateMealNutrition(meal.items)
+        if (nutrition.hasAnyValue) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Sage)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("TOTAL DE LA COMIDA", color = ForestDark, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        MealNutritionValue("Energía", nutrition.kcal, "kcal")
+                        MealNutritionValue("Proteínas", nutrition.protein, "g")
+                        MealNutritionValue("Hidratos", nutrition.carbs, "g")
+                        MealNutritionValue("Grasas", nutrition.fat, "g")
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun MealNutritionValue(label: String, value: Double?, unit: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value?.let { formatNumber(it) } ?: "—", color = ForestDark, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        Text(unit, color = Muted, fontSize = 9.sp)
+        Text(label, color = Muted, fontSize = 9.sp, maxLines = 1)
     }
 }
 

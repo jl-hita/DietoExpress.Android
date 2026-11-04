@@ -12,7 +12,7 @@ La app ya no es un simple prototipo de login: implementa buena parte del portal 
 |---|---|---|
 | Acceso y sesión | Implementado | Validar expiración, revocación, restauración tras reinicio y cambio de cuenta en dispositivo real. |
 | Perfil | Consulta implementada | Edición de datos del paciente no incluida. |
-| Dieta | Consulta implementada con caché cifrada | Revisar presentación de fecha/antigüedad y validar modo avión con datos reales de prueba. |
+| Dieta | Consulta implementada con caché cifrada; muestra kcal y macros totales por comida además del detalle por alimento | Revisar presentación de fecha/antigüedad y validar modo avión con datos reales de prueba. |
 | Citas | Lista, disponibilidad, reserva y cancelación de citas futuras | Reprogramación no implementada; validar reserva/cancelación en dispositivo. |
 | Directorio público | Búsqueda y flujo de reserva implementados | Validar reserva pública, errores de concurrencia/timeout y consentimiento en dispositivo real. |
 | Documentos | Lista, descarga PDF, apertura externa y aceptación tras visualización | UX de visor integrado no implementada; validar descarga y aceptación en dispositivo. |
