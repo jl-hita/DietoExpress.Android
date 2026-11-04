@@ -780,33 +780,32 @@ private fun MealBlock(meal: DietMeal) {
         if (nutrition.hasAnyValue) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Sage)
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("TOTAL DE LA COMIDA", color = ForestDark, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        MealNutritionValue("Energía", nutrition.kcal, "kcal")
-                        MealNutritionValue("Proteínas", nutrition.protein, "g")
-                        MealNutritionValue("Hidratos", nutrition.carbs, "g")
-                        MealNutritionValue("Grasas", nutrition.fat, "g")
-                    }
+                    Text("TOTAL", color = ForestDark, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "${nutrition.kcal?.let { formatNumber(it) } ?: "—"} kcal",
+                        color = ForestDark,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("·", color = Muted, fontSize = 12.sp)
+                    Text(
+                        "${nutrition.protein?.let { formatNumber(it) } ?: "—"} g proteína",
+                        color = ForestDark,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
-    }
-}
-
-
-@Composable
-private fun MealNutritionValue(label: String, value: Double?, unit: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value?.let { formatNumber(it) } ?: "—", color = ForestDark, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-        Text(unit, color = Muted, fontSize = 9.sp)
-        Text(label, color = Muted, fontSize = 9.sp, maxLines = 1)
     }
 }
 
