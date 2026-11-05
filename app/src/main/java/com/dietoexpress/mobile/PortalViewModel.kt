@@ -680,10 +680,16 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         runRequest {
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val result = offline.readThrough(accountId, "training", com.dietoexpress.mobile.data.TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }
-            val savedDraft = (offline.trainingDraftImmediately(accountId)
-                ?: offline.cachedValue<TrainingWorkoutDraft>(accountId, "training-active-draft", TrainingWorkoutDraft::class.java))
-                ?.takeIf { draft -> result.value.sessions.any { it.id == draft.sessionId && it.completedAt == null } }
-            if (savedDraft == null) offline.clearTrainingDraftImmediately(accountId)
+            val storedDraft = offline.trainingDraftImmediately(accountId)
+                ?: offline.cachedValue<TrainingWorkoutDraft>(accountId, "training-active-draft", TrainingWorkoutDraft::class.java)
+            // A missing session in a temporary/stale response must never erase locally entered sets.
+            // Discard only when the server explicitly confirms that the session is completed.
+            val draftSession = storedDraft?.let { draft -> result.value.sessions.firstOrNull { it.id == draft.sessionId } }
+            val savedDraft = storedDraft?.takeUnless { draftSession?.completedAt != null }
+            if (storedDraft != null && draftSession?.completedAt != null) {
+                offline.clearTrainingDraftImmediately(accountId)
+                offline.invalidate(accountId, "training-active-draft")
+            }
             _state.value = _state.value.copy(training = result.value, trainingLoaded = true, trainingDraft = savedDraft, section = "training",
                 message = if (result.fromCache) "Sin conexión: se muestran las últimas sesiones guardadas." else null, error = false)
         }
