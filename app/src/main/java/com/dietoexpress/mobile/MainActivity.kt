@@ -725,7 +725,7 @@ private fun DietContent(
                         enabled = pdfEnabled,
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                     ) {
-                        Text("↓ Descargar PDF", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (pdfEnabled) "↓ Descargar PDF" else "Preparando PDF…", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
                 MacroRow("Energía", diet.targetKcal, "kcal", Color(0xFFE2F0E8), Color.White)
