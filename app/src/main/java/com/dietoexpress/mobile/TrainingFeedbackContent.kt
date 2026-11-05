@@ -196,9 +196,13 @@ internal fun TrainingFeedbackContent(
                 }
                 Button(
                     onClick = { workoutMode = true },
-                    enabled = !busy && (activeDraft == null || activeDraft.sessionId == selectedSession.id)
+                    enabled = !busy && selectedSession.completedAt == null && (activeDraft == null || activeDraft.sessionId == selectedSession.id)
                 ) {
-                    Text(if (activeDraft?.sessionId == selectedSession.id) "Continuar entrenamiento" else "Iniciar entrenamiento")
+                    Text(when {
+                        selectedSession.completedAt != null -> "Entrenamiento registrado"
+                        activeDraft?.sessionId == selectedSession.id -> "Continuar entrenamiento"
+                        else -> "Iniciar entrenamiento"
+                    })
                 }
                 if (activeDraft != null && activeDraft.sessionId != selectedSession.id) {
                     Text("Tienes otro entrenamiento sin finalizar. Continúalo antes de iniciar una sesión diferente.",
