@@ -35,6 +35,11 @@ internal fun TrainingWorkoutScreen(
 ) {
     val initial = remember(session.id) { initialDraft?.takeIf { it.sessionId == session.id } ?: newWorkoutDraft(session) }
     var draft by remember(session.id) { mutableStateOf(initial) }
+    // Save in the input event itself; never wait for a later Compose effect.
+    fun updateDraft(next: TrainingWorkoutDraft) {
+        draft = next
+        onDraftChanged(next)
+    }
     var restRemainingByExercise by remember(session.id) { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var activeRestExerciseIds by remember(session.id) { mutableStateOf<Set<String>>(emptySet()) }
     LaunchedEffect(activeRestExerciseIds) {
@@ -45,13 +50,6 @@ internal fun TrainingWorkoutScreen(
                 if (id in active) (seconds - 1).coerceAtLeast(0) else seconds
             }
             activeRestExerciseIds = active.filterTo(mutableSetOf()) { (restRemainingByExercise[it] ?: 0) > 0 }
-        }
-    }
-    val lastPersistedDraft = remember(session.id) { mutableStateOf<TrainingWorkoutDraft?>(null) }
-    SideEffect {
-        if (lastPersistedDraft.value != draft) {
-            onDraftChanged(draft)
-            lastPersistedDraft.value = draft
         }
     }
     val elapsedMinutes = ((System.currentTimeMillis() - draft.startedAtEpochMs) / 60_000L).toInt().coerceAtLeast(1)
@@ -100,38 +98,38 @@ internal fun TrainingWorkoutScreen(
                             Text(if (set.kind == "warmup") "Cal." else set.setNumber.toString(),
                                 Modifier.weight(0.8f), color = if (set.kind == "warmup") WorkoutMuted else WorkoutAccent, fontWeight = FontWeight.Bold)
                             OutlinedTextField(set.weightKg?.let(::formatWorkoutNumber).orEmpty(), { value ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(weightKg = value.replace(',', '.').toDoubleOrNull())) { draft = it }
+                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(weightKg = value.replace(',', '.').toDoubleOrNull())) ::updateDraft
                             }, Modifier.weight(1f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 colors = workoutFieldColors(), placeholder = { Text("0", color = WorkoutMuted) })
                             OutlinedTextField(set.repetitions?.toString().orEmpty(), { value ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(repetitions = value.toIntOrNull())) { draft = it }
+                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(repetitions = value.toIntOrNull())) ::updateDraft
                             }, Modifier.weight(1f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 colors = workoutFieldColors(), placeholder = { Text("0", color = WorkoutMuted) })
                             OutlinedTextField(set.rir?.let(::formatWorkoutNumber).orEmpty(), { value ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(rir = value.replace(',', '.').toDoubleOrNull())) { draft = it }
+                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(rir = value.replace(',', '.').toDoubleOrNull())) ::updateDraft
                             }, Modifier.weight(0.8f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 colors = workoutFieldColors(), placeholder = { Text("—", color = WorkoutMuted) })
                             Checkbox(set.completed, { checked ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(completed = checked)) { draft = it }
+                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(completed = checked)) ::updateDraft
                             }, enabled = !busy)
                         }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         TextButton(onClick = {
-                            draft = draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
+                            updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
                                 if (i == exerciseIndex) item.copy(sets = listOf(TrainingSetRecord(item.sets.count { it.kind == "warmup" }, "warmup")) + item.sets) else item
-                            })
+                            }))
                         }, enabled = !busy && exercise.sets.count { it.kind == "warmup" } < 50, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("+ Calentamiento") }
                         TextButton(onClick = {
-                            draft = draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
+                            updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
                                 if (i == exerciseIndex) item.copy(plannedSets = item.plannedSets + 1,
                                     sets = item.sets + TrainingSetRecord(item.sets.count { it.kind == "working" } + 1,
                                         repetitions = item.minRepetitions, rir = item.targetRir)) else item
-                            })
+                            }))
                         }, enabled = !busy && exercise.plannedSets < 50, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutAccent)) { Text("+ Añadir serie") }
                     }
                     TextButton(onClick = {
-                        draft = draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
+                        updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
                             if (i == exerciseIndex) {
                                 val lastWorking = item.sets.indexOfLast { it.kind == "working" }
                                 if (lastWorking < 0) item else item.copy(
@@ -146,7 +144,7 @@ internal fun TrainingWorkoutScreen(
                                     }
                                 )
                             } else item
-                        })
+                        }))
                     }, enabled = !busy && exercise.plannedSets > 1,
                         colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("− Quitar última serie") }
                     exercise.restSeconds?.let { seconds ->
@@ -180,41 +178,41 @@ internal fun TrainingWorkoutScreen(
                 Text("Cierre del entrenamiento", color = WorkoutText, fontWeight = FontWeight.Bold)
                 Text("Esfuerzo global (RPE 0–10)", color = WorkoutMuted)
                 OutlinedTextField(draft.sessionRpe?.toString().orEmpty(), { v ->
-                    if (v.isBlank()) draft = draft.copy(sessionRpe = null)
-                    else v.replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..10.0 }?.let { draft = draft.copy(sessionRpe = it) }
+                    if (v.isBlank()) updateDraft(draft.copy(sessionRpe = null))
+                    else v.replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..10.0 }?.let { updateDraft(draft.copy(sessionRpe = it)) }
                 },
                     Modifier.fillMaxWidth(), enabled = !busy, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     colors = workoutFieldColors())
                 if (draft.exercises.any { ex -> ex.sets.count { it.kind == "working" && it.completed } < ex.plannedSets }) {
                     Text("Motivo principal de las series no completadas", color = WorkoutMuted)
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Choice("Fatiga", draft.nonCompletionReason == "fatigue") { draft = draft.copy(nonCompletionReason = "fatigue") }
-                        Choice("Tiempo", draft.nonCompletionReason == "time") { draft = draft.copy(nonCompletionReason = "time") }
-                        Choice("Material", draft.nonCompletionReason == "equipment") { draft = draft.copy(nonCompletionReason = "equipment") }
+                        Choice("Fatiga", draft.nonCompletionReason == "fatigue") { updateDraft(draft.copy(nonCompletionReason = "fatigue")) }
+                        Choice("Tiempo", draft.nonCompletionReason == "time") { updateDraft(draft.copy(nonCompletionReason = "time")) }
+                        Choice("Material", draft.nonCompletionReason == "equipment") { updateDraft(draft.copy(nonCompletionReason = "equipment")) }
                     }
                 }
                 Text("Recuperación", color = WorkoutMuted)
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Choice("No indicar", draft.recoveryRating == "unknown") { draft = draft.copy(recoveryRating = "unknown") }
-                    Choice("Buena", draft.recoveryRating == "good") { draft = draft.copy(recoveryRating = "good") }
-                    Choice("Parcial", draft.recoveryRating == "partial") { draft = draft.copy(recoveryRating = "partial") }
-                    Choice("Baja", draft.recoveryRating == "insufficient") { draft = draft.copy(recoveryRating = "insufficient") }
+                    Choice("No indicar", draft.recoveryRating == "unknown") { updateDraft(draft.copy(recoveryRating = "unknown")) }
+                    Choice("Buena", draft.recoveryRating == "good") { updateDraft(draft.copy(recoveryRating = "good")) }
+                    Choice("Parcial", draft.recoveryRating == "partial") { updateDraft(draft.copy(recoveryRating = "partial")) }
+                    Choice("Baja", draft.recoveryRating == "insufficient") { updateDraft(draft.copy(recoveryRating = "insufficient")) }
                 }
                 Text("¿Molestias nuevas o que empeoran?", color = WorkoutMuted)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Choice("No", draft.painSignal == "none") { draft = draft.copy(painSignal = "none") }
-                    Choice("Sí", draft.painSignal == "new_or_worsening") { draft = draft.copy(painSignal = "new_or_worsening") }
+                    Choice("No", draft.painSignal == "none") { updateDraft(draft.copy(painSignal = "none")) }
+                    Choice("Sí", draft.painSignal == "new_or_worsening") { updateDraft(draft.copy(painSignal = "new_or_worsening")) }
                 }
                 if (draft.painSignal.isBlank() || draft.sessionRpe == null) {
                     Text("Para guardar, indica el RPE y confirma si has tenido molestias.", color = WorkoutMuted,
                         style = MaterialTheme.typography.bodySmall)
                 }
                 if (draft.painSignal == "new_or_worsening") {
-                    OutlinedTextField(draft.painDetails, { draft = draft.copy(painDetails = it.take(1000)) },
+                    OutlinedTextField(draft.painDetails, { updateDraft(draft.copy(painDetails = it.take(1000))) },
                         Modifier.fillMaxWidth(), label = { Text("Describe las molestias (opcional)") },
                         enabled = !busy, minLines = 2, colors = workoutFieldColors())
                 }
-                OutlinedTextField(draft.notes, { draft = draft.copy(notes = it.take(4000)) }, Modifier.fillMaxWidth(),
+                OutlinedTextField(draft.notes, { updateDraft(draft.copy(notes = it.take(4000))) }, Modifier.fillMaxWidth(),
                     label = { Text("Notas generales (opcional)") }, enabled = !busy, minLines = 2, colors = workoutFieldColors())
             }
         }
