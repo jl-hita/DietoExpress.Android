@@ -359,6 +359,9 @@ interface PortalApi {
     @GET("portal/diet")
     suspend fun activeDiet(): DietDetail
 
+    @GET("portal/diet/pdf")
+    suspend fun activeDietPdf(): ResponseBody
+
     @GET("appointments/mine")
     suspend fun appointments(): List<PatientAppointment>
 
