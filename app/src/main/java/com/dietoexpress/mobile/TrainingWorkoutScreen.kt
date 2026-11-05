@@ -60,7 +60,7 @@ internal fun TrainingWorkoutScreen(
     Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutAccent)) { Text("← Volver") }
+            TextButton(onClick = { onDraftChanged(draft); onBack() }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutAccent)) { Text("← Volver") }
             Text("ENTRENAMIENTO", color = WorkoutAccent, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
         }
         Text(session.title, color = WorkoutText, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
