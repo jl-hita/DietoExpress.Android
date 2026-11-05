@@ -682,7 +682,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val result = offline.readThrough(accountId, "training", com.dietoexpress.mobile.data.TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }
             val savedDraft = (offline.trainingDraftImmediately(accountId)
                 ?: offline.cachedValue<TrainingWorkoutDraft>(accountId, "training-active-draft", TrainingWorkoutDraft::class.java))
-                ?.takeIf { draft -> result.value.sessions.any { it.id == draft.sessionId } }
+                ?.takeIf { draft -> result.value.sessions.any { it.id == draft.sessionId && it.completedAt == null } }
             if (savedDraft == null) offline.clearTrainingDraftImmediately(accountId)
             _state.value = _state.value.copy(training = result.value, trainingLoaded = true, trainingDraft = savedDraft, section = "training",
                 message = if (result.fromCache) "Sin conexión: se muestran las últimas sesiones guardadas." else null, error = false)
@@ -944,7 +944,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     message = "Entrenamiento guardado en el dispositivo. Se sincronizará al recuperar la conexión.", error = false)
                 if (localTraining != null) offline.cacheValue(accountId, "training", localTraining)
                 offline.clearTrainingDraftImmediately(accountId)
-                offline.invalidate(accountId, "training-active-draft")
+                trainingDraftSaveMutex.withLock { offline.invalidate(accountId, "training-active-draft") }
             }
         }
     }
