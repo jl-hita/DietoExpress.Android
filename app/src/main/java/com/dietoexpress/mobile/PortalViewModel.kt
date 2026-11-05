@@ -271,12 +271,16 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             val training = runCatching {
                 offline.readThrough(accountId, "training", TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }.value
             }.getOrNull()
+            // Home may load the training envelope before the user opens the Training section.
+            // Restore the local draft here too, otherwise trainingLoaded short-circuits loadTraining().
+            val trainingDraft = restoreTrainingDraft(accountId, training)
             // A failure in one highlight must not hide the other one on Home.
             _state.value = _state.value.copy(
                 appointments = appointments ?: current.appointments,
                 appointmentsLoaded = appointments != null || current.appointmentsLoaded,
                 training = training ?: current.training,
                 trainingLoaded = training != null || current.trainingLoaded,
+                trainingDraft = trainingDraft,
                 message = null,
                 error = false
             )
@@ -675,21 +679,31 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * Reads the durable workout draft independently from the training list. A session omitted
+     * from a stale/partial list is not evidence that the draft is obsolete; only an explicit
+     * completedAt value from the matching server session permits deletion.
+     */
+    private suspend fun restoreTrainingDraft(accountId: Int, training: TrainingEnvelope?): TrainingWorkoutDraft? {
+        val storedDraft = offline.trainingDraftImmediately(accountId)
+            ?: offline.cachedValue<TrainingWorkoutDraft>(accountId, "training-active-draft", TrainingWorkoutDraft::class.java)
+        val matchingSession = storedDraft?.let { draft ->
+            training?.sessions?.firstOrNull { it.id == draft.sessionId }
+        }
+        if (storedDraft != null && matchingSession?.completedAt != null) {
+            offline.clearTrainingDraftImmediately(accountId)
+            offline.invalidate(accountId, "training-active-draft")
+            return null
+        }
+        return storedDraft
+    }
+
     fun loadTraining() {
         if (_state.value.busy || _state.value.trainingLoaded) return
         runRequest {
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val result = offline.readThrough(accountId, "training", com.dietoexpress.mobile.data.TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }
-            val storedDraft = offline.trainingDraftImmediately(accountId)
-                ?: offline.cachedValue<TrainingWorkoutDraft>(accountId, "training-active-draft", TrainingWorkoutDraft::class.java)
-            // A missing session in a temporary/stale response must never erase locally entered sets.
-            // Discard only when the server explicitly confirms that the session is completed.
-            val draftSession = storedDraft?.let { draft -> result.value.sessions.firstOrNull { it.id == draft.sessionId } }
-            val savedDraft = storedDraft?.takeUnless { draftSession?.completedAt != null }
-            if (storedDraft != null && draftSession?.completedAt != null) {
-                offline.clearTrainingDraftImmediately(accountId)
-                offline.invalidate(accountId, "training-active-draft")
-            }
+            val savedDraft = restoreTrainingDraft(accountId, result.value)
             _state.value = _state.value.copy(training = result.value, trainingLoaded = true, trainingDraft = savedDraft, section = "training",
                 message = if (result.fromCache) "Sin conexión: se muestran las últimas sesiones guardadas." else null, error = false)
         }
