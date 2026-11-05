@@ -94,7 +94,7 @@ internal fun TrainingWorkoutScreen(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         TextButton(onClick = {
                             draft = draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
-                                if (i == exerciseIndex) item.copy(sets = listOf(TrainingSetRecord(0, "warmup")) + item.sets) else item
+                                if (i == exerciseIndex) item.copy(sets = listOf(TrainingSetRecord(item.sets.count { it.kind == "warmup" }, "warmup")) + item.sets) else item
                             })
                         }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("+ Calentamiento") }
                         TextButton(onClick = {
@@ -115,6 +115,14 @@ internal fun TrainingWorkoutScreen(
                 Text("Esfuerzo global (RPE 0–10)", color = WorkoutMuted)
                 OutlinedTextField(draft.sessionRpe.toString(), { v -> v.replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..10.0 }?.let { draft = draft.copy(sessionRpe = it) } },
                     Modifier.fillMaxWidth(), enabled = !busy, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                if (draft.exercises.any { ex -> ex.sets.count { it.kind == "working" && it.completed } < ex.plannedSets }) {
+                    Text("Motivo principal de las series no completadas", color = WorkoutMuted)
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Choice("Fatiga", draft.nonCompletionReason == "fatigue") { draft = draft.copy(nonCompletionReason = "fatigue") }
+                        Choice("Tiempo", draft.nonCompletionReason == "time") { draft = draft.copy(nonCompletionReason = "time") }
+                        Choice("Material", draft.nonCompletionReason == "equipment") { draft = draft.copy(nonCompletionReason = "equipment") }
+                    }
+                }
                 Text("Recuperación", color = WorkoutMuted)
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Choice("Buena", draft.recoveryRating == "good") { draft = draft.copy(recoveryRating = "good") }
@@ -141,7 +149,7 @@ internal fun TrainingWorkoutScreen(
             onFinish(session, PatientTrainingRecordRequest(
                 completedAt = Instant.now().toString(), actualDurationMinutes = elapsedMinutes, sessionRpe = draft.sessionRpe,
                 notes = draft.notes, outcome = if (allComplete) "completed" else "partial",
-                nonCompletionReason = if (allComplete) "none" else "fatigue", recoveryRating = draft.recoveryRating,
+                nonCompletionReason = if (allComplete) "none" else draft.nonCompletionReason, recoveryRating = draft.recoveryRating,
                 painSignal = draft.painSignal, exerciseFeedback = feedback
             ))
         }, Modifier.fillMaxWidth(), enabled = !busy && draft.exercises.isNotEmpty(),
