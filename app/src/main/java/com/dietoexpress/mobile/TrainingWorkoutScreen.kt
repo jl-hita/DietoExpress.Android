@@ -231,7 +231,7 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 
 private fun newWorkoutDraft(session: TrainingSession): TrainingWorkoutDraft {
     val exercises = session.exercisePrescriptionData?.exercises.orEmpty().map { exercise ->
-        val count = (exercise.sets ?: 0).coerceIn(1, 30)
+        val count = (exercise.sets ?: 0).coerceIn(0, 50)
         val sets = (1..count).map { n -> TrainingSetRecord(n, repetitions = exercise.minRepetitions, rir = exercise.targetRepetitionsInReserve) }
         TrainingExerciseDraft(exercise.exerciseId, exercise.exerciseNameSnapshot ?: "Ejercicio", count,
             exercise.minRepetitions, exercise.maxRepetitions, exercise.targetRepetitionsInReserve, exercise.restSeconds, sets)
