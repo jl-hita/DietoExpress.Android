@@ -490,6 +490,16 @@ private fun TrainingSessionCard(
             if (session.completedAt != null) {
                 Text("Último registro: ${session.actualDurationMinutes ?: "—"} min · RPE ${session.sessionRpe ?: "—"}",
                     color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                session.exerciseFeedback.forEach { feedback ->
+                    if (feedback.sets.isNotEmpty()) {
+                        Text(feedback.exerciseName, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+                        feedback.sets.forEach { set ->
+                            val setLabel = if (set.kind == "warmup") "Calentamiento" else "Serie ${set.setNumber}"
+                            Text("$setLabel · ${set.weightKg ?: "—"} kg × ${set.repetitions ?: "—"} · RIR ${set.rir ?: "—"} ${if (set.completed) "✓" else "· no completada"}",
+                                color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
             }
             if (structuredPrescription == null) {
             TrainingChoiceField("¿Cómo fue la sesión?", outcome,
