@@ -236,7 +236,7 @@ internal fun TrainingFeedbackContent(
                         color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
-                envelope.exerciseProgressionRecommendations
+                envelope.exerciseProgressionRecommendations.orEmpty()
                     .filter { recommendation ->
                         recommendation.sessionId == selectedSession.id &&
                             recommendation.action in setOf("add_repetitions", "confirm_top_of_range", "increase_load", "hold_and_review")
