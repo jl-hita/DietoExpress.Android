@@ -148,7 +148,10 @@ internal fun TrainingWorkoutScreen(
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("Cierre del entrenamiento", color = Color.White, fontWeight = FontWeight.Bold)
                 Text("Esfuerzo global (RPE 0–10)", color = WorkoutMuted)
-                OutlinedTextField(draft.sessionRpe.toString(), { v -> v.replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..10.0 }?.let { draft = draft.copy(sessionRpe = it) } },
+                OutlinedTextField(draft.sessionRpe?.toString().orEmpty(), { v ->
+                    if (v.isBlank()) draft = draft.copy(sessionRpe = null)
+                    else v.replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..10.0 }?.let { draft = draft.copy(sessionRpe = it) }
+                },
                     Modifier.fillMaxWidth(), enabled = !busy, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 if (draft.exercises.any { ex -> ex.sets.count { it.kind == "working" && it.completed } < ex.plannedSets }) {
                     Text("Motivo principal de las series no completadas", color = WorkoutMuted)
@@ -160,6 +163,7 @@ internal fun TrainingWorkoutScreen(
                 }
                 Text("Recuperación", color = WorkoutMuted)
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Choice("No indicar", draft.recoveryRating == "unknown") { draft = draft.copy(recoveryRating = "unknown") }
                     Choice("Buena", draft.recoveryRating == "good") { draft = draft.copy(recoveryRating = "good") }
                     Choice("Parcial", draft.recoveryRating == "partial") { draft = draft.copy(recoveryRating = "partial") }
                     Choice("Baja", draft.recoveryRating == "insufficient") { draft = draft.copy(recoveryRating = "insufficient") }
@@ -188,7 +192,9 @@ internal fun TrainingWorkoutScreen(
                 painSignal = draft.painSignal, exerciseFeedback = feedback
             ))
             onBack()
-        }, Modifier.fillMaxWidth(), enabled = !busy && draft.exercises.isNotEmpty() && draft.exercises.all { exercise ->
+        }, Modifier.fillMaxWidth(), enabled = !busy && draft.exercises.isNotEmpty() &&
+            draft.sessionRpe != null && draft.sessionRpe in 0.0..10.0 && draft.painSignal in setOf("none", "new_or_worsening") &&
+            draft.exercises.all { exercise ->
             exercise.plannedSets in 1..100 && exercise.sets.count { it.kind == "warmup" } <= 50 &&
                 exercise.sets.all { set ->
                     (set.weightKg == null || set.weightKg in 0.0..1000.0) &&
