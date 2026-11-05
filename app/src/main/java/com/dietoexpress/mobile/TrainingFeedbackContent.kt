@@ -491,9 +491,9 @@ private fun TrainingSessionCard(
                 Text("Último registro: ${session.actualDurationMinutes ?: "—"} min · RPE ${session.sessionRpe ?: "—"}",
                     color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                 session.exerciseFeedback.forEach { feedback ->
-                    if (feedback.sets.isNotEmpty()) {
+                    if (feedback.sets.orEmpty().isNotEmpty()) {
                         Text(feedback.exerciseName, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
-                        feedback.sets.forEach { set ->
+                        feedback.sets.orEmpty().forEach { set ->
                             val setLabel = if (set.kind == "warmup") "Calentamiento" else "Serie ${set.setNumber}"
                             Text("$setLabel · ${set.weightKg ?: "—"} kg × ${set.repetitions ?: "—"} · RIR ${set.rir ?: "—"} ${if (set.completed) "✓" else "· no completada"}",
                                 color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
