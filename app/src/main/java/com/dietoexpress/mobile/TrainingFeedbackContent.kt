@@ -48,9 +48,9 @@ import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 
-private val TrainingForest = Color(0xFF20262D)
-private val TrainingMuted = Color(0xFF66737D)
-private val TrainingLime = Color(0xFFC4F15B)
+private val TrainingForest = Color(0xFF183B3A)
+private val TrainingMuted = Color(0xFF52636B)
+private val TrainingLime = Color(0xFF176B67)
 
 private data class TrainingWeekSummary(
     val weekStart: LocalDate, val sessions: Int, val totalSets: Int, val averageRir: Double?,
@@ -159,18 +159,16 @@ internal fun TrainingFeedbackContent(
     val selectedSession = visibleSessions.firstOrNull { it.id == selectedSessionId }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = TrainingForest)) {
-            Text(
-                "Tu plan, paso a paso",
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
+        Text(
+            "Tu plan, paso a paso",
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.titleMedium,
+            color = TrainingForest,
+            fontWeight = FontWeight.Bold
+        )
 
         if (!loaded && busy) {
             Box(modifier = Modifier.fillMaxWidth().padding(28.dp)) { CircularProgressIndicator() }
