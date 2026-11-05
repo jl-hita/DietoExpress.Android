@@ -268,6 +268,8 @@ data class StructuredTrainingExercise(
     val targetRepetitionsInReserve: Double? = null,
     val restSeconds: Int? = null,
     val progressionRule: Int? = null,
+    val smallestLoadIncrementKg: Double? = null,
+    val maximumLoadIncreasePercent: Double? = null,
     val primaryMuscleGroups: List<String> = emptyList(),
     val secondaryMuscleGroups: List<String> = emptyList()
 )
