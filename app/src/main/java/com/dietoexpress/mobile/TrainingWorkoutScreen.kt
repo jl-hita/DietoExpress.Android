@@ -110,7 +110,7 @@ internal fun TrainingWorkoutScreen(
                                     sets = item.sets + TrainingSetRecord(item.sets.count { it.kind == "working" } + 1,
                                         repetitions = item.minRepetitions, rir = item.targetRir)) else item
                             })
-                        }, enabled = !busy && exercise.plannedSets < 100, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutLime)) { Text("+ Añadir serie") }
+                        }, enabled = !busy && exercise.plannedSets < 50, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutLime)) { Text("+ Añadir serie") }
                     }
                     TextButton(onClick = {
                         draft = draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
@@ -199,7 +199,7 @@ internal fun TrainingWorkoutScreen(
         }, Modifier.fillMaxWidth(), enabled = !busy && draft.exercises.isNotEmpty() &&
             draft.sessionRpe?.let { it in 0.0..10.0 } == true && draft.painSignal in setOf("none", "new_or_worsening") &&
             draft.exercises.all { exercise ->
-            exercise.plannedSets in 1..100 && exercise.sets.count { it.kind == "warmup" } <= 50 &&
+            exercise.plannedSets in 1..50 && exercise.sets.count { it.kind == "warmup" } <= 50 &&
                 exercise.sets.all { set ->
                     (set.weightKg == null || set.weightKg in 0.0..1000.0) &&
                     (set.repetitions == null || set.repetitions in 0..1000) &&
