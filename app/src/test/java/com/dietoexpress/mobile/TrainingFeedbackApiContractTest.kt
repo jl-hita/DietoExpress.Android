@@ -104,7 +104,7 @@ class TrainingFeedbackApiContractTest {
     @Test
     fun trainingResponseReadsStructuredExercisePrescriptionAndKeepsLegacyFallback() {
         val response = gson.fromJson(
-            """{"enabled":true,"sessions":[{"id":7,"planId":3,"scheduledDate":"2026-10-28","title":"Cuerpo completo A","sessionType":"strength","exerciseFeedback":[{"exerciseId":"squat-basic","exerciseName":"Sentadilla goblet","plannedSets":3,"completedSets":2,"skippedSetReason":"fatigue","sets":null}],"exercisePrescription":"1. Sentadilla goblet — 3 × 8-12 reps","exercisePrescriptionData":{"engineVersion":"0.5.0","goal":"Hypertrophy","weekNumber":2,"day":"Wednesday","estimatedDurationMinutes":35,"exercises":[{"exerciseId":"squat-basic","catalogVersion":"catalog-2026-10","exerciseNameSnapshot":"Sentadilla goblet","order":1,"sets":3,"minRepetitions":8,"maxRepetitions":12,"targetRepetitionsInReserve":2.0,"restSeconds":120,"progressionRule":1,"primaryMuscleGroups":[11],"secondaryMuscleGroups":["Glutes"]}]}}]}""",
+            """{"enabled":true,"sessions":[{"id":7,"planId":3,"scheduledDate":"2026-10-28","title":"Cuerpo completo A","sessionType":"strength","exerciseFeedback":[{"exerciseId":"squat-basic","exerciseName":"Sentadilla goblet","plannedSets":3,"completedSets":2,"skippedSetReason":"fatigue","sets":null}],"exercisePrescription":"1. Sentadilla goblet — 3 × 8-12 reps","exercisePrescriptionData":{"engineVersion":"0.5.0","goal":"Hypertrophy","weekNumber":2,"day":"Wednesday","estimatedDurationMinutes":35,"exercises":[{"exerciseId":"squat-basic","catalogVersion":"catalog-2026-10","exerciseNameSnapshot":"Sentadilla goblet","order":1,"sets":3,"minRepetitions":8,"maxRepetitions":12,"targetRepetitionsInReserve":2.0,"restSeconds":120,"progressionRule":1,"smallestLoadIncrementKg":1.25,"maximumLoadIncreasePercent":5,"primaryMuscleGroups":[11],"secondaryMuscleGroups":["Glutes"]}]}}]}""",
             TrainingEnvelope::class.java
         )
         val session = response.sessions.single()
@@ -120,6 +120,8 @@ class TrainingFeedbackApiContractTest {
         assertEquals(2.0, prescription.exercises.single().targetRepetitionsInReserve!!, 0.001)
         assertEquals(120, prescription.exercises.single().restSeconds)
         assertEquals(1, prescription.exercises.single().progressionRule)
+        assertEquals(1.25, prescription.exercises.single().smallestLoadIncrementKg!!, 0.001)
+        assertEquals(5.0, prescription.exercises.single().maximumLoadIncreasePercent!!, 0.001)
         assertEquals(listOf("11"), prescription.exercises.single().primaryMuscleGroups)
         assertEquals(listOf("Glutes"), prescription.exercises.single().secondaryMuscleGroups)
         assertEquals(1, session.exerciseFeedback.size)
