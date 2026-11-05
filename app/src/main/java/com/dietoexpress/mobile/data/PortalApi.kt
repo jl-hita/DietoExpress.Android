@@ -203,7 +203,20 @@ data class PatientMessage(
 data class TrainingEnvelope(
     val enabled: Boolean,
     val sessions: List<TrainingSession> = emptyList(),
-    val adaptationRecommendation: TrainingAdaptationRecommendation? = null
+    val adaptationRecommendation: TrainingAdaptationRecommendation? = null,
+    val exerciseProgressionRecommendations: List<TrainingExerciseProgressionRecommendation> = emptyList()
+)
+
+data class TrainingExerciseProgressionRecommendation(
+    val sessionId: Int,
+    val exerciseId: String,
+    val exerciseName: String? = null,
+    val action: String,
+    val explanation: String,
+    val suggestedLoadKg: Double? = null,
+    val loadIncreaseKg: Double? = null,
+    val suggestedRepetitionsBySet: List<Int>? = null,
+    val maximumLoadIncreasePercent: Double? = null
 )
 
 data class TrainingAdaptationRecommendation(
