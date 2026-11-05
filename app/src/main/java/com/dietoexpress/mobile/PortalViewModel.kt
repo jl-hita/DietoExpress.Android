@@ -38,6 +38,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import retrofit2.HttpException
 import java.io.IOException
 import java.io.File
@@ -122,6 +124,7 @@ data class PortalUiState(
 
 class PortalViewModel(application: Application) : AndroidViewModel(application) {
     private val offline = OfflineRepository(application)
+    private val trainingDraftSaveMutex = Mutex()
     private val _state = MutableStateFlow(PortalUiState())
     val state: StateFlow<PortalUiState> = _state.asStateFlow()
 
@@ -847,7 +850,9 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         if (_state.value.trainingDraft?.sessionId != null && _state.value.trainingDraft?.sessionId != draft.sessionId) return
         _state.value = _state.value.copy(trainingDraft = draft)
         viewModelScope.launch {
-            runCatching { offline.cacheValue(accountId, "training-active-draft", draft) }
+            trainingDraftSaveMutex.withLock {
+                runCatching { offline.cacheValue(accountId, "training-active-draft", draft) }
+            }
         }
     }
 
@@ -1028,7 +1033,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                         documents = emptyList(), documentsLoaded = false,
                         shoppingList = emptyList(), shoppingLoaded = false,
                         messages = emptyList(), messagesLoaded = false,
-                        training = null, trainingLoaded = false,
+                        training = null, trainingLoaded = false, trainingDraft = null,
                         checkinEligibility = null, currentCheckin = null, checkinHistory = emptyList(), checkinLoaded = false,
                         section = "home"
                     )
