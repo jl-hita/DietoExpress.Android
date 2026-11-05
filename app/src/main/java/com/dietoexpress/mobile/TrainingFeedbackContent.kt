@@ -197,8 +197,9 @@ internal fun TrainingFeedbackContent(
                 }
                 Button(
                     onClick = { workoutMode = true },
-                    enabled = !busy && selectedSession.completedAt == null && (activeDraft == null || activeDraft.sessionId == selectedSession.id)
-                , colors = ButtonDefaults.buttonColors(containerColor = TrainingLime, contentColor = Color(0xFF20262D))) {
+                    enabled = !busy && selectedSession.completedAt == null && (activeDraft == null || activeDraft.sessionId == selectedSession.id),
+                    colors = ButtonDefaults.buttonColors(containerColor = TrainingLime, contentColor = Color(0xFF20262D))
+                ) {
                     Text(when {
                         selectedSession.completedAt != null -> "Entrenamiento registrado"
                         activeDraft?.sessionId == selectedSession.id -> "Continuar entrenamiento"
