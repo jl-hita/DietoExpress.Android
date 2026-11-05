@@ -247,7 +247,6 @@ internal fun TrainingWorkoutScreen(
 }
 
 @Composable
-@Composable
 private fun workoutFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = WorkoutText,
     unfocusedTextColor = WorkoutText,
