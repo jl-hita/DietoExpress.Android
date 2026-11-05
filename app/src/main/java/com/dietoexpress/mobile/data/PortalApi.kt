@@ -338,6 +338,7 @@ data class TrainingWorkoutDraft(
     val nonCompletionReason: String = "fatigue",
     val recoveryRating: String = "unknown",
     val painSignal: String = "",
+    val painDetails: String = "",
     val notes: String = ""
 )
 
