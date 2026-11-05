@@ -1,6 +1,8 @@
 package com.dietoexpress.mobile
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,10 +30,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -156,7 +160,12 @@ internal fun TrainingFeedbackContent(
     val pageEnd = pageStart.plusWeeks(2).minusDays(1)
     val dateFormatter = DateTimeFormatter.ofPattern("dd/MM")
     var selectedSessionId by remember { mutableStateOf<Int?>(null) }
+    var showLoadDetails by rememberSaveable { mutableStateOf(false) }
+    val sessionTopRequester = remember { BringIntoViewRequester() }
     val selectedSession = visibleSessions.firstOrNull { it.id == selectedSessionId }
+    LaunchedEffect(selectedSessionId) {
+        if (selectedSessionId != null) sessionTopRequester.bringIntoView()
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
@@ -164,7 +173,7 @@ internal fun TrainingFeedbackContent(
     ) {
         Text(
             "Tu plan, paso a paso",
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 4.dp).bringIntoViewRequester(sessionTopRequester),
             style = MaterialTheme.typography.titleMedium,
             color = TrainingForest,
             fontWeight = FontWeight.Bold
@@ -191,20 +200,31 @@ internal fun TrainingFeedbackContent(
                     onBack = { workoutMode = false }
                 )
             } else {
-                OutlinedButton(onClick = { selectedSessionId = null }, enabled = !busy) {
-                    Text("← Volver a mis entrenamientos")
-                }
-                Button(
-                    onClick = { workoutMode = true },
-                    enabled = !busy && selectedSession.completedAt == null && selectedSession.exercisePrescriptionData?.exercises?.isNotEmpty() == true &&
-                        (activeDraft == null || activeDraft.sessionId == selectedSession.id),
-                    colors = ButtonDefaults.buttonColors(containerColor = TrainingLime, contentColor = Color(0xFF20262D))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
-                    Text(when {
-                        selectedSession.completedAt != null -> "Entrenamiento registrado"
-                        activeDraft?.sessionId == selectedSession.id -> "Continuar entrenamiento"
-                        else -> "Iniciar entrenamiento"
-                    })
+                    OutlinedButton(
+                        onClick = { selectedSessionId = null },
+                        enabled = !busy,
+                        modifier = Modifier.weight(0.8f)
+                    ) {
+                        Text("Volver")
+                    }
+                    Button(
+                        onClick = { workoutMode = true },
+                        enabled = !busy && selectedSession.completedAt == null && selectedSession.exercisePrescriptionData?.exercises?.isNotEmpty() == true &&
+                            (activeDraft == null || activeDraft.sessionId == selectedSession.id),
+                        modifier = Modifier.weight(1.2f),
+                        colors = ButtonDefaults.buttonColors(containerColor = TrainingLime, contentColor = Color.White)
+                    ) {
+                        Text(when {
+                            selectedSession.completedAt != null -> "Entrenamiento registrado"
+                            activeDraft?.sessionId == selectedSession.id -> "Continuar entrenamiento"
+                            else -> "Iniciar entrenamiento"
+                        })
+                    }
                 }
                 if (activeDraft != null && activeDraft.sessionId != selectedSession.id) {
                     Text("Tienes otro entrenamiento sin finalizar. Continúalo antes de iniciar una sesión diferente.",
@@ -230,26 +250,38 @@ internal fun TrainingFeedbackContent(
             }
             if (weekSummaries.isNotEmpty()) {
                 Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Text("La carga de tu plan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TrainingForest)
-                        Text("Resumen semanal de volumen, frecuencia e intensidad prescrita.", color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            LoadLegendDot(Color(0xFF25845F), "Volumen")
-                            LoadLegendDot(Color(0xFF438FCA), "Frecuencia")
-                            LoadLegendDot(Color(0xFFDF9D43), "Intensidad")
-                        }
-                        weekSummaries.forEach { week ->
-                            Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Semana del ${week.weekStart.format(DateTimeFormatter.ofPattern("dd/MM"))}", fontWeight = FontWeight.SemiBold)
-                                    Text("${week.loadIndex}/100", color = TrainingForest, fontWeight = FontWeight.Bold)
-                                }
-                                TrainingLoadBar("Volumen", "${week.totalSets} series", week.volumePct, Color(0xFF25845F))
-                                TrainingLoadBar("Frecuencia", "${week.sessions} sesiones", week.frequencyPct, Color(0xFF438FCA))
-                                TrainingLoadBar("Intensidad · RIR", week.averageRir?.let { "RIR ${"%.1f".format(java.util.Locale.ROOT, it)}" } ?: "No indicada", week.intensityPct, Color(0xFFDF9D43))
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { showLoadDetails = !showLoadDetails },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("La carga de tu plan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TrainingForest)
+                                Text(if (showLoadDetails) "Ocultar resumen semanal" else "Ver resumen semanal", color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                             }
+                            Text(if (showLoadDetails) "⌃" else "⌄", color = TrainingForest, style = MaterialTheme.typography.titleLarge)
                         }
-                        Text("El índice compara las semanas de tu plan. La intensidad se muestra como RIR (repeticiones en reserva); no representa kilos levantados.", style = MaterialTheme.typography.bodySmall, color = TrainingMuted)
+                        if (showLoadDetails) {
+                            Text("Resumen semanal de volumen, frecuencia e intensidad prescrita.", color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                LoadLegendDot(Color(0xFF25845F), "Volumen")
+                                LoadLegendDot(Color(0xFF438FCA), "Frecuencia")
+                                LoadLegendDot(Color(0xFFDF9D43), "Intensidad")
+                            }
+                            weekSummaries.forEach { week ->
+                                Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Semana del ${week.weekStart.format(DateTimeFormatter.ofPattern("dd/MM"))}", fontWeight = FontWeight.SemiBold)
+                                        Text("${week.loadIndex}/100", color = TrainingForest, fontWeight = FontWeight.Bold)
+                                    }
+                                    TrainingLoadBar("Volumen", "${week.totalSets} series", week.volumePct, Color(0xFF25845F))
+                                    TrainingLoadBar("Frecuencia", "${week.sessions} sesiones", week.frequencyPct, Color(0xFF438FCA))
+                                    TrainingLoadBar("Intensidad · RIR", week.averageRir?.let { "RIR ${"%.1f".format(java.util.Locale.ROOT, it)}" } ?: "No indicada", week.intensityPct, Color(0xFFDF9D43))
+                                }
+                            }
+                            Text("El índice compara las semanas de tu plan. La intensidad se muestra como RIR (repeticiones en reserva); no representa kilos levantados.", style = MaterialTheme.typography.bodySmall, color = TrainingMuted)
+                        }
                     }
                 }
             }

@@ -680,8 +680,10 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         runRequest {
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val result = offline.readThrough(accountId, "training", com.dietoexpress.mobile.data.TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }
-            val savedDraft = offline.cachedValue<TrainingWorkoutDraft>(accountId, "training-active-draft", TrainingWorkoutDraft::class.java)
-                ?.takeIf { draft -> result.value.sessions.any { it.id == draft.sessionId } }
+            val savedDraft = (offline.trainingDraftImmediately(accountId)
+                ?: offline.cachedValue<TrainingWorkoutDraft>(accountId, "training-active-draft", TrainingWorkoutDraft::class.java))
+                ?.takeIf { draft -> result.value.sessions.any { it.id == draft.sessionId && it.completedAt == null } }
+            if (savedDraft == null) offline.clearTrainingDraftImmediately(accountId)
             _state.value = _state.value.copy(training = result.value, trainingLoaded = true, trainingDraft = savedDraft, section = "training",
                 message = if (result.fromCache) "Sin conexión: se muestran las últimas sesiones guardadas." else null, error = false)
         }
@@ -848,6 +850,12 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
     fun saveTrainingDraft(draft: TrainingWorkoutDraft) {
         val accountId = _state.value.profile?.clientId ?: return
         if (_state.value.trainingDraft?.sessionId != null && _state.value.trainingDraft?.sessionId != draft.sessionId) return
+        // Synchronous encrypted commit is intentional: Android force-stop can kill pending coroutines.
+        val committed = runCatching { offline.saveTrainingDraftImmediately(accountId, draft) }.getOrDefault(false)
+        if (!committed) {
+            showMessage("No se ha podido guardar el entrenamiento en el dispositivo. No cierres la app hasta recuperar el guardado.", true)
+            return
+        }
         _state.value = _state.value.copy(trainingDraft = draft)
         viewModelScope.launch {
             trainingDraftSaveMutex.withLock {
@@ -910,6 +918,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 _state.value = _state.value.copy(training = training, trainingLoaded = true, trainingDraft = null,
                     message = "Entrenamiento guardado y sincronizado.", error = false)
                 offline.cacheValue(accountId, "training", training)
+                offline.clearTrainingDraftImmediately(accountId)
                 trainingDraftSaveMutex.withLock { offline.invalidate(accountId, "training-active-draft") }
             } catch (networkError: IOException) {
                 // The backend upserts one record per patient/session. Retrying this immutable
@@ -934,7 +943,8 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 _state.value = _state.value.copy(training = localTraining, trainingLoaded = true, trainingDraft = null,
                     message = "Entrenamiento guardado en el dispositivo. Se sincronizará al recuperar la conexión.", error = false)
                 if (localTraining != null) offline.cacheValue(accountId, "training", localTraining)
-                offline.invalidate(accountId, "training-active-draft")
+                offline.clearTrainingDraftImmediately(accountId)
+                trainingDraftSaveMutex.withLock { offline.invalidate(accountId, "training-active-draft") }
             }
         }
     }
