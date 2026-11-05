@@ -26,6 +26,7 @@ import com.dietoexpress.mobile.data.PatientDocument
 import com.dietoexpress.mobile.data.PatientMessage
 import com.dietoexpress.mobile.data.ShoppingCategory
 import com.dietoexpress.mobile.data.TrainingEnvelope
+import com.dietoexpress.mobile.data.TrainingWorkoutDraft
 import com.dietoexpress.mobile.data.SendPatientMessageRequest
 import com.dietoexpress.mobile.data.PatientProfile
 import com.dietoexpress.mobile.data.PortalService
@@ -102,6 +103,7 @@ data class PortalUiState(
     val messageDraft: String = "",
     val training: TrainingEnvelope? = null,
     val trainingLoaded: Boolean = false,
+    val trainingDraft: TrainingWorkoutDraft? = null,
     val checkinEligibility: CheckinEligibility? = null,
     val currentCheckin: PatientCheckin? = null,
     val checkinHistory: List<PatientCheckin> = emptyList(),
@@ -675,7 +677,9 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         runRequest {
             val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
             val result = offline.readThrough(accountId, "training", com.dietoexpress.mobile.data.TrainingEnvelope::class.java) { PortalService.api.trainingSessions() }
-            _state.value = _state.value.copy(training = result.value, trainingLoaded = true, section = "training",
+            val savedDraft = offline.cachedValue<TrainingWorkoutDraft>(accountId, "training-active-draft", TrainingWorkoutDraft::class.java)
+                ?.takeIf { draft -> result.value.sessions.any { it.id == draft.sessionId } }
+            _state.value = _state.value.copy(training = result.value, trainingLoaded = true, trainingDraft = savedDraft, section = "training",
                 message = if (result.fromCache) "Sin conexión: se muestran las últimas sesiones guardadas." else null, error = false)
         }
     }
@@ -838,6 +842,15 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun saveTrainingDraft(draft: TrainingWorkoutDraft) {
+        val accountId = _state.value.profile?.clientId ?: return
+        if (_state.value.trainingDraft?.sessionId != null && _state.value.trainingDraft?.sessionId != draft.sessionId) return
+        _state.value = _state.value.copy(trainingDraft = draft)
+        viewModelScope.launch {
+            runCatching { offline.cacheValue(accountId, "training-active-draft", draft) }
+        }
+    }
+
     fun recordTrainingSession(
         session: com.dietoexpress.mobile.data.TrainingSession,
         request: PatientTrainingRecordRequest
@@ -883,13 +896,24 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             showMessage("Las notas no pueden superar los 4000 caracteres.", true)
             return
         }
+        val idempotencyKey = UUID.randomUUID().toString()
         runRequest {
-            PortalService.api.recordTrainingSession(session.id, request)
-            val accountId = _state.value.profile?.clientId
-            val training = PortalService.api.trainingSessions()
-            _state.value = _state.value.copy(training = training, trainingLoaded = true,
-                message = "Registro de entrenamiento guardado.", error = false)
-            if (accountId != null) offline.cacheValue(accountId, "training", training)
+            val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+            try {
+                PortalService.api.recordTrainingSession(session.id, idempotencyKey, request)
+                val training = PortalService.api.trainingSessions()
+                _state.value = _state.value.copy(training = training, trainingLoaded = true, trainingDraft = null,
+                    message = "Entrenamiento guardado y sincronizado.", error = false)
+                offline.cacheValue(accountId, "training", training)
+                offline.invalidate(accountId, "training-active-draft")
+            } catch (networkError: IOException) {
+                // The backend upserts one record per patient/session. Retrying this immutable
+                // final snapshot is safe even when the response to the first request was lost.
+                offline.enqueueTrainingRecord(accountId, session.id, request, idempotencyKey)
+                _state.value = _state.value.copy(trainingDraft = null,
+                    message = "Entrenamiento guardado en el dispositivo. Se sincronizará al recuperar la conexión.", error = false)
+                offline.invalidate(accountId, "training-active-draft")
+            }
         }
     }
 
