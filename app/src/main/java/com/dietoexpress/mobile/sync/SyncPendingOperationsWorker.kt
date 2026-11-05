@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.dietoexpress.mobile.data.LocalPayloadCipher
 import com.dietoexpress.mobile.data.OfflineRepository
 import com.dietoexpress.mobile.data.PendingOperationEntity
+import com.dietoexpress.mobile.data.PendingTrainingRecord
 import com.dietoexpress.mobile.data.PortalService
 import com.dietoexpress.mobile.data.SendPatientMessageRequest
 import com.dietoexpress.mobile.data.SessionOperationLock
@@ -61,6 +62,12 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
                                     ?: throw IllegalArgumentException("El mensaje pendiente no contiene un cuerpo válido.")
                                 // The key and encrypted body were committed before the first request.
                                 PortalService.api.sendMessage(operation.idempotencyKey, request)
+                            }
+                            OfflineRepository.OP_RECORD_TRAINING_SESSION -> {
+                                val json = LocalPayloadCipher.decrypt(operation.encryptedPayload)
+                                val pending = Gson().fromJson(json, PendingTrainingRecord::class.java)
+                                    ?: throw IllegalArgumentException("El entrenamiento pendiente no contiene datos válidos.")
+                                PortalService.api.recordTrainingSession(pending.sessionId, operation.idempotencyKey, pending.request)
                             }
                             else -> {
                                 repository.failOperation(operation.id, "Tipo de operación offline no reconocido.")
