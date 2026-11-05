@@ -197,7 +197,7 @@ internal fun TrainingWorkoutScreen(
             ))
             onBack()
         }, Modifier.fillMaxWidth(), enabled = !busy && draft.exercises.isNotEmpty() &&
-            draft.sessionRpe != null && draft.sessionRpe in 0.0..10.0 && draft.painSignal in setOf("none", "new_or_worsening") &&
+            draft.sessionRpe?.let { it in 0.0..10.0 } == true && draft.painSignal in setOf("none", "new_or_worsening") &&
             draft.exercises.all { exercise ->
             exercise.plannedSets in 1..100 && exercise.sets.count { it.kind == "warmup" } <= 50 &&
                 exercise.sets.all { set ->
