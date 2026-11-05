@@ -910,7 +910,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 _state.value = _state.value.copy(training = training, trainingLoaded = true, trainingDraft = null,
                     message = "Entrenamiento guardado y sincronizado.", error = false)
                 offline.cacheValue(accountId, "training", training)
-                offline.invalidate(accountId, "training-active-draft")
+                trainingDraftSaveMutex.withLock { offline.invalidate(accountId, "training-active-draft") }
             } catch (networkError: IOException) {
                 // The backend upserts one record per patient/session. Retrying this immutable
                 // final snapshot is safe even when the response to the first request was lost.
