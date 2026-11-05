@@ -47,8 +47,9 @@ import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 
-private val TrainingForest = Color(0xFF176B52)
-private val TrainingMuted = Color(0xFF687970)
+private val TrainingForest = Color(0xFF20262D)
+private val TrainingMuted = Color(0xFF66737D)
+private val TrainingLime = Color(0xFFC4F15B)
 
 private data class TrainingWeekSummary(
     val weekStart: LocalDate, val sessions: Int, val totalSets: Int, val averageRir: Double?,
@@ -197,7 +198,7 @@ internal fun TrainingFeedbackContent(
                 Button(
                     onClick = { workoutMode = true },
                     enabled = !busy && selectedSession.completedAt == null && (activeDraft == null || activeDraft.sessionId == selectedSession.id)
-                ) {
+                , colors = ButtonDefaults.buttonColors(containerColor = TrainingLime, contentColor = Color(0xFF20262D))) {
                     Text(when {
                         selectedSession.completedAt != null -> "Entrenamiento registrado"
                         activeDraft?.sessionId == selectedSession.id -> "Continuar entrenamiento"
