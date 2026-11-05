@@ -100,6 +100,36 @@ class OfflineRepository(context: Context) {
     suspend fun saveMessageDraft(accountId: Int, draft: String) = cacheValue(accountId, DRAFT_KEY, draft)
     suspend fun messageDraft(accountId: Int): String = cachedValue<String>(accountId, DRAFT_KEY, String::class.java).orEmpty()
 
+    /**
+     * Workout input changes must survive Android's force-stop action. Room writes are asynchronous,
+     * so keep an encrypted, account-scoped copy in SharedPreferences and commit it before returning.
+     */
+    fun saveTrainingDraftImmediately(accountId: Int, draft: TrainingWorkoutDraft): Boolean {
+        require(accountId > 0 && draft.sessionId > 0)
+        val encrypted = LocalPayloadCipher.encrypt(gson.toJson(draft))
+        return appContext.getSharedPreferences(TRAINING_DRAFT_PREFS, Context.MODE_PRIVATE)
+            .edit().putString(trainingDraftKey(accountId), encrypted).commit()
+    }
+
+    fun trainingDraftImmediately(accountId: Int): TrainingWorkoutDraft? {
+        val prefs = appContext.getSharedPreferences(TRAINING_DRAFT_PREFS, Context.MODE_PRIVATE)
+        val key = trainingDraftKey(accountId)
+        val encrypted = prefs.getString(key, null) ?: return null
+        return try {
+            gson.fromJson(LocalPayloadCipher.decrypt(encrypted), TrainingWorkoutDraft::class.java)
+        } catch (_: Exception) {
+            prefs.edit().remove(key).commit()
+            null
+        }
+    }
+
+    fun clearTrainingDraftImmediately(accountId: Int) {
+        appContext.getSharedPreferences(TRAINING_DRAFT_PREFS, Context.MODE_PRIVATE)
+            .edit().remove(trainingDraftKey(accountId)).commit()
+    }
+
+    private fun trainingDraftKey(accountId: Int) = "account-$accountId"
+
     /** Queue only a message write whose backend endpoint supports Idempotency-Key. */
     suspend fun enqueueSendPatientMessage(accountId: Int, body: String): String {
         require(body.isNotBlank() && body.length <= 5000) { "El mensaje debe contener entre 1 y 5000 caracteres." }
@@ -188,7 +218,10 @@ class OfflineRepository(context: Context) {
         dao.updateOperationStatus(id, PendingOperationEntity.STATUS_FAILED, reason)
     suspend fun conflictOperation(id: String, reason: String, details: String?) =
         dao.markConflict(id, reason, details?.take(1000))
-    suspend fun clearAccountCache(accountId: Int) = dao.clearCachedPayloads(accountId)
+    suspend fun clearAccountCache(accountId: Int) {
+        dao.clearCachedPayloads(accountId)
+        clearTrainingDraftImmediately(accountId)
+    }
 
     fun setActiveAccountId(accountId: Int) {
         appContext.getSharedPreferences(STATE_PREFS, Context.MODE_PRIVATE).edit().putInt(ACTIVE_ACCOUNT_KEY, accountId).apply()
@@ -221,6 +254,7 @@ class OfflineRepository(context: Context) {
         const val OP_SEND_PATIENT_MESSAGE = "SEND_PATIENT_MESSAGE"
         const val OP_RECORD_TRAINING_SESSION = "RECORD_TRAINING_SESSION"
         private const val DRAFT_KEY = "message-draft"
+        private const val TRAINING_DRAFT_PREFS = "dietoexpress_training_drafts"
         private const val STATE_PREFS = "dietoexpress_offline_state"
         private const val ACTIVE_ACCOUNT_KEY = "active_account_id"
         private const val MAX_CACHE_RETENTION_MS = 30L * 24 * 60 * 60 * 1000
