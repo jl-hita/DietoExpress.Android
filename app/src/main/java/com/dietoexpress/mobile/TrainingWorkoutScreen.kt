@@ -16,6 +16,7 @@ import com.dietoexpress.mobile.data.*
 import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 
 private val WorkoutBackground = Color(0xFF171B20)
 private val WorkoutSurface = Color(0xFF242B31)
@@ -33,6 +34,12 @@ internal fun TrainingWorkoutScreen(
 ) {
     val initial = remember(session.id) { initialDraft?.takeIf { it.sessionId == session.id } ?: newWorkoutDraft(session) }
     var draft by remember(session.id) { mutableStateOf(initial) }
+    var restRemaining by remember(session.id) { mutableStateOf(0) }
+    var restActive by remember(session.id) { mutableStateOf(false) }
+    LaunchedEffect(restActive, restRemaining) {
+        if (restActive && restRemaining > 0) { delay(1000); restRemaining -= 1 }
+        else if (restRemaining == 0) restActive = false
+    }
     LaunchedEffect(draft) { onDraftChanged(draft) }
     val elapsedMinutes = ((System.currentTimeMillis() - draft.startedAtEpochMs) / 60_000L).toInt().coerceAtLeast(1)
     val planned = draft.exercises.sumOf { it.plannedSets }
@@ -96,14 +103,14 @@ internal fun TrainingWorkoutScreen(
                             draft = draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
                                 if (i == exerciseIndex) item.copy(sets = listOf(TrainingSetRecord(item.sets.count { it.kind == "warmup" }, "warmup")) + item.sets) else item
                             })
-                        }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("+ Calentamiento") }
+                        }, enabled = !busy && exercise.sets.count { it.kind == "warmup" } < 50, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("+ Calentamiento") }
                         TextButton(onClick = {
                             draft = draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
                                 if (i == exerciseIndex) item.copy(plannedSets = item.plannedSets + 1,
                                     sets = item.sets + TrainingSetRecord(item.sets.count { it.kind == "working" } + 1,
                                         repetitions = item.minRepetitions, rir = item.targetRir)) else item
                             })
-                        }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutLime)) { Text("+ Añadir serie") }
+                        }, enabled = !busy && exercise.plannedSets < 100, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutLime)) { Text("+ Añadir serie") }
                     }
                     TextButton(onClick = {
                         draft = draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
@@ -118,7 +125,16 @@ internal fun TrainingWorkoutScreen(
                         })
                     }, enabled = !busy && exercise.plannedSets > 1,
                         colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("− Quitar última serie") }
-                    exercise.restSeconds?.let { Text("Descanso recomendado: $it s", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall) }
+                    exercise.restSeconds?.let { seconds ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Descanso recomendado: $seconds s", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
+                            TextButton(onClick = { restRemaining = seconds; restActive = true }, enabled = !busy,
+                                colors = ButtonDefaults.textButtonColors(contentColor = WorkoutLime)) {
+                                Text(if (restActive) "Descanso: ${restRemaining}s" else "Iniciar descanso")
+                            }
+                            if (restActive) TextButton(onClick = { restActive = false; restRemaining = 0 }) { Text("Parar") }
+                        }
+                    }
                 }
             }
         }
@@ -166,8 +182,15 @@ internal fun TrainingWorkoutScreen(
                 painSignal = draft.painSignal, exerciseFeedback = feedback
             ))
             onBack()
-        }, Modifier.fillMaxWidth(), enabled = !busy && draft.exercises.isNotEmpty(),
-            colors = ButtonDefaults.buttonColors(containerColor = WorkoutLime, contentColor = WorkoutBackground)) {
+        }, Modifier.fillMaxWidth(), enabled = !busy && draft.exercises.isNotEmpty() && draft.exercises.all { exercise ->
+            exercise.plannedSets in 1..100 && exercise.sets.count { it.kind == "warmup" } <= 50 &&
+                exercise.sets.all { set ->
+                    (set.weightKg == null || set.weightKg in 0.0..1000.0) &&
+                    (set.repetitions == null || set.repetitions in 0..1000) &&
+                    (set.rir == null || set.rir in 0.0..10.0) &&
+                    (!set.completed || set.repetitions in 1..1000)
+                }
+        }, colors = ButtonDefaults.buttonColors(containerColor = WorkoutLime, contentColor = WorkoutBackground)) {
             Text(if (busy) "Guardando…" else "Finalizar y guardar entrenamiento", fontWeight = FontWeight.Bold)
         }
     }
