@@ -1,11 +1,26 @@
 package com.dietoexpress.mobile
 
 import com.dietoexpress.mobile.data.TrainingSession
+import com.dietoexpress.mobile.data.TrainingEnvelope
+import com.dietoexpress.mobile.data.TrainingWorkoutDraft
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
 
 class TrainingSessionVisibilityTest {
+    @Test
+    fun onlyExplicitCompletionOfTheMatchingSessionDiscardsAnOfflineDraft() {
+        val draft = TrainingWorkoutDraft(sessionId = 42, startedAtEpochMs = 1L, exercises = emptyList())
+        val otherSession = session(43, "2026-11-05")
+        val matchingOpenSession = session(42, "2026-11-05")
+        val matchingCompletedSession = matchingOpenSession.copy(completedAt = "2026-11-05T18:00:00Z")
+
+        assertEquals(false, trainingDraftIsConfirmedComplete(draft, null))
+        assertEquals(false, trainingDraftIsConfirmedComplete(draft, TrainingEnvelope(true, listOf(otherSession))))
+        assertEquals(false, trainingDraftIsConfirmedComplete(draft, TrainingEnvelope(true, listOf(matchingOpenSession))))
+        assertEquals(true, trainingDraftIsConfirmedComplete(draft, TrainingEnvelope(true, listOf(matchingCompletedSession))))
+    }
+
     @Test
     fun showsOnlyCurrentAndFollowingCalendarWeek() {
         val sessions = listOf(
