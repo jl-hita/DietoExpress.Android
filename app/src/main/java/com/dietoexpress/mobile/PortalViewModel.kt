@@ -46,6 +46,14 @@ import java.io.File
 import java.util.UUID
 import java.security.MessageDigest
 
+internal fun trainingDraftIsConfirmedComplete(
+    draft: TrainingWorkoutDraft?,
+    training: TrainingEnvelope?
+): Boolean {
+    if (draft == null) return false
+    return training?.sessions?.firstOrNull { it.id == draft.sessionId }?.completedAt != null
+}
+
 private fun shoppingListFingerprint(categories: List<ShoppingCategory>): String {
     val canonical = categories
         .flatMap { it.items }
@@ -687,10 +695,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun restoreTrainingDraft(accountId: Int, training: TrainingEnvelope?): TrainingWorkoutDraft? {
         val storedDraft = offline.trainingDraftImmediately(accountId)
             ?: offline.cachedValue<TrainingWorkoutDraft>(accountId, "training-active-draft", TrainingWorkoutDraft::class.java)
-        val matchingSession = storedDraft?.let { draft ->
-            training?.sessions?.firstOrNull { it.id == draft.sessionId }
-        }
-        if (storedDraft != null && matchingSession?.completedAt != null) {
+        if (trainingDraftIsConfirmedComplete(storedDraft, training)) {
             offline.clearTrainingDraftImmediately(accountId)
             offline.invalidate(accountId, "training-active-draft")
             return null
