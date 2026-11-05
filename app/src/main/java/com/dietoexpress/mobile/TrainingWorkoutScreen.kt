@@ -153,7 +153,7 @@ internal fun TrainingWorkoutScreen(
 
 @Composable
 private fun Metric(value: String, label: String) {
-    Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(16.dp)) {
+    Card(Modifier.width(140.dp), colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.padding(12.dp)) {
             Text(value, color = WorkoutLime, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
             Text(label, color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
