@@ -239,7 +239,7 @@ internal fun TrainingFeedbackContent(
                 envelope.exerciseProgressionRecommendations.orEmpty()
                     .filter { recommendation ->
                         recommendation.sessionId == selectedSession.id &&
-                            recommendation.action in setOf("add_repetitions", "confirm_top_of_range", "increase_load", "hold_and_review")
+                            recommendation.action in setOf("add_repetitions", "confirm_top_of_range", "increase_load", "hold_and_review", "stagnation_review")
                     }
                     .forEach { recommendation ->
                         TrainingExerciseProgressionCard(recommendation)
@@ -677,6 +677,7 @@ private fun progressionActionTitle(action: String): String = when (action) {
     "confirm_top_of_range" -> "Confirma el máximo antes de subir peso"
     "increase_load" -> "Puedes aumentar ligeramente la carga"
     "hold_and_review" -> "Mantén la carga y revisa el contexto"
+    "stagnation_review" -> "Revisa el estancamiento antes de cambiar la carga"
     else -> "Progresión pendiente de datos"
 }
 
