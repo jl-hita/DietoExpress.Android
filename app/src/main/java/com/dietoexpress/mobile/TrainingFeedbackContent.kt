@@ -198,7 +198,8 @@ internal fun TrainingFeedbackContent(
                 }
                 Button(
                     onClick = { workoutMode = true },
-                    enabled = !busy && selectedSession.completedAt == null && (activeDraft == null || activeDraft.sessionId == selectedSession.id),
+                    enabled = !busy && selectedSession.completedAt == null && selectedSession.exercisePrescriptionData?.exercises?.isNotEmpty() == true &&
+                        (activeDraft == null || activeDraft.sessionId == selectedSession.id),
                     colors = ButtonDefaults.buttonColors(containerColor = TrainingLime, contentColor = Color(0xFF20262D))
                 ) {
                     Text(when {
@@ -209,6 +210,10 @@ internal fun TrainingFeedbackContent(
                 }
                 if (activeDraft != null && activeDraft.sessionId != selectedSession.id) {
                     Text("Tienes otro entrenamiento sin finalizar. Continúalo antes de iniciar una sesión diferente.",
+                        color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                }
+                if (selectedSession.exercisePrescriptionData?.exercises.isNullOrEmpty()) {
+                    Text("Esta sesión no tiene una prescripción estructurada para registrar series. Puedes consultar el detalle y enviar el check-in clásico.",
                         color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
