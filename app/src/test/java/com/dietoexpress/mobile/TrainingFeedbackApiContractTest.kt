@@ -4,6 +4,8 @@ import com.dietoexpress.mobile.data.PatientTrainingRecordRequest
 import com.dietoexpress.mobile.data.TrainingEnvelope
 import com.dietoexpress.mobile.data.TrainingExerciseFeedback
 import com.dietoexpress.mobile.data.TrainingSetRecord
+import com.dietoexpress.mobile.data.TrainingWorkoutDraft
+import com.dietoexpress.mobile.data.TrainingExerciseDraft
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -68,6 +70,35 @@ class TrainingFeedbackApiContractTest {
         assertEquals(10, decoded.sets[1].repetitions)
         assertEquals(2.0, decoded.sets[1].rir!!, 0.001)
         assertEquals(true, decoded.sets[1].completed)
+    }
+
+    @Test
+    fun activeWorkoutDraftRoundTripsForEncryptedLocalPersistence() {
+        val draft = TrainingWorkoutDraft(
+            sessionId = 44,
+            startedAtEpochMs = 1_799_000_000_000,
+            exercises = listOf(TrainingExerciseDraft(
+                exerciseId = "lat-pulldown",
+                exerciseName = "Jalón al pecho",
+                plannedSets = 2,
+                minRepetitions = 8,
+                maxRepetitions = 12,
+                targetRir = 2.0,
+                restSeconds = 120,
+                sets = listOf(TrainingSetRecord(1, weightKg = 45.0, repetitions = 10, rir = 2.0, completed = true))
+            )),
+            sessionRpe = 7.5,
+            nonCompletionReason = "time",
+            recoveryRating = "partial",
+            painSignal = "none"
+        )
+        val decoded = gson.fromJson(gson.toJson(draft), TrainingWorkoutDraft::class.java)
+
+        assertEquals(44, decoded.sessionId)
+        assertEquals("lat-pulldown", decoded.exercises.single().exerciseId)
+        assertEquals(45.0, decoded.exercises.single().sets.single().weightKg!!, 0.001)
+        assertEquals("time", decoded.nonCompletionReason)
+        assertEquals("partial", decoded.recoveryRating)
     }
 
     @Test
