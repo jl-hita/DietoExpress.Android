@@ -19,8 +19,8 @@ android {
         applicationId = "com.dietoexpress.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.1.4"
+        versionCode = 7
+        versionName = "0.1.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "API_BASE_URL", "\"" + providers.gradleProperty("dietoexpressApiBaseUrl").orElse("https://jlhitap.duckdns.org/api").get() + "\"")
