@@ -173,6 +173,10 @@ internal fun TrainingWorkoutScreen(
                     Choice("No", draft.painSignal == "none") { draft = draft.copy(painSignal = "none") }
                     Choice("Sí", draft.painSignal == "new_or_worsening") { draft = draft.copy(painSignal = "new_or_worsening") }
                 }
+                if (draft.painSignal.isBlank() || draft.sessionRpe == null) {
+                    Text("Para guardar, indica el RPE y confirma si has tenido molestias.", color = WorkoutMuted,
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 OutlinedTextField(draft.notes, { draft = draft.copy(notes = it.take(4000)) }, Modifier.fillMaxWidth(),
                     label = { Text("Notas (opcional)") }, enabled = !busy, minLines = 2)
             }
