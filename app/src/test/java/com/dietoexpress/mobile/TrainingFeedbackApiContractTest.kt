@@ -3,6 +3,9 @@ package com.dietoexpress.mobile
 import com.dietoexpress.mobile.data.PatientTrainingRecordRequest
 import com.dietoexpress.mobile.data.TrainingEnvelope
 import com.dietoexpress.mobile.data.TrainingExerciseFeedback
+import com.dietoexpress.mobile.data.TrainingSetRecord
+import com.dietoexpress.mobile.data.TrainingWorkoutDraft
+import com.dietoexpress.mobile.data.TrainingExerciseDraft
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -46,9 +49,62 @@ class TrainingFeedbackApiContractTest {
     }
 
     @Test
+    fun perSetWorkoutDataRoundTripsWithLoadRepetitionsRirAndWarmups() {
+        val feedback = TrainingExerciseFeedback(
+            exerciseId = "bench-press",
+            exerciseName = "Press banca",
+            plannedSets = 2,
+            completedSets = 2,
+            sets = listOf(
+                TrainingSetRecord(0, "warmup", 20.0, 12, 5.0, true),
+                TrainingSetRecord(1, "working", 60.0, 10, 2.0, true),
+                TrainingSetRecord(2, "working", 60.0, 9, 1.0, true)
+            )
+        )
+        val json = gson.toJson(feedback)
+        val decoded = gson.fromJson(json, TrainingExerciseFeedback::class.java)
+
+        assertEquals(3, decoded.sets.orEmpty().size)
+        assertEquals("warmup", decoded.sets.orEmpty().first().kind)
+        assertEquals(60.0, decoded.sets.orEmpty()[1].weightKg!!, 0.001)
+        assertEquals(10, decoded.sets.orEmpty()[1].repetitions)
+        assertEquals(2.0, decoded.sets.orEmpty()[1].rir!!, 0.001)
+        assertEquals(true, decoded.sets.orEmpty()[1].completed)
+    }
+
+    @Test
+    fun activeWorkoutDraftRoundTripsForEncryptedLocalPersistence() {
+        val draft = TrainingWorkoutDraft(
+            sessionId = 44,
+            startedAtEpochMs = 1_799_000_000_000,
+            exercises = listOf(TrainingExerciseDraft(
+                exerciseId = "lat-pulldown",
+                exerciseName = "Jalón al pecho",
+                plannedSets = 2,
+                minRepetitions = 8,
+                maxRepetitions = 12,
+                targetRir = 2.0,
+                restSeconds = 120,
+                sets = listOf(TrainingSetRecord(1, weightKg = 45.0, repetitions = 10, rir = 2.0, completed = true))
+            )),
+            sessionRpe = 7.5,
+            nonCompletionReason = "time",
+            recoveryRating = "partial",
+            painSignal = "none"
+        )
+        val decoded = gson.fromJson(gson.toJson(draft), TrainingWorkoutDraft::class.java)
+
+        assertEquals(44, decoded.sessionId)
+        assertEquals("lat-pulldown", decoded.exercises.single().exerciseId)
+        assertEquals(45.0, decoded.exercises.single().sets.single().weightKg!!, 0.001)
+        assertEquals("time", decoded.nonCompletionReason)
+        assertEquals("partial", decoded.recoveryRating)
+    }
+
+    @Test
     fun trainingResponseReadsStructuredExercisePrescriptionAndKeepsLegacyFallback() {
         val response = gson.fromJson(
-            """{"enabled":true,"sessions":[{"id":7,"planId":3,"scheduledDate":"2026-10-28","title":"Cuerpo completo A","sessionType":"strength","exerciseFeedback":[{"exerciseId":"squat-basic","exerciseName":"Sentadilla goblet","plannedSets":3,"completedSets":2,"skippedSetReason":"fatigue"}],"exercisePrescription":"1. Sentadilla goblet — 3 × 8-12 reps","exercisePrescriptionData":{"engineVersion":"0.5.0","goal":"Hypertrophy","weekNumber":2,"day":"Wednesday","estimatedDurationMinutes":35,"exercises":[{"exerciseId":"squat-basic","catalogVersion":"catalog-2026-10","exerciseNameSnapshot":"Sentadilla goblet","order":1,"sets":3,"minRepetitions":8,"maxRepetitions":12,"targetRepetitionsInReserve":2.0,"restSeconds":120,"progressionRule":1,"primaryMuscleGroups":[11],"secondaryMuscleGroups":["Glutes"]}]}}]}""",
+            """{"enabled":true,"sessions":[{"id":7,"planId":3,"scheduledDate":"2026-10-28","title":"Cuerpo completo A","sessionType":"strength","exerciseFeedback":[{"exerciseId":"squat-basic","exerciseName":"Sentadilla goblet","plannedSets":3,"completedSets":2,"skippedSetReason":"fatigue","sets":null}],"exercisePrescription":"1. Sentadilla goblet — 3 × 8-12 reps","exercisePrescriptionData":{"engineVersion":"0.5.0","goal":"Hypertrophy","weekNumber":2,"day":"Wednesday","estimatedDurationMinutes":35,"exercises":[{"exerciseId":"squat-basic","catalogVersion":"catalog-2026-10","exerciseNameSnapshot":"Sentadilla goblet","order":1,"sets":3,"minRepetitions":8,"maxRepetitions":12,"targetRepetitionsInReserve":2.0,"restSeconds":120,"progressionRule":1,"primaryMuscleGroups":[11],"secondaryMuscleGroups":["Glutes"]}]}}]}""",
             TrainingEnvelope::class.java
         )
         val session = response.sessions.single()
@@ -69,6 +125,7 @@ class TrainingFeedbackApiContractTest {
         assertEquals(1, session.exerciseFeedback.size)
         assertEquals(2, session.exerciseFeedback.single().completedSets)
         assertEquals("fatigue", session.exerciseFeedback.single().skippedSetReason)
+        assertEquals(0, session.exerciseFeedback.single().sets.orEmpty().size)
 
         val legacy = gson.fromJson(
             """{"enabled":true,"sessions":[{"id":8,"planId":3,"scheduledDate":"2026-10-29","title":"Sesión heredada","sessionType":"strength","exercisePrescription":"Prensa — 3 × 10"}]}""",

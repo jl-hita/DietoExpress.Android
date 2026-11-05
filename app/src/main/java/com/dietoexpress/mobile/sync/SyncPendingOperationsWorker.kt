@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.dietoexpress.mobile.data.LocalPayloadCipher
 import com.dietoexpress.mobile.data.OfflineRepository
 import com.dietoexpress.mobile.data.PendingOperationEntity
+import com.dietoexpress.mobile.data.PendingTrainingRecord
 import com.dietoexpress.mobile.data.PortalService
 import com.dietoexpress.mobile.data.SendPatientMessageRequest
 import com.dietoexpress.mobile.data.SessionOperationLock
@@ -62,6 +63,12 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
                                 // The key and encrypted body were committed before the first request.
                                 PortalService.api.sendMessage(operation.idempotencyKey, request)
                             }
+                            OfflineRepository.OP_RECORD_TRAINING_SESSION -> {
+                                val json = LocalPayloadCipher.decrypt(operation.encryptedPayload)
+                                val pending = Gson().fromJson(json, PendingTrainingRecord::class.java)
+                                    ?: throw IllegalArgumentException("El entrenamiento pendiente no contiene datos válidos.")
+                                PortalService.api.recordTrainingSession(pending.sessionId, operation.idempotencyKey, pending.request)
+                            }
                             else -> {
                                 repository.failOperation(operation.id, "Tipo de operación offline no reconocido.")
                                 unknownOperation = true
@@ -71,6 +78,12 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
                 }
                 if (sessionMismatch) return Result.success()
                 if (unknownOperation) continue
+                if (operation.operationType == OfflineRepository.OP_RECORD_TRAINING_SESSION) {
+                    // Refresh the encrypted snapshot after the idempotent write so the next
+                    // training screen does not keep presenting the pre-workout record.
+                    val refreshedTraining = PortalService.api.trainingSessions()
+                    repository.cacheValue(accountId, "training", refreshedTraining)
+                }
                 repository.completeOperation(operation.id)
             } catch (ex: CancellationException) {
                 // A cancelled worker may have reached the server. Keep the durable operation and key.

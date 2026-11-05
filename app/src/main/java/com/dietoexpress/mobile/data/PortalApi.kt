@@ -310,12 +310,44 @@ data class PatientCheckinDraft(
     val submissionPending: Boolean = false
 )
 
+data class TrainingSetRecord(
+    val setNumber: Int,
+    val kind: String = "working",
+    val weightKg: Double? = null,
+    val repetitions: Int? = null,
+    val rir: Double? = null,
+    val completed: Boolean = false
+)
+
+data class TrainingExerciseDraft(
+    val exerciseId: String? = null,
+    val exerciseName: String,
+    val plannedSets: Int,
+    val minRepetitions: Int? = null,
+    val maxRepetitions: Int? = null,
+    val targetRir: Double? = null,
+    val restSeconds: Int? = null,
+    val sets: List<TrainingSetRecord> = emptyList()
+)
+
+data class TrainingWorkoutDraft(
+    val sessionId: Int,
+    val startedAtEpochMs: Long,
+    val exercises: List<TrainingExerciseDraft>,
+    val sessionRpe: Double? = null,
+    val nonCompletionReason: String = "fatigue",
+    val recoveryRating: String = "unknown",
+    val painSignal: String = "",
+    val notes: String = ""
+)
+
 data class TrainingExerciseFeedback(
     val exerciseId: String? = null,
     val exerciseName: String,
     val plannedSets: Int,
     val completedSets: Int,
-    val skippedSetReason: String? = null
+    val skippedSetReason: String? = null,
+    val sets: List<TrainingSetRecord>? = emptyList()
 )
 
 data class PatientTrainingRecordRequest(
@@ -412,7 +444,11 @@ interface PortalApi {
     suspend fun trainingSessions(): TrainingEnvelope
 
     @POST("portal/training/sessions/{sessionId}/record")
-    suspend fun recordTrainingSession(@Path("sessionId") sessionId: Int, @Body request: PatientTrainingRecordRequest): Map<String, Long>
+    suspend fun recordTrainingSession(
+        @Path("sessionId") sessionId: Int,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body request: PatientTrainingRecordRequest
+    ): Map<String, Long>
 
     @GET("portal/biometrics")
     suspend fun biometricHistory(): List<PatientBiometricMeasurement>

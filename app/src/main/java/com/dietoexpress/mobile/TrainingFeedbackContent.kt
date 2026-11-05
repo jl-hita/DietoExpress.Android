@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,13 +42,15 @@ import com.dietoexpress.mobile.data.PatientTrainingRecordRequest
 import com.dietoexpress.mobile.data.TrainingEnvelope
 import com.dietoexpress.mobile.data.TrainingExerciseFeedback
 import com.dietoexpress.mobile.data.TrainingSession
+import com.dietoexpress.mobile.data.TrainingWorkoutDraft
 import java.time.LocalDate
 import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 
-private val TrainingForest = Color(0xFF176B52)
-private val TrainingMuted = Color(0xFF687970)
+private val TrainingForest = Color(0xFF20262D)
+private val TrainingMuted = Color(0xFF66737D)
+private val TrainingLime = Color(0xFFC4F15B)
 
 private data class TrainingWeekSummary(
     val weekStart: LocalDate, val sessions: Int, val totalSets: Int, val averageRir: Double?,
@@ -132,8 +135,11 @@ internal fun TrainingFeedbackContent(
     loaded: Boolean,
     busy: Boolean,
     onRecord: (TrainingSession, PatientTrainingRecordRequest) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    activeDraft: TrainingWorkoutDraft? = null,
+    onDraftChanged: (TrainingWorkoutDraft) -> Unit = {}
 ) {
+    var workoutMode by remember { mutableStateOf(false) }
     val weekSummaries = remember(envelope?.sessions) { buildTrainingWeekSummaries(envelope?.sessions.orEmpty()) }
     var trainingPageOffset by remember { mutableStateOf(0) }
     val allSessions = envelope?.sessions.orEmpty()
@@ -177,10 +183,41 @@ internal fun TrainingFeedbackContent(
                 }
             }
         } else if (selectedSession != null) {
-            OutlinedButton(onClick = { selectedSessionId = null }, enabled = !busy) {
-                Text("← Volver a mis entrenamientos")
+            if (workoutMode) {
+                TrainingWorkoutScreen(
+                    session = selectedSession,
+                    initialDraft = activeDraft,
+                    busy = busy,
+                    onDraftChanged = onDraftChanged,
+                    onFinish = onRecord,
+                    onBack = { workoutMode = false }
+                )
+            } else {
+                OutlinedButton(onClick = { selectedSessionId = null }, enabled = !busy) {
+                    Text("← Volver a mis entrenamientos")
+                }
+                Button(
+                    onClick = { workoutMode = true },
+                    enabled = !busy && selectedSession.completedAt == null && selectedSession.exercisePrescriptionData?.exercises?.isNotEmpty() == true &&
+                        (activeDraft == null || activeDraft.sessionId == selectedSession.id),
+                    colors = ButtonDefaults.buttonColors(containerColor = TrainingLime, contentColor = Color(0xFF20262D))
+                ) {
+                    Text(when {
+                        selectedSession.completedAt != null -> "Entrenamiento registrado"
+                        activeDraft?.sessionId == selectedSession.id -> "Continuar entrenamiento"
+                        else -> "Iniciar entrenamiento"
+                    })
+                }
+                if (activeDraft != null && activeDraft.sessionId != selectedSession.id) {
+                    Text("Tienes otro entrenamiento sin finalizar. Continúalo antes de iniciar una sesión diferente.",
+                        color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                }
+                if (selectedSession.exercisePrescriptionData?.exercises.isNullOrEmpty()) {
+                    Text("Esta sesión no tiene una prescripción estructurada para registrar series. Puedes consultar el detalle y enviar el check-in clásico.",
+                        color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                }
+                TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
             }
-            TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
         } else {
             envelope.adaptationRecommendation?.let { recommendation ->
                 Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE7F2EC))) {
@@ -414,7 +451,7 @@ private fun TrainingSessionCard(
                             color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                         val key = exercise.exerciseId ?: "order-${exercise.order ?: index}"
                         val planned = exercise.sets ?: 0
-                        if (planned > 0) {
+                        if (structuredPrescription == null && planned > 0) {
                             OutlinedTextField(
                                 value = completedSets[key].orEmpty(),
                                 onValueChange = { value -> if (value.isEmpty() || value.all(Char::isDigit)) completedSets[key] = value },
@@ -424,12 +461,12 @@ private fun TrainingSessionCard(
                                 singleLine = true,
                                 enabled = !busy
                             )
-                        } else {
+                        } else if (structuredPrescription == null) {
                             Text("No hay un número de series prescritas con el que comparar el volumen real.", color = TrainingMuted,
                                 style = MaterialTheme.typography.bodySmall)
                         }
                         val done = completedSets[key]?.toIntOrNull()
-                        if (done != null && done in 0 until planned) {
+                        if (structuredPrescription == null && done != null && done in 0 until planned) {
                             TrainingChoiceField("Motivo de las series omitidas", skippedReasons[key].orEmpty(), listOf(
                                 "" to "Selecciona un motivo",
                                 "fatigue" to "Fatiga o esfuerzo excesivo",
@@ -453,7 +490,18 @@ private fun TrainingSessionCard(
             if (session.completedAt != null) {
                 Text("Último registro: ${session.actualDurationMinutes ?: "—"} min · RPE ${session.sessionRpe ?: "—"}",
                     color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                session.exerciseFeedback.forEach { feedback ->
+                    if (feedback.sets.orEmpty().isNotEmpty()) {
+                        Text(feedback.exerciseName, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+                        feedback.sets.orEmpty().forEach { set ->
+                            val setLabel = if (set.kind == "warmup") "Calentamiento" else "Serie ${set.setNumber}"
+                            Text("$setLabel · ${set.weightKg ?: "—"} kg × ${set.repetitions ?: "—"} · RIR ${set.rir ?: "—"} ${if (set.completed) "✓" else "· no completada"}",
+                                color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
             }
+            if (structuredPrescription == null) {
             TrainingChoiceField("¿Cómo fue la sesión?", outcome,
                 listOf("" to "Selecciona una opción", "completed" to "Completada", "partial" to "Parcial", "not_completed" to "No realizada")) {
                 outcome = it
@@ -515,6 +563,10 @@ private fun TrainingSessionCard(
                 ))
             }, modifier = Modifier.fillMaxWidth(), enabled = !busy) {
                 Text(if (busy) "Guardando…" else "Guardar check-in")
+            }
+            } else if (session.completedAt == null) {
+                Text("Inicia el entrenamiento para registrar cada serie, carga, repeticiones y RIR.", color = TrainingMuted,
+                    style = MaterialTheme.typography.bodySmall)
             }
         }
     }
