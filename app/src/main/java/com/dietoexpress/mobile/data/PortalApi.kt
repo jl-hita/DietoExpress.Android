@@ -335,6 +335,7 @@ data class TrainingWorkoutDraft(
     val startedAtEpochMs: Long,
     val exercises: List<TrainingExerciseDraft>,
     val sessionRpe: Double = 7.0,
+    val nonCompletionReason: String = "fatigue",
     val recoveryRating: String = "good",
     val painSignal: String = "none",
     val notes: String = ""
