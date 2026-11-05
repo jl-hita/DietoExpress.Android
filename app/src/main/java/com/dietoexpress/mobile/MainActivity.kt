@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.setContent
@@ -133,6 +135,11 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing), color = Canvas) {
                     val vm: PortalViewModel = viewModel()
                     val state by vm.state.collectAsStateWithLifecycle()
+                    val dietPdfLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.CreateDocument("application/pdf")
+                    ) { uri ->
+                        if (uri != null) vm.saveActiveDietPdf(uri)
+                    }
                     val notificationDestination by notificationTarget.collectAsStateWithLifecycle()
                     LaunchedEffect(notificationDestination, state.profile?.clientId) {
                         if (state.profile != null && notificationDestination != null) {
@@ -312,7 +319,9 @@ class MainActivity : ComponentActivity() {
                                         diet = state.diet,
                                         loaded = state.dietLoaded,
                                         busy = state.busy,
-                                        onRetry = vm::loadDiet
+                                        onRetry = vm::loadDiet,
+                                        onDownloadPdf = { dietPdfLauncher.launch("Dieta_DietoExpress.pdf") },
+                                        pdfEnabled = !state.busy
                                     )
                                     "video" -> VideoConsultationScreen(
                                         appointmentId = state.videoAppointmentId,
@@ -684,7 +693,14 @@ private fun ShortcutCard(title: String, subtitle: String, symbol: String, modifi
 }
 
 @Composable
-private fun DietContent(diet: DietDetail?, loaded: Boolean, busy: Boolean, onRetry: () -> Unit) {
+private fun DietContent(
+    diet: DietDetail?,
+    loaded: Boolean,
+    busy: Boolean,
+    onRetry: () -> Unit,
+    onDownloadPdf: () -> Unit,
+    pdfEnabled: Boolean
+) {
     if (busy && !loaded) LoadingCard("Estamos preparando tu dieta")
     else if (diet == null) EmptyCard(
         title = "Tu dieta estará aquí",
@@ -697,8 +713,21 @@ private fun DietContent(diet: DietDetail?, loaded: Boolean, busy: Boolean, onRet
         val dayRequesters = remember(days) { days.map { androidx.compose.foundation.relocation.BringIntoViewRequester() } }
         val scope = androidx.compose.runtime.rememberCoroutineScope()
         Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Forest)) {
-            Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("OBJETIVOS DIARIOS", color = Color(0xFFC8E4D4), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("OBJETIVOS DIARIOS", color = Color(0xFFC8E4D4), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                    TextButton(
+                        onClick = onDownloadPdf,
+                        enabled = pdfEnabled,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(if (pdfEnabled) "↓ Descargar PDF" else "Preparando PDF…", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
                 MacroRow("Energía", diet.targetKcal, "kcal", Color(0xFFE2F0E8), Color.White)
                 MacroRow("Proteínas", diet.targetProtein, "g", Color(0xFFE2F0E8), Color.White)
                 MacroRow("Hidratos", diet.targetCarbs, "g", Color(0xFFE2F0E8), Color.White)

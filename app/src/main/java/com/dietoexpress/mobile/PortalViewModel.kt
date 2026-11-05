@@ -2,6 +2,7 @@ package com.dietoexpress.mobile
 
 import android.app.Application
 import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.core.content.FileProvider
@@ -295,6 +296,50 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                         error = false
                     )
                 } else throw ex
+            }
+        }
+    }
+
+    fun saveActiveDietPdf(destination: Uri) {
+        runRequest {
+            val context = getApplication<Application>()
+            try {
+                PortalService.api.activeDietPdf().use { body ->
+                    val length = body.contentLength()
+                    if (length > 25L * 1024L * 1024L) throw IOException("El PDF supera el tamaño permitido.")
+                    val input = body.byteStream().buffered()
+                    val header = ByteArray(5)
+                    var headerRead = 0
+                    while (headerRead < header.size) {
+                        val count = input.read(header, headerRead, header.size - headerRead)
+                        if (count < 0) break
+                        headerRead += count
+                    }
+                    if (headerRead != header.size || !header.contentEquals("%PDF-".toByteArray(Charsets.US_ASCII))) {
+                        throw IOException("El archivo recibido no es un PDF válido.")
+                    }
+                    val output = context.contentResolver.openOutputStream(destination, "wt")
+                        ?: throw IOException("No se ha podido abrir el destino para guardar el PDF.")
+                    output.buffered().use { stream ->
+                        stream.write(header)
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        var total = header.size.toLong()
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            total += read
+                            if (total > 25L * 1024L * 1024L) throw IOException("El PDF supera el tamaño permitido.")
+                            stream.write(buffer, 0, read)
+                        }
+                    }
+                }
+                showMessage("PDF de la dieta guardado correctamente.", false)
+            } catch (ex: HttpException) {
+                runCatching { context.contentResolver.delete(destination, null, null) }
+                throw ex
+            } catch (ex: Exception) {
+                runCatching { context.contentResolver.delete(destination, null, null) }
+                showMessage(ex.message?.takeIf { it.isNotBlank() } ?: "No se ha podido guardar el PDF de la dieta.", true)
             }
         }
     }
