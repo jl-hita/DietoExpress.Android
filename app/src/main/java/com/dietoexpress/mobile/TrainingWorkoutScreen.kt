@@ -1,6 +1,5 @@
 package com.dietoexpress.mobile
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -18,7 +17,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
-private val WorkoutBackground = Color(0xFFF3F6F5)
 private val WorkoutSurface = Color(0xFFFFFFFF)
 private val WorkoutInput = Color(0xFFF1F5F6)
 private val WorkoutAccent = Color(0xFF176B67)
@@ -77,7 +75,7 @@ internal fun TrainingWorkoutScreen(
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f)) {
-                            Text("${exerciseIndex + 1}. ${exercise.exerciseName}", color = Color.White, fontWeight = FontWeight.Bold,
+                            Text("${exerciseIndex + 1}. ${exercise.exerciseName}", color = WorkoutText, fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.titleMedium)
                             Text("${exercise.plannedSets} series · ${exercise.minRepetitions ?: "—"}–${exercise.maxRepetitions ?: "—"} reps · RIR ${exercise.targetRir ?: "—"}",
                                 color = WorkoutMuted, style = MaterialTheme.typography.bodySmall)
@@ -173,7 +171,7 @@ internal fun TrainingWorkoutScreen(
         }
         Card(colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(20.dp)) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("Cierre del entrenamiento", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Cierre del entrenamiento", color = WorkoutText, fontWeight = FontWeight.Bold)
                 Text("Esfuerzo global (RPE 0–10)", color = WorkoutMuted)
                 OutlinedTextField(draft.sessionRpe?.toString().orEmpty(), { v ->
                     if (v.isBlank()) draft = draft.copy(sessionRpe = null)
@@ -197,7 +195,7 @@ internal fun TrainingWorkoutScreen(
                 }
                 Text("¿Molestias nuevas o que empeoran?", color = WorkoutMuted)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Choice("No", draft.painSignal == "none") { draft = draft.copy(painSignal = "none", painDetails = "") }
+                    Choice("No", draft.painSignal == "none") { draft = draft.copy(painSignal = "none") }
                     Choice("Sí", draft.painSignal == "new_or_worsening") { draft = draft.copy(painSignal = "new_or_worsening") }
                 }
                 if (draft.painSignal.isBlank() || draft.sessionRpe == null) {
@@ -218,12 +216,18 @@ internal fun TrainingWorkoutScreen(
                 val completed = exercise.sets.count { it.kind == "working" && it.completed }
                 TrainingExerciseFeedback(exerciseId = exercise.exerciseId, exerciseName = exercise.exerciseName,
                     plannedSets = exercise.plannedSets, completedSets = completed,
-                    skippedSetReason = if (completed < exercise.plannedSets) "fatigue" else null, sets = exercise.sets)
+                    skippedSetReason = if (completed < exercise.plannedSets) draft.nonCompletionReason else null, sets = exercise.sets)
             }
             val allComplete = feedback.all { it.completedSets == it.plannedSets }
             onFinish(session, PatientTrainingRecordRequest(
                 completedAt = Instant.now().toString(), actualDurationMinutes = elapsedMinutes, sessionRpe = draft.sessionRpe,
-                notes = draft.notes, outcome = if (allComplete) "completed" else "partial",
+                notes = buildList {
+                    draft.notes.trim().takeIf { it.isNotEmpty() }?.let(::add)
+                    if (draft.painSignal == "new_or_worsening") {
+                        draft.painDetails.trim().takeIf { it.isNotEmpty() }?.let { add("Molestias: $it") }
+                    }
+                }.joinToString("\n\n").take(4000).takeIf { it.isNotBlank() },
+                outcome = if (allComplete) "completed" else "partial",
                 nonCompletionReason = if (allComplete) "none" else draft.nonCompletionReason, recoveryRating = draft.recoveryRating,
                 painSignal = draft.painSignal, exerciseFeedback = feedback
             ))
