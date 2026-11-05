@@ -347,7 +347,7 @@ data class TrainingExerciseFeedback(
     val plannedSets: Int,
     val completedSets: Int,
     val skippedSetReason: String? = null,
-    val sets: List<TrainingSetRecord> = emptyList()
+    val sets: List<TrainingSetRecord>? = emptyList()
 )
 
 data class PatientTrainingRecordRequest(
