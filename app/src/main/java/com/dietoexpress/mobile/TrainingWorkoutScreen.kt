@@ -118,8 +118,14 @@ internal fun TrainingWorkoutScreen(
                                 val lastWorking = item.sets.indexOfLast { it.kind == "working" }
                                 if (lastWorking < 0) item else item.copy(
                                     plannedSets = (item.plannedSets - 1).coerceAtLeast(1),
-                                    sets = item.sets.filterIndexed { index, _ -> index != lastWorking }
-                                        .mapIndexed { index, set -> if (set.kind == "working") set.copy(setNumber = index + 1) else set }
+                                    sets = item.sets.filterIndexed { index, _ -> index != lastWorking }.let { remaining ->
+                                        var workingNumber = 0
+                                        var warmupNumber = 0
+                                        remaining.map { set ->
+                                            if (set.kind == "working") set.copy(setNumber = ++workingNumber)
+                                            else set.copy(setNumber = warmupNumber++)
+                                        }
+                                    }
                                 )
                             } else item
                         })
