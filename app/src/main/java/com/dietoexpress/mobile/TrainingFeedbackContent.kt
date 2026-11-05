@@ -173,7 +173,7 @@ internal fun TrainingFeedbackContent(
     ) {
         Text(
             "Tu plan, paso a paso",
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 4.dp).bringIntoViewRequester(sessionTopRequester),
             style = MaterialTheme.typography.titleMedium,
             color = TrainingForest,
             fontWeight = FontWeight.Bold
@@ -201,7 +201,7 @@ internal fun TrainingFeedbackContent(
                 )
             } else {
                 Row(
-                    modifier = Modifier.fillMaxWidth().bringIntoViewRequester(sessionTopRequester),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
