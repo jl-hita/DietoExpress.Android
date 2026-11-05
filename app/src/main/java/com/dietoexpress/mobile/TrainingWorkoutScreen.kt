@@ -98,19 +98,19 @@ internal fun TrainingWorkoutScreen(
                             Text(if (set.kind == "warmup") "Cal." else set.setNumber.toString(),
                                 Modifier.weight(0.8f), color = if (set.kind == "warmup") WorkoutMuted else WorkoutAccent, fontWeight = FontWeight.Bold)
                             OutlinedTextField(set.weightKg?.let(::formatWorkoutNumber).orEmpty(), { value ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(weightKg = value.replace(',', '.').toDoubleOrNull())) ::updateDraft
+                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(weightKg = value.replace(',', '.').toDoubleOrNull()), ::updateDraft)
                             }, Modifier.weight(1f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 colors = workoutFieldColors(), placeholder = { Text("0", color = WorkoutMuted) })
                             OutlinedTextField(set.repetitions?.toString().orEmpty(), { value ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(repetitions = value.toIntOrNull())) ::updateDraft
+                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(repetitions = value.toIntOrNull()), ::updateDraft)
                             }, Modifier.weight(1f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 colors = workoutFieldColors(), placeholder = { Text("0", color = WorkoutMuted) })
                             OutlinedTextField(set.rir?.let(::formatWorkoutNumber).orEmpty(), { value ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(rir = value.replace(',', '.').toDoubleOrNull())) ::updateDraft
+                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(rir = value.replace(',', '.').toDoubleOrNull()), ::updateDraft)
                             }, Modifier.weight(0.8f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 colors = workoutFieldColors(), placeholder = { Text("—", color = WorkoutMuted) })
                             Checkbox(set.completed, { checked ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(completed = checked)) ::updateDraft
+                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(completed = checked), ::updateDraft)
                             }, enabled = !busy)
                         }
                     }
