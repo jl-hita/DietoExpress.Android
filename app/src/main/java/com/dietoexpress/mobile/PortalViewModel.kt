@@ -915,8 +915,25 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 // The backend upserts one record per patient/session. Retrying this immutable
                 // final snapshot is safe even when the response to the first request was lost.
                 offline.enqueueTrainingRecord(accountId, session.id, request, idempotencyKey)
-                _state.value = _state.value.copy(trainingDraft = null,
+                val localTraining = _state.value.training?.let { envelope ->
+                    envelope.copy(sessions = envelope.sessions.map { current ->
+                        if (current.id != session.id) current else current.copy(
+                            completedAt = request.completedAt,
+                            actualDurationMinutes = request.actualDurationMinutes,
+                            sessionRpe = request.sessionRpe,
+                            recordNotes = request.notes,
+                            outcome = request.outcome,
+                            nonCompletionReason = request.nonCompletionReason,
+                            recoveryRating = request.recoveryRating,
+                            painSignal = request.painSignal,
+                            progressionTargetAchieved = request.progressionTargetAchieved,
+                            exerciseFeedback = request.exerciseFeedback
+                        )
+                    })
+                }
+                _state.value = _state.value.copy(training = localTraining, trainingLoaded = true, trainingDraft = null,
                     message = "Entrenamiento guardado en el dispositivo. Se sincronizará al recuperar la conexión.", error = false)
+                if (localTraining != null) offline.cacheValue(accountId, "training", localTraining)
                 offline.invalidate(accountId, "training-active-draft")
             }
         }
