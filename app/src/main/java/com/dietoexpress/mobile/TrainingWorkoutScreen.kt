@@ -47,7 +47,13 @@ internal fun TrainingWorkoutScreen(
             activeRestExerciseIds = active.filterTo(mutableSetOf()) { (restRemainingByExercise[it] ?: 0) > 0 }
         }
     }
-    LaunchedEffect(draft) { onDraftChanged(draft) }
+    val lastPersistedDraft = remember(session.id) { mutableStateOf<TrainingWorkoutDraft?>(null) }
+    SideEffect {
+        if (lastPersistedDraft.value != draft) {
+            onDraftChanged(draft)
+            lastPersistedDraft.value = draft
+        }
+    }
     val elapsedMinutes = ((System.currentTimeMillis() - draft.startedAtEpochMs) / 60_000L).toInt().coerceAtLeast(1)
     val planned = draft.exercises.sumOf { it.plannedSets }
     val done = draft.exercises.sumOf { e -> e.sets.count { it.kind == "working" && it.completed } }
