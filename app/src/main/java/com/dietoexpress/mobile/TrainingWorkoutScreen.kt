@@ -48,8 +48,8 @@ internal fun TrainingWorkoutScreen(
         Text(runCatching { LocalDate.parse(session.scheduledDate.take(10)).format(DateTimeFormatter.ofPattern("EEEE, d MMMM")) }.getOrDefault("Sesión programada"),
             color = WorkoutMuted)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Metric("$done/$planned", "series completadas")
-            Metric("$elapsedMinutes min", "tiempo transcurrido")
+            Metric("$done/$planned", "series completadas", Modifier.weight(1f))
+            Metric("$elapsedMinutes min", "tiempo transcurrido", Modifier.weight(1f))
         }
         draft.exercises.forEachIndexed { exerciseIndex, exercise ->
             Card(colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(20.dp)) {
@@ -105,6 +105,19 @@ internal fun TrainingWorkoutScreen(
                             })
                         }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutLime)) { Text("+ Añadir serie") }
                     }
+                    TextButton(onClick = {
+                        draft = draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
+                            if (i == exerciseIndex) {
+                                val lastWorking = item.sets.indexOfLast { it.kind == "working" }
+                                if (lastWorking < 0) item else item.copy(
+                                    plannedSets = (item.plannedSets - 1).coerceAtLeast(1),
+                                    sets = item.sets.filterIndexed { index, _ -> index != lastWorking }
+                                        .mapIndexed { index, set -> if (set.kind == "working") set.copy(setNumber = index + 1) else set }
+                                )
+                            } else item
+                        })
+                    }, enabled = !busy && exercise.plannedSets > 1,
+                        colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("− Quitar última serie") }
                     exercise.restSeconds?.let { Text("Descanso recomendado: $it s", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall) }
                 }
             }
@@ -160,8 +173,8 @@ internal fun TrainingWorkoutScreen(
 }
 
 @Composable
-private fun Metric(value: String, label: String) {
-    Card(Modifier.width(140.dp), colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(16.dp)) {
+private fun Metric(value: String, label: String, modifier: Modifier = Modifier) {
+    Card(modifier, colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.padding(12.dp)) {
             Text(value, color = WorkoutLime, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
             Text(label, color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
