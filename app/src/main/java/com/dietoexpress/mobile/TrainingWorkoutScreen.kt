@@ -177,7 +177,8 @@ internal fun TrainingWorkoutScreen(
                     if (v.isBlank()) draft = draft.copy(sessionRpe = null)
                     else v.replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..10.0 }?.let { draft = draft.copy(sessionRpe = it) }
                 },
-                    Modifier.fillMaxWidth(), enabled = !busy, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                    Modifier.fillMaxWidth(), enabled = !busy, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = workoutFieldColors())
                 if (draft.exercises.any { ex -> ex.sets.count { it.kind == "working" && it.completed } < ex.plannedSets }) {
                     Text("Motivo principal de las series no completadas", color = WorkoutMuted)
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
