@@ -6,6 +6,7 @@ on:
     paths:
       - 'docs/privacy-policy.html'
       - 'docs/account-deletion.html'
+      - 'docs/terms-of-service.html'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
