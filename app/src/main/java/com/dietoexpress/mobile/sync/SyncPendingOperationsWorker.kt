@@ -78,6 +78,12 @@ class SyncPendingOperationsWorker(context: Context, params: WorkerParameters) : 
                 }
                 if (sessionMismatch) return Result.success()
                 if (unknownOperation) continue
+                if (operation.operationType == OfflineRepository.OP_RECORD_TRAINING_SESSION) {
+                    // Refresh the encrypted snapshot after the idempotent write so the next
+                    // training screen does not keep presenting the pre-workout record.
+                    val refreshedTraining = PortalService.api.trainingSessions()
+                    repository.cacheValue(accountId, "training", refreshedTraining)
+                }
                 repository.completeOperation(operation.id)
             } catch (ex: CancellationException) {
                 // A cancelled worker may have reached the server. Keep the durable operation and key.
