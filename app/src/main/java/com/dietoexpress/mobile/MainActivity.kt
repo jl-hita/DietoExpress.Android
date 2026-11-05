@@ -366,7 +366,15 @@ class MainActivity : ComponentActivity() {
                                         busy = state.busy, onDraftChange = vm::updateMessageDraft,
                                         onSend = vm::sendMessage, onRetry = { vm.openSection("messages") }
                                     )
-                                    "training" -> TrainingFeedbackContent(state.training, state.trainingLoaded, state.busy, vm::recordTrainingSession) { vm.openSection("training") }
+                                    "training" -> TrainingFeedbackContent(
+                                        envelope = state.training,
+                                        loaded = state.trainingLoaded,
+                                        busy = state.busy,
+                                        onRecord = vm::recordTrainingSession,
+                                        onRetry = { vm.openSection("training") },
+                                        activeDraft = state.trainingDraft,
+                                        onDraftChanged = vm::saveTrainingDraft
+                                    )
                                     "progress" -> ProgressContent(
                                         eligibilityMessage = state.checkinEligibility?.message,
                                         eligible = state.checkinEligibility?.eligible,
