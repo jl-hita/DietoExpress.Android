@@ -41,6 +41,7 @@ import com.dietoexpress.mobile.data.PatientTrainingRecordRequest
 import com.dietoexpress.mobile.data.TrainingEnvelope
 import com.dietoexpress.mobile.data.TrainingExerciseFeedback
 import com.dietoexpress.mobile.data.TrainingSession
+import com.dietoexpress.mobile.data.TrainingWorkoutDraft
 import java.time.LocalDate
 import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
@@ -132,8 +133,11 @@ internal fun TrainingFeedbackContent(
     loaded: Boolean,
     busy: Boolean,
     onRecord: (TrainingSession, PatientTrainingRecordRequest) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    activeDraft: TrainingWorkoutDraft? = null,
+    onDraftChanged: (TrainingWorkoutDraft) -> Unit = {}
 ) {
+    var workoutMode by remember { mutableStateOf(false) }
     val weekSummaries = remember(envelope?.sessions) { buildTrainingWeekSummaries(envelope?.sessions.orEmpty()) }
     var trainingPageOffset by remember { mutableStateOf(0) }
     val allSessions = envelope?.sessions.orEmpty()
@@ -177,10 +181,24 @@ internal fun TrainingFeedbackContent(
                 }
             }
         } else if (selectedSession != null) {
-            OutlinedButton(onClick = { selectedSessionId = null }, enabled = !busy) {
-                Text("← Volver a mis entrenamientos")
+            if (workoutMode) {
+                TrainingWorkoutScreen(
+                    session = selectedSession,
+                    initialDraft = activeDraft,
+                    busy = busy,
+                    onDraftChanged = onDraftChanged,
+                    onFinish = onRecord,
+                    onBack = { workoutMode = false }
+                )
+            } else {
+                OutlinedButton(onClick = { selectedSessionId = null }, enabled = !busy) {
+                    Text("← Volver a mis entrenamientos")
+                }
+                Button(onClick = { workoutMode = true }, enabled = !busy) {
+                    Text(if (activeDraft?.sessionId == selectedSession.id) "Continuar entrenamiento" else "Iniciar entrenamiento")
+                }
+                TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
             }
-            TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
         } else {
             envelope.adaptationRecommendation?.let { recommendation ->
                 Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE7F2EC))) {
