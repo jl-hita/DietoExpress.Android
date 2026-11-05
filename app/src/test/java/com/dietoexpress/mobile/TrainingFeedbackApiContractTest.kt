@@ -64,12 +64,12 @@ class TrainingFeedbackApiContractTest {
         val json = gson.toJson(feedback)
         val decoded = gson.fromJson(json, TrainingExerciseFeedback::class.java)
 
-        assertEquals(3, decoded.sets.size)
-        assertEquals("warmup", decoded.sets.first().kind)
-        assertEquals(60.0, decoded.sets[1].weightKg!!, 0.001)
-        assertEquals(10, decoded.sets[1].repetitions)
-        assertEquals(2.0, decoded.sets[1].rir!!, 0.001)
-        assertEquals(true, decoded.sets[1].completed)
+        assertEquals(3, decoded.sets.orEmpty().size)
+        assertEquals("warmup", decoded.sets.orEmpty().first().kind)
+        assertEquals(60.0, decoded.sets.orEmpty()[1].weightKg!!, 0.001)
+        assertEquals(10, decoded.sets.orEmpty()[1].repetitions)
+        assertEquals(2.0, decoded.sets.orEmpty()[1].rir!!, 0.001)
+        assertEquals(true, decoded.sets.orEmpty()[1].completed)
     }
 
     @Test
