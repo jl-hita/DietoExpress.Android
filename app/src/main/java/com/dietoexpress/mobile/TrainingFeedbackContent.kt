@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.dietoexpress.mobile.data.PatientTrainingRecordRequest
 import com.dietoexpress.mobile.data.TrainingEnvelope
 import com.dietoexpress.mobile.data.TrainingExerciseFeedback
+import com.dietoexpress.mobile.data.TrainingExerciseProgressionRecommendation
 import com.dietoexpress.mobile.data.TrainingSession
 import com.dietoexpress.mobile.data.TrainingWorkoutDraft
 import java.time.LocalDate
@@ -235,6 +236,14 @@ internal fun TrainingFeedbackContent(
                         color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
+                envelope.exerciseProgressionRecommendations
+                    .filter { recommendation ->
+                        recommendation.sessionId == selectedSession.id &&
+                            recommendation.action in setOf("add_repetitions", "confirm_top_of_range", "increase_load", "hold_and_review")
+                    }
+                    .forEach { recommendation ->
+                        TrainingExerciseProgressionCard(recommendation)
+                    }
             }
         } else {
             envelope.adaptationRecommendation?.let { recommendation ->
@@ -627,6 +636,48 @@ private fun TrainingChoiceField(
             }
         }
     }
+}
+
+@Composable
+private fun TrainingExerciseProgressionCard(
+    recommendation: TrainingExerciseProgressionRecommendation
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F5F1))
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                recommendation.exerciseName ?: "Progresión del ejercicio",
+                color = TrainingForest,
+                fontWeight = FontWeight.Bold
+            )
+            Text(progressionActionTitle(recommendation.action), fontWeight = FontWeight.SemiBold)
+            Text(recommendation.explanation, style = MaterialTheme.typography.bodyMedium)
+            recommendation.suggestedLoadKg?.let { load ->
+                Text("Carga sugerida: ${load} kg", fontWeight = FontWeight.SemiBold, color = TrainingForest)
+            }
+            recommendation.suggestedRepetitionsBySet
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { repetitions ->
+                    Text("Objetivo de repeticiones: ${repetitions.joinToString(" / ")}")
+                }
+            Text(
+                "Es una recomendación orientativa; no cambia automáticamente tu planificación.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TrainingMuted
+            )
+        }
+    }
+}
+
+private fun progressionActionTitle(action: String): String = when (action) {
+    "add_repetitions" -> "Mantén el peso y suma repeticiones"
+    "confirm_top_of_range" -> "Confirma el máximo antes de subir peso"
+    "increase_load" -> "Puedes aumentar ligeramente la carga"
+    "hold_and_review" -> "Mantén la carga y revisa el contexto"
+    else -> "Progresión pendiente de datos"
 }
 
 private fun adaptationTitle(action: String): String = when (action) {
