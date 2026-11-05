@@ -194,8 +194,15 @@ internal fun TrainingFeedbackContent(
                 OutlinedButton(onClick = { selectedSessionId = null }, enabled = !busy) {
                     Text("← Volver a mis entrenamientos")
                 }
-                Button(onClick = { workoutMode = true }, enabled = !busy) {
+                Button(
+                    onClick = { workoutMode = true },
+                    enabled = !busy && (activeDraft == null || activeDraft.sessionId == selectedSession.id)
+                ) {
                     Text(if (activeDraft?.sessionId == selectedSession.id) "Continuar entrenamiento" else "Iniciar entrenamiento")
+                }
+                if (activeDraft != null && activeDraft.sessionId != selectedSession.id) {
+                    Text("Tienes otro entrenamiento sin finalizar. Continúalo antes de iniciar una sesión diferente.",
+                        color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
             }
