@@ -165,6 +165,7 @@ internal fun TrainingWorkoutScreen(
                 nonCompletionReason = if (allComplete) "none" else draft.nonCompletionReason, recoveryRating = draft.recoveryRating,
                 painSignal = draft.painSignal, exerciseFeedback = feedback
             ))
+            onBack()
         }, Modifier.fillMaxWidth(), enabled = !busy && draft.exercises.isNotEmpty(),
             colors = ButtonDefaults.buttonColors(containerColor = WorkoutLime, contentColor = WorkoutBackground)) {
             Text(if (busy) "Guardando…" else "Finalizar y guardar entrenamiento", fontWeight = FontWeight.Bold)
