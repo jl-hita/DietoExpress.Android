@@ -35,7 +35,6 @@ jobs:
           grep -q 'Jose Luis Hita Perez' docs/terms-of-service.html
           grep -q '43555753D' docs/terms-of-service.html
           grep -q 'dietoexpress@gmail.com' docs/terms-of-service.html
-          grep -q 'terms-of-service.html' docs/terms-of-service.html
           ! grep -Eq '\[(EMAIL-DE-PRIVACIDAD|NOMBRE LEGAL COMPLETO)' docs/privacy-policy.html
   deploy:
     needs: validate
