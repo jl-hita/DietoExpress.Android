@@ -328,8 +328,11 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 showMessage("PDF de la dieta guardado correctamente.", false)
+            } catch (ex: HttpException) {
+                runCatching { context.contentResolver.delete(destination, null, null) }
+                throw ex
             } catch (ex: Exception) {
-                context.contentResolver.delete(destination, null, null)
+                runCatching { context.contentResolver.delete(destination, null, null) }
                 showMessage(ex.message?.takeIf { it.isNotBlank() } ?: "No se ha podido guardar el PDF de la dieta.", true)
             }
         }
