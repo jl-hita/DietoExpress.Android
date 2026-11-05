@@ -125,6 +125,7 @@ class TrainingFeedbackApiContractTest {
         assertEquals(1, session.exerciseFeedback.size)
         assertEquals(2, session.exerciseFeedback.single().completedSets)
         assertEquals("fatigue", session.exerciseFeedback.single().skippedSetReason)
+        assertEquals(0, session.exerciseFeedback.single().sets.orEmpty().size)
 
         val legacy = gson.fromJson(
             """{"enabled":true,"sessions":[{"id":8,"planId":3,"scheduledDate":"2026-10-29","title":"Sesión heredada","sessionType":"strength","exercisePrescription":"Prensa — 3 × 10"}]}""",
