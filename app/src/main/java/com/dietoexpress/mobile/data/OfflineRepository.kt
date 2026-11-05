@@ -19,6 +19,11 @@ data class OfflineRead<T>(
     val updatedAtEpochMs: Long? = null
 )
 
+data class PendingTrainingRecord(
+    val sessionId: Int,
+    val request: PatientTrainingRecordRequest
+)
+
 class OfflineRepository(context: Context) {
     private val appContext = context.applicationContext
     private val dao = OfflineDatabase.get(appContext).offlineDao()
@@ -130,6 +135,25 @@ class OfflineRepository(context: Context) {
         return id
     }
 
+    /** Queue one immutable final workout snapshot. The server upserts one record per patient/session,
+     * so retries of this exact payload cannot create duplicate session records. */
+    suspend fun enqueueTrainingRecord(accountId: Int, sessionId: Int, request: PatientTrainingRecordRequest, idempotencyKey: String): String {
+        require(sessionId > 0) { "La sesión de entrenamiento no es válida." }
+        require(idempotencyKey.isNotBlank() && idempotencyKey.length <= 100) { "La clave de sincronización no es válida." }
+        val id = UUID.randomUUID().toString()
+        val payload = gson.toJson(PendingTrainingRecord(sessionId, request))
+        dao.enqueue(PendingOperationEntity(
+            id = id,
+            accountId = accountId,
+            operationType = OP_RECORD_TRAINING_SESSION,
+            encryptedPayload = LocalPayloadCipher.encrypt(payload),
+            createdAtEpochMs = System.currentTimeMillis(),
+            idempotencyKey = idempotencyKey
+        ))
+        scheduleSync(accountId)
+        return id
+    }
+
     suspend fun pendingOperations(accountId: Int) = dao.pendingOperations(accountId, System.currentTimeMillis())
     suspend fun allOperations(accountId: Int): List<PendingOperationEntity> = dao.allOperations(accountId)
 
@@ -195,6 +219,7 @@ class OfflineRepository(context: Context) {
     companion object {
         const val OP_MARK_MESSAGES_READ = "MARK_MESSAGES_READ"
         const val OP_SEND_PATIENT_MESSAGE = "SEND_PATIENT_MESSAGE"
+        const val OP_RECORD_TRAINING_SESSION = "RECORD_TRAINING_SESSION"
         private const val DRAFT_KEY = "message-draft"
         private const val STATE_PREFS = "dietoexpress_offline_state"
         private const val ACTIVE_ACCOUNT_KEY = "active_account_id"
