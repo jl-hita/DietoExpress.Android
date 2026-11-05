@@ -3,6 +3,7 @@ package com.dietoexpress.mobile
 import com.dietoexpress.mobile.data.PatientTrainingRecordRequest
 import com.dietoexpress.mobile.data.TrainingEnvelope
 import com.dietoexpress.mobile.data.TrainingExerciseFeedback
+import com.dietoexpress.mobile.data.TrainingSetRecord
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -43,6 +44,30 @@ class TrainingFeedbackApiContractTest {
         assertEquals(2, decoded.exerciseFeedback.first().completedSets)
         assertEquals("fatigue", decoded.exerciseFeedback.first().skippedSetReason)
         assertEquals("row-basic", decoded.exerciseFeedback.last().exerciseId)
+    }
+
+    @Test
+    fun perSetWorkoutDataRoundTripsWithLoadRepetitionsRirAndWarmups() {
+        val feedback = TrainingExerciseFeedback(
+            exerciseId = "bench-press",
+            exerciseName = "Press banca",
+            plannedSets = 2,
+            completedSets = 2,
+            sets = listOf(
+                TrainingSetRecord(0, "warmup", 20.0, 12, 5.0, true),
+                TrainingSetRecord(1, "working", 60.0, 10, 2.0, true),
+                TrainingSetRecord(2, "working", 60.0, 9, 1.0, true)
+            )
+        )
+        val json = gson.toJson(feedback)
+        val decoded = gson.fromJson(json, TrainingExerciseFeedback::class.java)
+
+        assertEquals(3, decoded.sets.size)
+        assertEquals("warmup", decoded.sets.first().kind)
+        assertEquals(60.0, decoded.sets[1].weightKg!!, 0.001)
+        assertEquals(10, decoded.sets[1].repetitions)
+        assertEquals(2.0, decoded.sets[1].rir!!, 0.001)
+        assertEquals(true, decoded.sets[1].completed)
     }
 
     @Test
