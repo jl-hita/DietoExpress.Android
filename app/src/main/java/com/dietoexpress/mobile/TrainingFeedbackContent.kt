@@ -445,7 +445,7 @@ private fun TrainingSessionCard(
                             color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                         val key = exercise.exerciseId ?: "order-${exercise.order ?: index}"
                         val planned = exercise.sets ?: 0
-                        if (planned > 0) {
+                        if (structuredPrescription == null && planned > 0) {
                             OutlinedTextField(
                                 value = completedSets[key].orEmpty(),
                                 onValueChange = { value -> if (value.isEmpty() || value.all(Char::isDigit)) completedSets[key] = value },
@@ -455,12 +455,12 @@ private fun TrainingSessionCard(
                                 singleLine = true,
                                 enabled = !busy
                             )
-                        } else {
+                        } else if (structuredPrescription == null) {
                             Text("No hay un número de series prescritas con el que comparar el volumen real.", color = TrainingMuted,
                                 style = MaterialTheme.typography.bodySmall)
                         }
                         val done = completedSets[key]?.toIntOrNull()
-                        if (done != null && done in 0 until planned) {
+                        if (structuredPrescription == null && done != null && done in 0 until planned) {
                             TrainingChoiceField("Motivo de las series omitidas", skippedReasons[key].orEmpty(), listOf(
                                 "" to "Selecciona un motivo",
                                 "fatigue" to "Fatiga o esfuerzo excesivo",
@@ -485,6 +485,7 @@ private fun TrainingSessionCard(
                 Text("Último registro: ${session.actualDurationMinutes ?: "—"} min · RPE ${session.sessionRpe ?: "—"}",
                     color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
             }
+            if (structuredPrescription == null) {
             TrainingChoiceField("¿Cómo fue la sesión?", outcome,
                 listOf("" to "Selecciona una opción", "completed" to "Completada", "partial" to "Parcial", "not_completed" to "No realizada")) {
                 outcome = it
@@ -546,6 +547,10 @@ private fun TrainingSessionCard(
                 ))
             }, modifier = Modifier.fillMaxWidth(), enabled = !busy) {
                 Text(if (busy) "Guardando…" else "Guardar check-in")
+            }
+            } else if (session.completedAt == null) {
+                Text("Inicia el entrenamiento para registrar cada serie, carga, repeticiones y RIR.", color = TrainingMuted,
+                    style = MaterialTheme.typography.bodySmall)
             }
         }
     }
