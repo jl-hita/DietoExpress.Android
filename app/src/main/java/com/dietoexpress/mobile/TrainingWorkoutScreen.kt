@@ -188,7 +188,7 @@ internal fun TrainingWorkoutScreen(
                     (set.weightKg == null || set.weightKg in 0.0..1000.0) &&
                     (set.repetitions == null || set.repetitions in 0..1000) &&
                     (set.rir == null || set.rir in 0.0..10.0) &&
-                    (!set.completed || set.repetitions in 1..1000)
+                    (!set.completed || (set.repetitions != null && set.repetitions in 1..1000))
                 }
         }, colors = ButtonDefaults.buttonColors(containerColor = WorkoutLime, contentColor = WorkoutBackground)) {
             Text(if (busy) "Guardando…" else "Finalizar y guardar entrenamiento", fontWeight = FontWeight.Bold)
