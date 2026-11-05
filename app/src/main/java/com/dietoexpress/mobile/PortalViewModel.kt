@@ -309,7 +309,13 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     if (length > 25L * 1024L * 1024L) throw IOException("El PDF supera el tamaño permitido.")
                     val input = body.byteStream().buffered()
                     val header = ByteArray(5)
-                    if (input.read(header) != header.size || !header.contentEquals("%PDF-".toByteArray(Charsets.US_ASCII))) {
+                    var headerRead = 0
+                    while (headerRead < header.size) {
+                        val count = input.read(header, headerRead, header.size - headerRead)
+                        if (count < 0) break
+                        headerRead += count
+                    }
+                    if (headerRead != header.size || !header.contentEquals("%PDF-".toByteArray(Charsets.US_ASCII))) {
                         throw IOException("El archivo recibido no es un PDF válido.")
                     }
                     val output = context.contentResolver.openOutputStream(destination, "wt")
