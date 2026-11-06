@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.dietoexpress.mobile.data.PatientTrainingRecordRequest
 import com.dietoexpress.mobile.data.TrainingEnvelope
 import com.dietoexpress.mobile.data.TrainingExerciseFeedback
+import com.dietoexpress.mobile.data.TrainingExerciseProgressionRecommendation
 import com.dietoexpress.mobile.data.TrainingSession
 import com.dietoexpress.mobile.data.TrainingWorkoutDraft
 import java.time.LocalDate
@@ -85,6 +86,61 @@ internal fun hasTrainingSessionsAfter(sessions: List<TrainingSession>, today: Lo
     val periodEnd = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(pageOffset * 2L + 2).minusDays(1)
     return sessions.any { session ->
         runCatching { LocalDate.parse(session.scheduledDate.take(10)) }.getOrNull()?.isAfter(periodEnd) == true
+    }
+}
+
+@Composable
+private fun TrainingExerciseProgressionGuidance(
+    recommendations: List<TrainingExerciseProgressionRecommendation>
+) {
+    val visible = recommendations.filter { recommendation ->
+        recommendation.action in setOf(
+            "add_repetitions", "increase_load", "confirm_top_of_range",
+            "hold_and_review", "stagnation_review", "invalid_data", "invalid_prescription"
+        )
+    }
+    if (visible.isEmpty()) return
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Orientación para esta sesión", fontWeight = FontWeight.Bold, color = TrainingForest)
+            visible.forEach { recommendation ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        recommendation.exerciseName?.takeIf { it.isNotBlank() } ?: recommendation.exerciseId,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TrainingForest
+                    )
+                    Text(
+                        when (recommendation.action) {
+                            "add_repetitions" -> "Mantén la carga y progresa en repeticiones"
+                            "increase_load" -> "Puedes valorar subir la carga"
+                            "confirm_top_of_range" -> "Confirma el máximo del rango antes de subir peso"
+                            "stagnation_review" -> "Revisar posible estancamiento"
+                            "invalid_data" -> "Revisar los datos registrados"
+                            "invalid_prescription" -> "Revisar la prescripción"
+                            else -> "Mantener y revisar antes de progresar"
+                        },
+                        fontWeight = FontWeight.Medium
+                    )
+                    recommendation.suggestedLoadKg?.let { load ->
+                        Text("Carga orientativa: ${"%.2f".format(java.util.Locale.ROOT, load)} kg")
+                    }
+                    recommendation.suggestedRepetitionsBySet?.takeIf { it.isNotEmpty() }?.let { reps ->
+                        Text("Repeticiones orientativas por serie: ${reps.joinToString(" · ")}")
+                    }
+                    Text(recommendation.explanation, color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Text(
+                "Son recomendaciones, no cambios automáticos del plan. Confirma cualquier ajuste con tu profesional.",
+                color = TrainingMuted,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
     }
 }
 
@@ -234,6 +290,9 @@ internal fun TrainingFeedbackContent(
                     Text("Esta sesión no tiene una prescripción estructurada para registrar series. Puedes consultar el detalle y enviar el check-in clásico.",
                         color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                 }
+                TrainingExerciseProgressionGuidance(
+                    envelope.exerciseProgressionRecommendations.orEmpty().filter { it.sessionId == selectedSession.id }
+                )
                 TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
             }
         } else {
