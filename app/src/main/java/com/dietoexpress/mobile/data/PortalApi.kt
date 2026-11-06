@@ -204,7 +204,7 @@ data class TrainingEnvelope(
     val enabled: Boolean,
     val sessions: List<TrainingSession> = emptyList(),
     val adaptationRecommendation: TrainingAdaptationRecommendation? = null,
-    val exerciseProgressionRecommendations: List<TrainingExerciseProgressionRecommendation> = emptyList()
+    val exerciseProgressionRecommendations: List<TrainingExerciseProgressionRecommendation>? = emptyList()
 )
 
 data class TrainingAdaptationRecommendation(
