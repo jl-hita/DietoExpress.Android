@@ -143,7 +143,7 @@ class TrainingFeedbackApiContractTest {
         )
         assertEquals("hold_progression_and_review", response.adaptationRecommendation?.action)
         assertEquals("Revisa la recuperación.", response.adaptationRecommendation?.explanation)
-        val progression = response.exerciseProgressionRecommendations.single()
+        val progression = response.exerciseProgressionRecommendations.orEmpty().single()
         assertEquals(44, progression.sessionId)
         assertEquals("bench-press", progression.exerciseId)
         assertEquals("Press banca", progression.exerciseName)
