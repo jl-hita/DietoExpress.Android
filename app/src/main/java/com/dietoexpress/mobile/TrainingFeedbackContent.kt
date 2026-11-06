@@ -291,7 +291,7 @@ internal fun TrainingFeedbackContent(
                         color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 TrainingExerciseProgressionGuidance(
-                    envelope.exerciseProgressionRecommendations.filter { it.sessionId == selectedSession.id }
+                    envelope.exerciseProgressionRecommendations.orEmpty().filter { it.sessionId == selectedSession.id }
                 )
                 TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
             }
