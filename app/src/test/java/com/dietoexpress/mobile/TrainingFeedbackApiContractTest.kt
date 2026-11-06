@@ -156,6 +156,6 @@ class TrainingFeedbackApiContractTest {
         val olderResponse = gson.fromJson("""{"enabled":true,"sessions":[]}""", TrainingEnvelope::class.java)
         assertNull(olderResponse.adaptationRecommendation)
         assertEquals(emptyList<com.dietoexpress.mobile.data.TrainingExerciseProgressionRecommendation>(),
-            olderResponse.exerciseProgressionRecommendations)
+            olderResponse.exerciseProgressionRecommendations.orEmpty())
     }
 }
