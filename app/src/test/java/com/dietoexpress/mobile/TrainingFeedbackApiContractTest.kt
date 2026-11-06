@@ -136,15 +136,26 @@ class TrainingFeedbackApiContractTest {
     }
 
     @Test
-    fun trainingResponseReadsRecommendationAndRemainsCompatibleWithOlderPayloads() {
+    fun trainingResponseReadsSessionAndExerciseRecommendationsAndRemainsBackwardCompatible() {
         val response = gson.fromJson(
-            """{"enabled":true,"sessions":[],"adaptationRecommendation":{"action":"hold_progression_and_review","explanation":"Revisa la recuperación."}}""",
+            """{"enabled":true,"sessions":[],"adaptationRecommendation":{"action":"hold_progression_and_review","explanation":"Revisa la recuperación."},"exerciseProgressionRecommendations":[{"sessionId":44,"exerciseId":"bench-press","exerciseName":"Press banca","action":"increase_load","explanation":"Dos sesiones en el máximo del rango.","suggestedLoadKg":62.5,"loadIncreaseKg":2.5,"suggestedRepetitionsBySet":[8,8,8],"maximumLoadIncreasePercent":5.0}]}""",
             TrainingEnvelope::class.java
         )
         assertEquals("hold_progression_and_review", response.adaptationRecommendation?.action)
         assertEquals("Revisa la recuperación.", response.adaptationRecommendation?.explanation)
+        val progression = response.exerciseProgressionRecommendations.single()
+        assertEquals(44, progression.sessionId)
+        assertEquals("bench-press", progression.exerciseId)
+        assertEquals("Press banca", progression.exerciseName)
+        assertEquals("increase_load", progression.action)
+        assertEquals(62.5, progression.suggestedLoadKg!!, 0.001)
+        assertEquals(2.5, progression.loadIncreaseKg!!, 0.001)
+        assertEquals(listOf(8, 8, 8), progression.suggestedRepetitionsBySet)
+        assertEquals(5.0, progression.maximumLoadIncreasePercent!!, 0.001)
 
         val olderResponse = gson.fromJson("""{"enabled":true,"sessions":[]}""", TrainingEnvelope::class.java)
         assertNull(olderResponse.adaptationRecommendation)
+        assertEquals(emptyList<com.dietoexpress.mobile.data.TrainingExerciseProgressionRecommendation>(),
+            olderResponse.exerciseProgressionRecommendations)
     }
 }
