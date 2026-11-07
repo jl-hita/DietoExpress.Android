@@ -1,6 +1,9 @@
 package com.dietoexpress.mobile
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -8,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -57,8 +61,8 @@ internal fun TrainingWorkoutScreen(
     val done = draft.exercises.sumOf { e -> e.sets.count { it.kind == "working" && it.completed } }
     val validationMessages = workoutValidationMessages(draft)
 
-    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { onDraftChanged(draft); onBack() }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutAccent)) { Text("← Volver") }
             Text("ENTRENAMIENTO", color = WorkoutAccent, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -75,8 +79,8 @@ internal fun TrainingWorkoutScreen(
             val timerKey = exercise.exerciseId ?: "exercise-$exerciseIndex"
             val restRemaining = restRemainingByExercise[timerKey] ?: 0
             val restActive = timerKey in activeRestExerciseIds
-            Card(colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(20.dp)) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f)) {
                             Text("${exerciseIndex + 1}. ${exercise.exerciseName}", color = WorkoutText, fontWeight = FontWeight.Bold,
@@ -97,18 +101,21 @@ internal fun TrainingWorkoutScreen(
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(if (set.kind == "warmup") "Cal." else set.setNumber.toString(),
                                 Modifier.weight(0.8f), color = if (set.kind == "warmup") WorkoutMuted else WorkoutAccent, fontWeight = FontWeight.Bold)
-                            OutlinedTextField(set.weightKg?.let(::formatWorkoutNumber).orEmpty(), { value ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(weightKg = value.replace(',', '.').toDoubleOrNull()), ::updateDraft)
-                            }, Modifier.weight(1f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                colors = workoutFieldColors(), placeholder = { Text("0", color = WorkoutMuted) })
-                            OutlinedTextField(set.repetitions?.toString().orEmpty(), { value ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(repetitions = value.toIntOrNull()), ::updateDraft)
-                            }, Modifier.weight(1f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                colors = workoutFieldColors(), placeholder = { Text("0", color = WorkoutMuted) })
-                            OutlinedTextField(set.rir?.let(::formatWorkoutNumber).orEmpty(), { value ->
-                                updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(rir = value.replace(',', '.').toDoubleOrNull()), ::updateDraft)
-                            }, Modifier.weight(0.8f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                colors = workoutFieldColors(), placeholder = { Text("—", color = WorkoutMuted) })
+                            WorkoutSetField(
+                                value = set.weightKg?.let(::formatWorkoutNumber).orEmpty(),
+                                onValueChange = { value -> updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(weightKg = value.replace(',', '.').toDoubleOrNull()), ::updateDraft) },
+                                modifier = Modifier.weight(1.05f), placeholder = "0", keyboardType = KeyboardType.Decimal, enabled = !busy
+                            )
+                            WorkoutSetField(
+                                value = set.repetitions?.toString().orEmpty(),
+                                onValueChange = { value -> updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(repetitions = value.toIntOrNull()), ::updateDraft) },
+                                modifier = Modifier.weight(0.95f), placeholder = "0", keyboardType = KeyboardType.Number, enabled = !busy
+                            )
+                            WorkoutSetField(
+                                value = set.rir?.let(::formatWorkoutNumber).orEmpty(),
+                                onValueChange = { value -> updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(rir = value.replace(',', '.').toDoubleOrNull()), ::updateDraft) },
+                                modifier = Modifier.weight(0.72f), placeholder = "—", keyboardType = KeyboardType.Decimal, enabled = !busy
+                            )
                             Checkbox(set.completed, { checked ->
                                 updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(completed = checked), ::updateDraft)
                             }, enabled = !busy)
@@ -174,7 +181,7 @@ internal fun TrainingWorkoutScreen(
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(20.dp)) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Cierre del entrenamiento", color = WorkoutText, fontWeight = FontWeight.Bold)
                 Text("Esfuerzo global (RPE 0–10)", color = WorkoutMuted)
                 OutlinedTextField(draft.sessionRpe?.toString().orEmpty(), { v ->
@@ -248,6 +255,41 @@ internal fun TrainingWorkoutScreen(
             }
         }
     }
+}
+
+@Composable
+private fun WorkoutSetField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String,
+    keyboardType: KeyboardType,
+    enabled: Boolean
+) {
+    val shape = RoundedCornerShape(8.dp)
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+            .heightIn(min = 42.dp)
+            .background(WorkoutInput, shape)
+            .border(1.dp, WorkoutBorder, shape)
+            .padding(horizontal = 6.dp, vertical = 9.dp),
+        enabled = enabled,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        textStyle = MaterialTheme.typography.bodyMedium.copy(
+            color = if (enabled) WorkoutText else WorkoutMuted,
+            fontWeight = FontWeight.SemiBold
+        ),
+        cursorBrush = SolidColor(WorkoutAccent),
+        decorationBox = { innerTextField ->
+            Box(contentAlignment = Alignment.CenterStart) {
+                if (value.isEmpty()) Text(placeholder, color = WorkoutMuted, style = MaterialTheme.typography.bodyMedium)
+                innerTextField()
+            }
+        }
+    )
 }
 
 @Composable
