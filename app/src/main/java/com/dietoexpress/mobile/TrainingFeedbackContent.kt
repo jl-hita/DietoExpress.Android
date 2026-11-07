@@ -308,7 +308,7 @@ internal fun TrainingFeedbackContent(
                 }
             }
             if (weekSummaries.isNotEmpty()) {
-                Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth().clickable { showLoadDetails = !showLoadDetails },
@@ -514,13 +514,11 @@ private fun TrainingSessionCard(
                         color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 structuredPrescription.exercises.forEachIndexed { index, exercise ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F8F6))
-                    ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(11.dp),
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(vertical = 3.dp)
+                            .background(Color(0xFFF5F8F6), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 11.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Text("${exercise.order ?: index + 1}. ${exercise.exerciseNameSnapshot ?: "Ejercicio"}",
@@ -567,7 +565,6 @@ private fun TrainingSessionCard(
                                 "other" to "Otro"
                             )) { skippedReasons[key] = it }
                         }
-                    }
                     }
                 }
             } else {
