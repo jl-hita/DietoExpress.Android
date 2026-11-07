@@ -223,8 +223,11 @@ class MainActivity : ComponentActivity() {
                             Column(
                                 modifier = Modifier.fillMaxSize().padding(padding)
                                     .verticalScroll(rememberScrollState())
-                                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                                    .padding(
+                                        horizontal = if (state.section == "training") 8.dp else 20.dp,
+                                        vertical = if (state.section == "training") 12.dp else 18.dp
+                                    ),
+                                verticalArrangement = Arrangement.spacedBy(if (state.section == "training") 10.dp else 16.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
