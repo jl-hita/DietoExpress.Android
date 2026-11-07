@@ -57,8 +57,8 @@ internal fun TrainingWorkoutScreen(
     val done = draft.exercises.sumOf { e -> e.sets.count { it.kind == "working" && it.completed } }
     val validationMessages = workoutValidationMessages(draft)
 
-    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { onDraftChanged(draft); onBack() }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutAccent)) { Text("← Volver") }
             Text("ENTRENAMIENTO", color = WorkoutAccent, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -75,8 +75,8 @@ internal fun TrainingWorkoutScreen(
             val timerKey = exercise.exerciseId ?: "exercise-$exerciseIndex"
             val restRemaining = restRemainingByExercise[timerKey] ?: 0
             val restActive = timerKey in activeRestExerciseIds
-            Card(colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(20.dp)) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f)) {
                             Text("${exerciseIndex + 1}. ${exercise.exerciseName}", color = WorkoutText, fontWeight = FontWeight.Bold,
@@ -174,7 +174,7 @@ internal fun TrainingWorkoutScreen(
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(20.dp)) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Cierre del entrenamiento", color = WorkoutText, fontWeight = FontWeight.Bold)
                 Text("Esfuerzo global (RPE 0–10)", color = WorkoutMuted)
                 OutlinedTextField(draft.sessionRpe?.toString().orEmpty(), { v ->
