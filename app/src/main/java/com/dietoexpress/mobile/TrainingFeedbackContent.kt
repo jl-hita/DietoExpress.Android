@@ -224,8 +224,8 @@ internal fun TrainingFeedbackContent(
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
             "Tu plan, paso a paso",
@@ -238,8 +238,8 @@ internal fun TrainingFeedbackContent(
         if (!loaded && busy) {
             Box(modifier = Modifier.fillMaxWidth().padding(28.dp)) { CircularProgressIndicator() }
         } else if (envelope?.enabled != true) {
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text("El seguimiento deportivo no está activado", fontWeight = FontWeight.SemiBold)
                     Text("Si esperabas ver tus sesiones, consulta con tu profesional.", color = TrainingMuted)
                     OutlinedButton(onClick = onRetry, enabled = !busy) { Text("Actualizar") }
@@ -381,7 +381,7 @@ internal fun TrainingFeedbackContent(
                             colors = CardDefaults.cardColors(containerColor = Color.White)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                             ) {
@@ -500,7 +500,7 @@ private fun TrainingSessionCard(
 
     val missed = outcome == "not_completed"
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(dateLabel(session.scheduledDate), style = MaterialTheme.typography.labelMedium, color = TrainingMuted)
             Text(session.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             session.durationMinutes?.let { Text("Duración prevista: $it min", color = TrainingMuted) }
@@ -515,12 +515,12 @@ private fun TrainingSessionCard(
                 }
                 structuredPrescription.exercises.forEachIndexed { index, exercise ->
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F8F6))
                     ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(13.dp),
+                        modifier = Modifier.fillMaxWidth().padding(11.dp),
                         verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Text("${exercise.order ?: index + 1}. ${exercise.exerciseNameSnapshot ?: "Ejercicio"}",
