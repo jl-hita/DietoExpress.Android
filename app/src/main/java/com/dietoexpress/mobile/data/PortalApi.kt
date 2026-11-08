@@ -273,7 +273,11 @@ data class StructuredTrainingExercise(
     val warmupSets: Int? = null,
     val warmupNote: String? = null,
     val targetLoadKg: Double? = null,
-    val loadBasis: String? = null
+    val loadBasis: String? = null,
+    // Post-exercise answers: stimulus low|adequate|high, discomfort none|mild|strong, preFatigue recovered|loaded.
+    val stimulus: String? = null,
+    val discomfort: String? = null,
+    val preFatigue: String? = null
 )
 
 data class SendPatientMessageRequest(val body: String)
@@ -348,7 +352,11 @@ data class TrainingExerciseDraft(
     val targetLoadKg: Double? = null,
     val warmupSets: Int? = null,
     val warmupNote: String? = null,
-    val loadBasis: String? = null
+    val loadBasis: String? = null,
+    // Post-exercise answers: stimulus low|adequate|high, discomfort none|mild|strong, preFatigue recovered|loaded.
+    val stimulus: String? = null,
+    val discomfort: String? = null,
+    val preFatigue: String? = null
 )
 
 data class TrainingWorkoutDraft(
@@ -371,7 +379,10 @@ data class TrainingExerciseFeedback(
     val plannedSets: Int,
     val completedSets: Int,
     val skippedSetReason: String? = null,
-    val sets: List<TrainingSetRecord>? = emptyList()
+    val sets: List<TrainingSetRecord>? = emptyList(),
+    val stimulus: String? = null,
+    val discomfort: String? = null,
+    val preFatigue: String? = null
 )
 
 data class PatientTrainingRecordRequest(

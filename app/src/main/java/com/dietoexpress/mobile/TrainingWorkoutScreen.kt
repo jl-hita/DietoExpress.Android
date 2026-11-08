@@ -172,6 +172,39 @@ internal fun TrainingWorkoutScreen(
                         }))
                     }, enabled = !busy && exercise.plannedSets > 1,
                         colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("− Quitar última serie") }
+                    // Post-exercise answers (optional): they let the app adjust future sessions by itself.
+                    val answered = exercise.sets.any { it.kind == "working" && it.completed }
+                    if (answered) {
+                        Text("¿Cómo fue este ejercicio?", color = WorkoutText, fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.labelLarge)
+                        Text("Estímulo en el músculo", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            listOf("low" to "Poco", "adequate" to "Adecuado", "high" to "Mucho").forEach { (value, label) ->
+                                Choice(label, exercise.stimulus == value) {
+                                    updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
+                                        if (i == exerciseIndex) item.copy(stimulus = value) else item }))
+                                }
+                            }
+                        }
+                        Text("Molestias en articulaciones o tendones", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            listOf("none" to "Ninguna", "mild" to "Leves", "strong" to "Fuertes").forEach { (value, label) ->
+                                Choice(label, exercise.discomfort == value) {
+                                    updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
+                                        if (i == exerciseIndex) item.copy(discomfort = value) else item }))
+                                }
+                            }
+                        }
+                        Text("Al empezar, el músculo estaba", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            listOf("recovered" to "Recuperado", "loaded" to "Aún cargado").forEach { (value, label) ->
+                                Choice(label, exercise.preFatigue == value) {
+                                    updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
+                                        if (i == exerciseIndex) item.copy(preFatigue = value) else item }))
+                                }
+                            }
+                        }
+                    }
                     if (exercise.sets.count { it.kind == "working" && it.completed } < exercise.plannedSets) {
                         Text("¿Por qué no completaste todas las series?", color = WorkoutMuted, style = MaterialTheme.typography.labelMedium)
                         listOf("load_too_heavy" to "Peso demasiado alto", "fatigue" to "Fatiga", "time" to "Tiempo",
@@ -260,7 +293,8 @@ internal fun TrainingWorkoutScreen(
                 val completed = exercise.sets.count { it.kind == "working" && it.completed }
                 TrainingExerciseFeedback(exerciseId = exercise.exerciseId, exerciseName = exercise.exerciseName,
                     plannedSets = exercise.plannedSets, completedSets = completed,
-                    skippedSetReason = if (completed < exercise.plannedSets) draft.exerciseSkipReasons[exercise.exerciseId ?: "exercise-$exerciseIndex"] ?: draft.nonCompletionReason else null, sets = exercise.sets)
+                    skippedSetReason = if (completed < exercise.plannedSets) draft.exerciseSkipReasons[exercise.exerciseId ?: "exercise-$exerciseIndex"] ?: draft.nonCompletionReason else null, sets = exercise.sets,
+                    stimulus = exercise.stimulus, discomfort = exercise.discomfort, preFatigue = exercise.preFatigue)
             }
             val allComplete = feedback.all { it.completedSets == it.plannedSets }
             onFinish(session, PatientTrainingRecordRequest(
