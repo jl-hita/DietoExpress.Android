@@ -35,9 +35,10 @@ internal fun TrainingWorkoutScreen(
     busy: Boolean,
     onDraftChanged: (TrainingWorkoutDraft) -> Unit,
     onFinish: (TrainingSession, PatientTrainingRecordRequest) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    history: List<TrainingSession> = emptyList()
 ) {
-    val initial = remember(session.id) { initialDraft?.takeIf { it.sessionId == session.id } ?: newWorkoutDraft(session) }
+    val initial = remember(session.id) { initialDraft?.takeIf { it.sessionId == session.id } ?: newWorkoutDraft(session, history) }
     var draft by remember(session.id) { mutableStateOf(initial) }
     // Save in the input event itself; never wait for a later Compose effect.
     fun updateDraft(next: TrainingWorkoutDraft) {
@@ -74,6 +75,13 @@ internal fun TrainingWorkoutScreen(
             Metric("$done/$planned", "series completadas", Modifier.weight(1f))
             Metric("$elapsedMinutes min", "tiempo transcurrido", Modifier.weight(1f))
         }
+        val runningRest = activeRestExerciseIds.firstOrNull()?.let { restRemainingByExercise[it] }?.takeIf { it > 0 }
+        if (runningRest != null) {
+            Card(colors = CardDefaults.cardColors(containerColor = WorkoutAccent), shape = RoundedCornerShape(16.dp)) {
+                Text("Descanso · ${runningRest / 60}:${(runningRest % 60).toString().padStart(2, '0')}", Modifier.fillMaxWidth().padding(14.dp),
+                    color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            }
+        }
         draft.exercises.forEachIndexed { exerciseIndex, exercise ->
             key(exercise.exerciseId ?: "exercise-$exerciseIndex") {
             val timerKey = exercise.exerciseId ?: "exercise-$exerciseIndex"
@@ -85,6 +93,10 @@ internal fun TrainingWorkoutScreen(
                         Column(Modifier.weight(1f)) {
                             Text("${exerciseIndex + 1}. ${exercise.exerciseName}", color = WorkoutText, fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.titleMedium)
+                            lastWorkingSet(history, session.id, exercise.exerciseId)?.let { last ->
+                                Text("Última vez: ${formatWorkoutNumber(last.weightKg ?: 0.0)} kg × ${last.repetitions}" + (last.rir?.let { " · RIR ${formatWorkoutNumber(it)}" } ?: ""),
+                                    color = WorkoutAccent, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                            }
                             Text("${exercise.plannedSets} series · ${exercise.minRepetitions ?: "—"}–${exercise.maxRepetitions ?: "—"} reps · RIR ${exercise.targetRir ?: "—"}",
                                 color = WorkoutMuted, style = MaterialTheme.typography.bodySmall)
                         }
@@ -118,6 +130,12 @@ internal fun TrainingWorkoutScreen(
                             )
                             Checkbox(set.completed, { checked ->
                                 updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(completed = checked), ::updateDraft)
+                                // Completing a working set starts that exercise's rest timer automatically.
+                                val restSeconds = exercise.restSeconds
+                                if (checked && set.kind == "working" && restSeconds != null) {
+                                    restRemainingByExercise = restRemainingByExercise + (timerKey to restSeconds)
+                                    activeRestExerciseIds = activeRestExerciseIds + timerKey
+                                }
                             }, enabled = !busy)
                         }
                     }
@@ -154,6 +172,19 @@ internal fun TrainingWorkoutScreen(
                         }))
                     }, enabled = !busy && exercise.plannedSets > 1,
                         colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("− Quitar última serie") }
+                    if (exercise.sets.count { it.kind == "working" && it.completed } < exercise.plannedSets) {
+                        Text("¿Por qué no completaste todas las series?", color = WorkoutMuted, style = MaterialTheme.typography.labelMedium)
+                        listOf("load_too_heavy" to "Peso demasiado alto", "fatigue" to "Fatiga", "time" to "Tiempo",
+                            "equipment" to "Material", "pain" to "Dolor").chunked(2).forEach { pair ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                pair.forEach { (value, label) ->
+                                    Choice(label, draft.exerciseSkipReasons[timerKey] == value) {
+                                        updateDraft(draft.copy(exerciseSkipReasons = draft.exerciseSkipReasons + (timerKey to value)))
+                                    }
+                                }
+                            }
+                        }
+                    }
                     exercise.targetLoadKg?.let { load ->
                         Text("Carga prescrita: ${formatWorkoutNumber(load)} kg", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
                     }
@@ -197,15 +228,7 @@ internal fun TrainingWorkoutScreen(
                     Modifier.fillMaxWidth(), enabled = !busy, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     colors = workoutFieldColors())
                 if (draft.exercises.any { ex -> ex.sets.count { it.kind == "working" && it.completed } < ex.plannedSets }) {
-                    Text("Motivo principal de las series no completadas", color = WorkoutMuted)
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Choice("Fatiga", draft.nonCompletionReason == "fatigue") { updateDraft(draft.copy(nonCompletionReason = "fatigue")) }
-                        Choice("Tiempo", draft.nonCompletionReason == "time") { updateDraft(draft.copy(nonCompletionReason = "time")) }
-                        Choice("Material", draft.nonCompletionReason == "equipment") { updateDraft(draft.copy(nonCompletionReason = "equipment")) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Choice("El peso era demasiado alto", draft.nonCompletionReason == "load_too_heavy") { updateDraft(draft.copy(nonCompletionReason = "load_too_heavy")) }
-                    }
+                    Text("El motivo de las series no completadas se indica en cada ejercicio.", color = WorkoutMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 Text("Recuperación", color = WorkoutMuted)
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -233,11 +256,11 @@ internal fun TrainingWorkoutScreen(
             }
         }
         Button(onClick = {
-            val feedback = draft.exercises.map { exercise ->
+            val feedback = draft.exercises.mapIndexed { exerciseIndex, exercise ->
                 val completed = exercise.sets.count { it.kind == "working" && it.completed }
                 TrainingExerciseFeedback(exerciseId = exercise.exerciseId, exerciseName = exercise.exerciseName,
                     plannedSets = exercise.plannedSets, completedSets = completed,
-                    skippedSetReason = if (completed < exercise.plannedSets) draft.nonCompletionReason else null, sets = exercise.sets)
+                    skippedSetReason = if (completed < exercise.plannedSets) draft.exerciseSkipReasons[exercise.exerciseId ?: "exercise-$exerciseIndex"] ?: draft.nonCompletionReason else null, sets = exercise.sets)
             }
             val allComplete = feedback.all { it.completedSets == it.plannedSets }
             onFinish(session, PatientTrainingRecordRequest(
@@ -250,7 +273,7 @@ internal fun TrainingWorkoutScreen(
                 }.joinToString("\n\n").take(4000).takeIf { it.isNotBlank() },
                 outcome = if (allComplete) "completed" else "partial",
                 // The session-level column does not know "load_too_heavy": it is sent as "other" while each exercise keeps the precise reason.
-                nonCompletionReason = if (allComplete) "none" else if (draft.nonCompletionReason == "load_too_heavy") "other" else draft.nonCompletionReason, recoveryRating = draft.recoveryRating,
+                nonCompletionReason = if (allComplete) "none" else sessionReasonFrom(feedback.mapNotNull { it.skippedSetReason }, "other"), recoveryRating = draft.recoveryRating,
                 painSignal = draft.painSignal, exerciseFeedback = feedback
             ))
             onBack()
@@ -281,13 +304,13 @@ private fun WorkoutSetField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier
-            .heightIn(min = 42.dp)
+            .heightIn(min = 48.dp)
             .background(WorkoutInput, shape)
             .border(1.dp, WorkoutBorder, shape)
             .padding(horizontal = 6.dp, vertical = 9.dp),
         enabled = enabled,
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = androidx.compose.ui.text.input.ImeAction.Next),
         textStyle = MaterialTheme.typography.bodyMedium.copy(
             color = if (enabled) WorkoutText else WorkoutMuted,
             fontWeight = FontWeight.SemiBold
@@ -326,6 +349,9 @@ private fun workoutValidationMessages(draft: TrainingWorkoutDraft): List<String>
     draft.exercises.forEachIndexed { index, exercise ->
         val name = exercise.exerciseName.ifBlank { "Ejercicio ${index + 1}" }
         if (exercise.plannedSets !in 1..50) add("$name: el número de series debe estar entre 1 y 50.")
+        if (exercise.sets.count { it.kind == "working" && it.completed } < exercise.plannedSets &&
+            draft.exerciseSkipReasons[exercise.exerciseId ?: "exercise-$index"] == null)
+            add("$name: indica por qué no completaste todas las series.")
         if (exercise.sets.size > 100) add("$name: no puede superar las 100 series registradas.")
         if (exercise.sets.count { it.kind == "warmup" } > 50) add("$name: no puede superar las 50 series de calentamiento.")
         exercise.sets.forEachIndexed { setIndex, set ->
@@ -357,12 +383,12 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
         contentColor = if (selected) WorkoutAccent else WorkoutMuted)) { Text(label) }
 }
 
-private fun newWorkoutDraft(session: TrainingSession): TrainingWorkoutDraft {
+private fun newWorkoutDraft(session: TrainingSession, history: List<TrainingSession>): TrainingWorkoutDraft {
     val exercises = session.exercisePrescriptionData?.exercises.orEmpty().map { exercise ->
         val count = (exercise.sets ?: 0).coerceIn(0, 50)
         // Warm-up rows are created from the prescription (very easy approach sets, not counted as working sets).
         val warmups = (0 until (exercise.warmupSets ?: 0).coerceIn(0, 3)).map { TrainingSetRecord(it, "warmup", repetitions = exercise.maxRepetitions) }
-        val sets = warmups + (1..count).map { n -> TrainingSetRecord(n, weightKg = exercise.targetLoadKg, repetitions = exercise.minRepetitions, rir = exercise.targetRepetitionsInReserve) }
+        val sets = warmups + (1..count).map { n -> TrainingSetRecord(n, weightKg = exercise.targetLoadKg ?: lastWorkingSet(history, session.id, exercise.exerciseId)?.weightKg, repetitions = exercise.minRepetitions, rir = exercise.targetRepetitionsInReserve) }
         TrainingExerciseDraft(exercise.exerciseId, exercise.exerciseNameSnapshot ?: "Ejercicio", count,
             exercise.minRepetitions, exercise.maxRepetitions, exercise.targetRepetitionsInReserve, exercise.restSeconds, sets,
             targetLoadKg = exercise.targetLoadKg, warmupSets = exercise.warmupSets, warmupNote = exercise.warmupNote, loadBasis = exercise.loadBasis)
@@ -377,3 +403,27 @@ private fun updateWorkoutSet(draft: TrainingWorkoutDraft, exerciseIndex: Int, se
 }
 
 private fun formatWorkoutNumber(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else value.toString()
+
+/**
+ * Heaviest completed working set of the most recent earlier session that recorded this exercise.
+ * Used to show "last time" and to pre-fill the weight when the prescription carries no load.
+ */
+internal fun lastWorkingSet(history: List<TrainingSession>, currentSessionId: Int, exerciseId: String?): TrainingSetRecord? {
+    if (exerciseId == null) return null
+    return history.asSequence()
+        .filter { it.id != currentSessionId && it.completedAt != null }
+        .sortedByDescending { it.scheduledDate }
+        .mapNotNull { session ->
+            session.exerciseFeedback.firstOrNull { it.exerciseId == exerciseId }?.sets.orEmpty()
+                .filter { it.kind == "working" && it.completed && (it.weightKg ?: 0.0) > 0.0 && (it.repetitions ?: 0) > 0 }
+                .maxByOrNull { it.weightKg ?: 0.0 }
+        }
+        .firstOrNull()
+}
+
+/** Session-level reason (the server only accepts a fixed set) derived from the per-exercise reasons. */
+internal fun sessionReasonFrom(reasons: Collection<String>, fallback: String): String {
+    val mapped = reasons.map { if (it == "load_too_heavy" || it == "pain") "other" else it }
+        .filter { it in setOf("time", "fatigue", "equipment", "motivation", "illness", "other") }
+    return mapped.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: fallback
+}

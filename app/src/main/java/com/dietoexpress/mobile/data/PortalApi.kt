@@ -357,6 +357,8 @@ data class TrainingWorkoutDraft(
     val exercises: List<TrainingExerciseDraft>,
     val sessionRpe: Double? = null,
     val nonCompletionReason: String = "fatigue",
+    // Reason for the unfinished sets of each exercise (key = exerciseId or "exercise-<index>").
+    val exerciseSkipReasons: Map<String, String> = emptyMap(),
     val recoveryRating: String = "unknown",
     val painSignal: String = "",
     val painDetails: String = "",

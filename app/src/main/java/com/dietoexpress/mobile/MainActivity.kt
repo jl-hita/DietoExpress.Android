@@ -213,7 +213,7 @@ class MainActivity : ComponentActivity() {
                                             selected = state.section == item.first,
                                             onClick = { vm.openSection(item.first) },
                                             icon = { Text(item.third, modifier = Modifier.clearAndSetSemantics { }, fontSize = 21.sp, fontWeight = FontWeight.Medium) },
-                                            label = { Text(item.second, fontSize = 9.sp, maxLines = 1) },
+                                            label = { Text(item.second, fontSize = 10.sp, maxLines = 1) },
                                             alwaysShowLabel = true
                                         )
                                     }
@@ -642,11 +642,11 @@ private fun HomeContent(
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("Próximo entrenamiento", color = Color(0xFFC8E4D4), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text(if (session.scheduledDate.take(10) == java.time.LocalDate.now().toString()) "Entrenamiento de hoy" else "Próximo entrenamiento", color = Color(0xFFC8E4D4), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Text(session.title, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                         Text("${formatDateLabel(session.scheduledDate)} · ${session.durationMinutes?.let { "$it min" } ?: session.sessionType}", color = Color(0xFFE2F0E8), style = MaterialTheme.typography.bodySmall)
                     }
-                    Text("Ver →", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(if (session.scheduledDate.take(10) == java.time.LocalDate.now().toString()) "Empezar →" else "Ver →", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }

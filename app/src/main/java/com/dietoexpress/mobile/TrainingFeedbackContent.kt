@@ -271,7 +271,8 @@ internal fun TrainingFeedbackContent(
                     busy = busy,
                     onDraftChanged = onDraftChanged,
                     onFinish = onRecord,
-                    onBack = { workoutMode = false }
+                    onBack = { workoutMode = false },
+                    history = allSessions
                 )
             } else {
                 Row(
@@ -341,6 +342,13 @@ internal fun TrainingFeedbackContent(
                         }
                         if (showLoadDetails) {
                             Text("Resumen semanal de volumen, frecuencia e intensidad prescrita.", color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                            val muscleSets = weeklyPrimaryMuscleSets(allSessions, LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)))
+                            if (muscleSets.isNotEmpty()) {
+                                Text("Series por músculo esta semana", fontWeight = FontWeight.SemiBold, color = TrainingForest)
+                                Text(muscleSets.joinToString(" · ") { (muscle, sets) -> "${trainingMuscleLabel(muscle)} $sets" },
+                                    color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                                Text("Series prescritas por músculo principal; no incluye el trabajo secundario.", color = TrainingMuted, style = MaterialTheme.typography.labelSmall)
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 LoadLegendDot(Color(0xFF25845F), "Volumen")
                                 LoadLegendDot(Color(0xFF438FCA), "Frecuencia")
@@ -759,3 +767,19 @@ private fun adaptationTitle(action: String): String = when (action) {
 private fun dateLabel(value: String): String = try {
     LocalDate.parse(value.take(10)).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 } catch (_: Exception) { value }
+
+/** Prescribed working sets per primary muscle for the week starting at [weekStart], most-trained first. */
+internal fun weeklyPrimaryMuscleSets(sessions: List<TrainingSession>, weekStart: LocalDate): List<Pair<String, Int>> {
+    val weekEnd = weekStart.plusDays(6)
+    val totals = mutableMapOf<String, Int>()
+    sessions.forEach { session ->
+        val date = runCatching { LocalDate.parse(session.scheduledDate.take(10)) }.getOrNull() ?: return@forEach
+        if (date < weekStart || date > weekEnd) return@forEach
+        session.exercisePrescriptionData?.exercises.orEmpty().forEach { exercise ->
+            exercise.primaryMuscleGroups.forEach { muscle ->
+                totals[muscle] = (totals[muscle] ?: 0) + (exercise.sets ?: 0)
+            }
+        }
+    }
+    return totals.entries.filter { it.value > 0 }.sortedByDescending { it.value }.map { it.key to it.value }
+}
