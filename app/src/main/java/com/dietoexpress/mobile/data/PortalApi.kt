@@ -269,7 +269,11 @@ data class StructuredTrainingExercise(
     val restSeconds: Int? = null,
     val progressionRule: Int? = null,
     val primaryMuscleGroups: List<String> = emptyList(),
-    val secondaryMuscleGroups: List<String> = emptyList()
+    val secondaryMuscleGroups: List<String> = emptyList(),
+    val warmupSets: Int? = null,
+    val warmupNote: String? = null,
+    val targetLoadKg: Double? = null,
+    val loadBasis: String? = null
 )
 
 data class SendPatientMessageRequest(val body: String)
@@ -340,7 +344,11 @@ data class TrainingExerciseDraft(
     val maxRepetitions: Int? = null,
     val targetRir: Double? = null,
     val restSeconds: Int? = null,
-    val sets: List<TrainingSetRecord> = emptyList()
+    val sets: List<TrainingSetRecord> = emptyList(),
+    val targetLoadKg: Double? = null,
+    val warmupSets: Int? = null,
+    val warmupNote: String? = null,
+    val loadBasis: String? = null
 )
 
 data class TrainingWorkoutDraft(

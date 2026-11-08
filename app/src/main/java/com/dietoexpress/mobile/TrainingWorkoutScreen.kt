@@ -154,6 +154,12 @@ internal fun TrainingWorkoutScreen(
                         }))
                     }, enabled = !busy && exercise.plannedSets > 1,
                         colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("− Quitar última serie") }
+                    exercise.targetLoadKg?.let { load ->
+                        Text("Carga prescrita: ${formatWorkoutNumber(load)} kg", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
+                    }
+                    exercise.warmupNote?.let { note ->
+                        Text(note, color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
+                    }
                     exercise.restSeconds?.let { seconds ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Descanso recomendado: $seconds s", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
@@ -196,6 +202,9 @@ internal fun TrainingWorkoutScreen(
                         Choice("Fatiga", draft.nonCompletionReason == "fatigue") { updateDraft(draft.copy(nonCompletionReason = "fatigue")) }
                         Choice("Tiempo", draft.nonCompletionReason == "time") { updateDraft(draft.copy(nonCompletionReason = "time")) }
                         Choice("Material", draft.nonCompletionReason == "equipment") { updateDraft(draft.copy(nonCompletionReason = "equipment")) }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Choice("El peso era demasiado alto", draft.nonCompletionReason == "load_too_heavy") { updateDraft(draft.copy(nonCompletionReason = "load_too_heavy")) }
                     }
                 }
                 Text("Recuperación", color = WorkoutMuted)
@@ -240,7 +249,8 @@ internal fun TrainingWorkoutScreen(
                     }
                 }.joinToString("\n\n").take(4000).takeIf { it.isNotBlank() },
                 outcome = if (allComplete) "completed" else "partial",
-                nonCompletionReason = if (allComplete) "none" else draft.nonCompletionReason, recoveryRating = draft.recoveryRating,
+                // The session-level column does not know "load_too_heavy": it is sent as "other" while each exercise keeps the precise reason.
+                nonCompletionReason = if (allComplete) "none" else if (draft.nonCompletionReason == "load_too_heavy") "other" else draft.nonCompletionReason, recoveryRating = draft.recoveryRating,
                 painSignal = draft.painSignal, exerciseFeedback = feedback
             ))
             onBack()
@@ -350,9 +360,10 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 private fun newWorkoutDraft(session: TrainingSession): TrainingWorkoutDraft {
     val exercises = session.exercisePrescriptionData?.exercises.orEmpty().map { exercise ->
         val count = (exercise.sets ?: 0).coerceIn(0, 50)
-        val sets = (1..count).map { n -> TrainingSetRecord(n, repetitions = exercise.minRepetitions, rir = exercise.targetRepetitionsInReserve) }
+        val sets = (1..count).map { n -> TrainingSetRecord(n, weightKg = exercise.targetLoadKg, repetitions = exercise.minRepetitions, rir = exercise.targetRepetitionsInReserve) }
         TrainingExerciseDraft(exercise.exerciseId, exercise.exerciseNameSnapshot ?: "Ejercicio", count,
-            exercise.minRepetitions, exercise.maxRepetitions, exercise.targetRepetitionsInReserve, exercise.restSeconds, sets)
+            exercise.minRepetitions, exercise.maxRepetitions, exercise.targetRepetitionsInReserve, exercise.restSeconds, sets,
+            targetLoadKg = exercise.targetLoadKg, warmupSets = exercise.warmupSets, warmupNote = exercise.warmupNote, loadBasis = exercise.loadBasis)
     }
     return TrainingWorkoutDraft(session.id, System.currentTimeMillis(), exercises)
 }

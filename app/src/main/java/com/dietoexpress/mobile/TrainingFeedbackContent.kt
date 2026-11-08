@@ -96,7 +96,7 @@ private fun TrainingExerciseProgressionGuidance(
     val visible = recommendations.filter { recommendation ->
         recommendation.action in setOf(
             "add_repetitions", "increase_load", "confirm_top_of_range",
-            "hold_and_review", "stagnation_review", "invalid_data", "invalid_prescription"
+            "hold_and_review", "stagnation_review", "reduce_load", "invalid_data", "invalid_prescription"
         )
     }
     if (visible.isEmpty()) return
@@ -120,6 +120,7 @@ private fun TrainingExerciseProgressionGuidance(
                             "increase_load" -> "Puedes valorar subir la carga"
                             "confirm_top_of_range" -> "Confirma el máximo del rango antes de subir peso"
                             "stagnation_review" -> "Revisar posible estancamiento"
+                            "reduce_load" -> "Valora reducir la carga: el peso parece demasiado alto"
                             "invalid_data" -> "Revisar los datos registrados"
                             "invalid_prescription" -> "Revisar la prescripción"
                             else -> "Mantener y revisar antes de progresar"
@@ -524,6 +525,12 @@ private fun TrainingSessionCard(
                         Text("${exercise.order ?: index + 1}. ${exercise.exerciseNameSnapshot ?: "Ejercicio"}",
                             fontWeight = FontWeight.SemiBold)
                         Text("${exercise.sets ?: "—"} series × ${exercise.minRepetitions ?: "—"}–${exercise.maxRepetitions ?: "—"} repeticiones")
+                        exercise.targetLoadKg?.let { load ->
+                            Text("Carga prescrita: ${"%.1f".format(java.util.Locale.ROOT, load)} kg", fontWeight = FontWeight.Medium)
+                        }
+                        exercise.warmupNote?.let { note ->
+                            Text(note, color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
+                        }
                         Text("RIR ${exercise.targetRepetitionsInReserve?.toString() ?: "—"} · Descanso ${exercise.restSeconds ?: "—"} s",
                             color = TrainingMuted, style = MaterialTheme.typography.bodySmall)
                         if (exercise.primaryMuscleGroups.isNotEmpty()) {
@@ -557,6 +564,7 @@ private fun TrainingSessionCard(
                             TrainingChoiceField("Motivo de las series omitidas", skippedReasons[key].orEmpty(), listOf(
                                 "" to "Selecciona un motivo",
                                 "fatigue" to "Fatiga o esfuerzo excesivo",
+                                "load_too_heavy" to "El peso era demasiado alto",
                                 "time" to "Falta de tiempo",
                                 "equipment" to "Falta de material",
                                 "motivation" to "Falta de motivación",
@@ -622,7 +630,7 @@ private fun TrainingSessionCard(
                 val planned = exercise.sets ?: 0
                 val done = completedSets[key]?.toIntOrNull()
                 done != null && planned > 0 && done in 0..planned &&
-                    (done == planned || skippedReasons[key] in setOf("fatigue", "time", "equipment", "motivation", "illness", "pain", "other"))
+                    (done == planned || skippedReasons[key] in setOf("fatigue", "load_too_heavy", "time", "equipment", "motivation", "illness", "pain", "other"))
             }
             Button(onClick = {
                 onRecord(session, PatientTrainingRecordRequest(
@@ -694,6 +702,8 @@ private fun adaptationTitle(action: String): String = when (action) {
     "review_and_reduce_training_stress" -> "Revisa la carga de entrenamiento con tu profesional"
     "progress_according_to_prescription" -> "Se cumplen los criterios de la progresión prescrita"
     "pause_affected_exercise_and_review" -> "Detén el ejercicio implicado y consulta con tu profesional"
+    "restore_volume" -> "Tu profesional puede recuperar una serie que se había reducido"
+    "propose_deload" -> "Tu profesional valorará una semana de descarga"
     else -> "Revisa la recomendación con tu profesional"
 }
 
