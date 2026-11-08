@@ -58,9 +58,9 @@ import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 
-private val TrainingForest = Color(0xFF183B3A)
+private val TrainingForest = TrainingPalette.Graphite
 private val TrainingMuted = Color(0xFF52636B)
-private val TrainingLime = Color(0xFF176B67)
+private val TrainingLime = TrainingPalette.Accent
 
 private data class TrainingWeekSummary(
     val weekStart: LocalDate, val sessions: Int, val totalSets: Int, val averageRir: Double?,
@@ -299,7 +299,7 @@ internal fun TrainingFeedbackContent(
                         enabled = !busy && selectedSession.completedAt == null && selectedSession.exercisePrescriptionData?.exercises?.isNotEmpty() == true &&
                             (activeDraft == null || activeDraft.sessionId == selectedSession.id),
                         modifier = Modifier.weight(1.2f),
-                        colors = ButtonDefaults.buttonColors(containerColor = TrainingLime, contentColor = Color.White)
+                        colors = ButtonDefaults.buttonColors(containerColor = TrainingLime, contentColor = TrainingPalette.OnAccent)
                     ) {
                         Text(when {
                             selectedSession.completedAt != null -> "Entrenamiento registrado"

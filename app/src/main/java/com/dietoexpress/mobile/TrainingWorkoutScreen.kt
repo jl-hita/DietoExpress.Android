@@ -21,12 +21,12 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
-private val WorkoutSurface = Color(0xFFFFFFFF)
-private val WorkoutInput = Color(0xFFF1F5F6)
-private val WorkoutAccent = Color(0xFF176B67)
-private val WorkoutText = Color(0xFF18282D)
-private val WorkoutMuted = Color(0xFF52636B)
-private val WorkoutBorder = Color(0xFFB9C9C8)
+private val WorkoutSurface = TrainingPalette.GraphiteSurface
+private val WorkoutInput = TrainingPalette.GraphiteInput
+private val WorkoutAccent = TrainingPalette.Accent
+private val WorkoutText = TrainingPalette.TextOnDark
+private val WorkoutMuted = TrainingPalette.MutedOnDark
+private val WorkoutBorder = TrainingPalette.Border
 
 @Composable
 internal fun TrainingWorkoutScreen(
@@ -62,7 +62,7 @@ internal fun TrainingWorkoutScreen(
     val done = draft.exercises.sumOf { e -> e.sets.count { it.kind == "working" && it.completed } }
     val validationMessages = workoutValidationMessages(draft)
 
-    Column(Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 4.dp),
+    Column(Modifier.fillMaxWidth().background(TrainingPalette.Graphite, RoundedCornerShape(24.dp)).padding(horizontal = 10.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { onDraftChanged(draft); onBack() }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutAccent)) { Text("← Volver") }
@@ -79,7 +79,7 @@ internal fun TrainingWorkoutScreen(
         if (runningRest != null) {
             Card(colors = CardDefaults.cardColors(containerColor = WorkoutAccent), shape = RoundedCornerShape(16.dp)) {
                 Text("Descanso · ${runningRest / 60}:${(runningRest % 60).toString().padStart(2, '0')}", Modifier.fillMaxWidth().padding(14.dp),
-                    color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    color = TrainingPalette.OnAccent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             }
         }
         draft.exercises.forEachIndexed { exerciseIndex, exercise ->
@@ -128,7 +128,7 @@ internal fun TrainingWorkoutScreen(
                                 onValueChange = { value -> updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(rir = value.replace(',', '.').toDoubleOrNull()), ::updateDraft) },
                                 modifier = Modifier.weight(0.72f), placeholder = "—", keyboardType = KeyboardType.Decimal, enabled = !busy
                             )
-                            Checkbox(set.completed, { checked ->
+                            Checkbox(set.completed, colors = CheckboxDefaults.colors(checkedColor = TrainingPalette.Accent, uncheckedColor = WorkoutMuted, checkmarkColor = TrainingPalette.OnAccent), onCheckedChange = { checked ->
                                 updateWorkoutSet(draft, exerciseIndex, setIndex, set.copy(completed = checked), ::updateDraft)
                                 // Completing a working set starts that exercise's rest timer automatically.
                                 val restSeconds = exercise.restSeconds
@@ -278,7 +278,7 @@ internal fun TrainingWorkoutScreen(
             ))
             onBack()
         }, Modifier.fillMaxWidth(), enabled = !busy && validationMessages.isEmpty(),
-            colors = ButtonDefaults.buttonColors(containerColor = WorkoutAccent, contentColor = Color.White)) {
+            colors = ButtonDefaults.buttonColors(containerColor = WorkoutAccent, contentColor = TrainingPalette.OnAccent)) {
             Text(if (busy) "Guardando…" else "Finalizar y guardar entrenamiento", fontWeight = FontWeight.Bold)
         }
         if (!busy && validationMessages.isNotEmpty()) {
