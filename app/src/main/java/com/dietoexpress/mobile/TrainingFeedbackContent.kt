@@ -39,6 +39,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -56,6 +58,21 @@ import java.time.format.DateTimeFormatter
 private val TrainingForest = Color(0xFF183B3A)
 private val TrainingMuted = Color(0xFF52636B)
 private val TrainingLime = Color(0xFF176B67)
+
+private const val RepDbCuratedCatalogVersion = "repdb-free-curated-v1"
+private const val RepDbFlatImageBaseUrl = "https://exercise-dataset.com/images/flat"
+private val RepDbSingleImageExerciseIds = setOf("dumbbell-farmers-walk", "side-plank")
+private val RepDbExerciseIdPattern = Regex("^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+internal fun repDbExerciseImageUrls(catalogVersion: String?, exerciseId: String?): List<String> {
+    if (catalogVersion != RepDbCuratedCatalogVersion) return emptyList()
+    val safeId = exerciseId?.takeIf { RepDbExerciseIdPattern.matches(it) } ?: return emptyList()
+    return if (safeId in RepDbSingleImageExerciseIds) {
+        listOf("$RepDbFlatImageBaseUrl/$safeId-main.webp")
+    } else {
+        listOf("$RepDbFlatImageBaseUrl/$safeId-start.webp", "$RepDbFlatImageBaseUrl/$safeId-peak.webp")
+    }
+}
 
 private data class TrainingWeekSummary(
     val weekStart: LocalDate, val sessions: Int, val totalSets: Int, val averageRir: Double?,
@@ -524,6 +541,29 @@ private fun TrainingSessionCard(
                     ) {
                         Text("${exercise.order ?: index + 1}. ${exercise.exerciseNameSnapshot ?: "Ejercicio"}",
                             fontWeight = FontWeight.SemiBold)
+                        val imageUrls = repDbExerciseImageUrls(exercise.catalogVersion, exercise.exerciseId)
+                        if (imageUrls.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                imageUrls.forEachIndexed { imageIndex, imageUrl ->
+                                    AsyncImage(
+                                        model = imageUrl,
+                                        contentDescription = when {
+                                            imageUrls.size == 1 -> "Ejecución de ${exercise.exerciseNameSnapshot ?: "ejercicio"}"
+                                            imageIndex == 0 -> "Posición inicial de ${exercise.exerciseNameSnapshot ?: "ejercicio"}"
+                                            else -> "Posición final de ${exercise.exerciseNameSnapshot ?: "ejercicio"}"
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                            .height(112.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color.White),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                }
+                            }
+                        }
                         Text("${exercise.sets ?: "—"} series × ${exercise.minRepetitions ?: "—"}–${exercise.maxRepetitions ?: "—"} repeticiones")
                         exercise.targetLoadKg?.let { load ->
                             Text("Carga prescrita: ${"%.1f".format(java.util.Locale.ROOT, load)} kg", fontWeight = FontWeight.Medium)
@@ -573,6 +613,15 @@ private fun TrainingSessionCard(
                                 "other" to "Otro"
                             )) { skippedReasons[key] = it }
                         }
+                    }
+                    if (structuredPrescription.exercises.any {
+                            repDbExerciseImageUrls(it.catalogVersion, it.exerciseId).isNotEmpty()
+                        }) {
+                        Text(
+                            "Imágenes de ejercicios: Exercise data by RepDB.",
+                            color = TrainingMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             } else {
