@@ -360,7 +360,9 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 private fun newWorkoutDraft(session: TrainingSession): TrainingWorkoutDraft {
     val exercises = session.exercisePrescriptionData?.exercises.orEmpty().map { exercise ->
         val count = (exercise.sets ?: 0).coerceIn(0, 50)
-        val sets = (1..count).map { n -> TrainingSetRecord(n, weightKg = exercise.targetLoadKg, repetitions = exercise.minRepetitions, rir = exercise.targetRepetitionsInReserve) }
+        // Warm-up rows are created from the prescription (very easy approach sets, not counted as working sets).
+        val warmups = (0 until (exercise.warmupSets ?: 0).coerceIn(0, 3)).map { TrainingSetRecord(it, "warmup", repetitions = exercise.maxRepetitions) }
+        val sets = warmups + (1..count).map { n -> TrainingSetRecord(n, weightKg = exercise.targetLoadKg, repetitions = exercise.minRepetitions, rir = exercise.targetRepetitionsInReserve) }
         TrainingExerciseDraft(exercise.exerciseId, exercise.exerciseNameSnapshot ?: "Ejercicio", count,
             exercise.minRepetitions, exercise.maxRepetitions, exercise.targetRepetitionsInReserve, exercise.restSeconds, sets,
             targetLoadKg = exercise.targetLoadKg, warmupSets = exercise.warmupSets, warmupNote = exercise.warmupNote, loadBasis = exercise.loadBasis)
