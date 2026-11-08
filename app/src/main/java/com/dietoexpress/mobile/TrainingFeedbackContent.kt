@@ -58,8 +58,8 @@ import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 
-private val TrainingForest = TrainingPalette.Graphite
-private val TrainingMuted = Color(0xFF52636B)
+private val TrainingForest = TrainingPalette.Text
+private val TrainingMuted = TrainingPalette.Muted
 private val TrainingLime = TrainingPalette.Accent
 
 private data class TrainingWeekSummary(

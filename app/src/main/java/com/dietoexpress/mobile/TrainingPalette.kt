@@ -3,17 +3,16 @@ package com.dietoexpress.mobile
 import androidx.compose.ui.graphics.Color
 
 /**
- * Training area palette: graphite surfaces with a lime accent, kept separate from the green brand
- * colours of the rest of the app. First proposal; change the values here to retune every training
- * screen at once. Text on the accent must use [OnAccent] (dark) to keep contrast.
+ * Training screens use the SAME colours as the rest of the app (Forest, Canvas, Ink, Muted, Line in
+ * MainActivity) so they do not look like an add-on. Kept in one place: if the main palette changes,
+ * update these values with it.
  */
 internal object TrainingPalette {
-    val Graphite = Color(0xFF1B2226)
-    val GraphiteSurface = Color(0xFF242D32)
-    val GraphiteInput = Color(0xFF2F3A40)
-    val Border = Color(0xFF45535A)
-    val TextOnDark = Color(0xFFEEF3F5)
-    val MutedOnDark = Color(0xFFA3B1B8)
-    val Accent = Color(0xFFC6F135)
-    val OnAccent = Color(0xFF1B2226)
+    val Surface = Color(0xFFFFFFFF)
+    val Input = Color(0xFFF5F8F6)      // Canvas
+    val Border = Color(0xFFE2EAE5)     // Line
+    val Text = Color(0xFF172923)       // Ink
+    val Muted = Color(0xFF687970)
+    val Accent = Color(0xFF176B52)     // Forest
+    val OnAccent = Color(0xFFFFFFFF)
 }

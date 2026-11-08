@@ -21,11 +21,11 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
-private val WorkoutSurface = TrainingPalette.GraphiteSurface
-private val WorkoutInput = TrainingPalette.GraphiteInput
+private val WorkoutSurface = TrainingPalette.Surface
+private val WorkoutInput = TrainingPalette.Input
 private val WorkoutAccent = TrainingPalette.Accent
-private val WorkoutText = TrainingPalette.TextOnDark
-private val WorkoutMuted = TrainingPalette.MutedOnDark
+private val WorkoutText = TrainingPalette.Text
+private val WorkoutMuted = TrainingPalette.Muted
 private val WorkoutBorder = TrainingPalette.Border
 
 @Composable
@@ -72,7 +72,7 @@ internal fun TrainingWorkoutScreen(
     }
     var answersTarget by remember(session.id) { mutableStateOf<Int?>(null) }
 
-    Column(Modifier.fillMaxWidth().background(TrainingPalette.Graphite, RoundedCornerShape(24.dp)).padding(horizontal = 10.dp, vertical = 12.dp),
+    Column(Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { onDraftChanged(draft); onBack() }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutAccent)) { Text("← Volver") }
@@ -280,7 +280,7 @@ internal fun TrainingWorkoutScreen(
             if (target != null) {
                 AlertDialog(
                     onDismissRequest = { answersTarget = null },
-                    containerColor = TrainingPalette.GraphiteSurface,
+                    containerColor = TrainingPalette.Surface,
                     titleContentColor = WorkoutText,
                     textContentColor = WorkoutText,
                     title = { Text("¿Cómo fue ${target.exerciseName}?") },
