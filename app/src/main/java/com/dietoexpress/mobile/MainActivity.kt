@@ -376,7 +376,9 @@ class MainActivity : ComponentActivity() {
                                         onRecord = vm::recordTrainingSession,
                                         onRetry = { vm.openSection("training") },
                                         activeDraft = state.trainingDraft,
-                                        onDraftChanged = vm::saveTrainingDraft
+                                        onDraftChanged = vm::saveTrainingDraft,
+                                        autoStartSessionId = state.trainingAutoStartSessionId,
+                                        onAutoStartConsumed = vm::consumeTrainingAutoStart
                                     )
                                     "progress" -> ProgressContent(
                                         eligibilityMessage = state.checkinEligibility?.message,
@@ -429,7 +431,7 @@ class MainActivity : ComponentActivity() {
                                         onDocuments = { vm.openSection("documents") },
                                         onShopping = { vm.openSection("shopping") },
                                         onMessages = { vm.openSection("messages") },
-                                        onTraining = { vm.openSection("training") },
+                                        onTraining = { sessionId -> vm.openTrainingSession(sessionId) },
                                         onProfile = { vm.openSection("profile") }
                                     )
                                 }
@@ -619,7 +621,7 @@ private fun HomeContent(
     onDocuments: () -> Unit,
     onShopping: () -> Unit,
     onMessages: () -> Unit,
-    onTraining: () -> Unit,
+    onTraining: (Int) -> Unit,
     onProfile: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -631,7 +633,7 @@ private fun HomeContent(
         )
         nextTraining?.let { session ->
             Card(
-                onClick = onTraining,
+                onClick = { onTraining(session.id) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = Forest)

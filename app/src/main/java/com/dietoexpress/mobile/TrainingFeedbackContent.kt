@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,7 +41,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -58,21 +61,6 @@ import java.time.format.DateTimeFormatter
 private val TrainingForest = Color(0xFF183B3A)
 private val TrainingMuted = Color(0xFF52636B)
 private val TrainingLime = Color(0xFF176B67)
-
-private const val RepDbCuratedCatalogVersion = "repdb-free-curated-v1"
-private const val RepDbFlatImageBaseUrl = "https://exercise-dataset.com/images/flat"
-private val RepDbSingleImageExerciseIds = setOf("dumbbell-farmers-walk", "side-plank")
-private val RepDbExerciseIdPattern = Regex("^[a-z0-9]+(?:-[a-z0-9]+)*$")
-
-internal fun repDbExerciseImageUrls(catalogVersion: String?, exerciseId: String?): List<String> {
-    if (catalogVersion != RepDbCuratedCatalogVersion) return emptyList()
-    val safeId = exerciseId?.takeIf { RepDbExerciseIdPattern.matches(it) } ?: return emptyList()
-    return if (safeId in RepDbSingleImageExerciseIds) {
-        listOf("$RepDbFlatImageBaseUrl/$safeId-main.webp")
-    } else {
-        listOf("$RepDbFlatImageBaseUrl/$safeId-start.webp", "$RepDbFlatImageBaseUrl/$safeId-peak.webp")
-    }
-}
 
 private data class TrainingWeekSummary(
     val weekStart: LocalDate, val sessions: Int, val totalSets: Int, val averageRir: Double?,
@@ -215,7 +203,9 @@ internal fun TrainingFeedbackContent(
     onRecord: (TrainingSession, PatientTrainingRecordRequest) -> Unit,
     onRetry: () -> Unit,
     activeDraft: TrainingWorkoutDraft? = null,
-    onDraftChanged: (TrainingWorkoutDraft) -> Unit = {}
+    onDraftChanged: (TrainingWorkoutDraft) -> Unit = {},
+    autoStartSessionId: Int? = null,
+    onAutoStartConsumed: () -> Unit = {}
 ) {
     var workoutMode by remember { mutableStateOf(false) }
     val weekSummaries = remember(envelope?.sessions) { buildTrainingWeekSummaries(envelope?.sessions.orEmpty()) }
@@ -237,6 +227,23 @@ internal fun TrainingFeedbackContent(
     var showLoadDetails by rememberSaveable { mutableStateOf(false) }
     val sessionTopRequester = remember { BringIntoViewRequester() }
     val selectedSession = visibleSessions.firstOrNull { it.id == selectedSessionId }
+    // Home shortcut: open the requested session (on the right 2-week page) and, when it can be done
+    // now, go straight into the live workout. Stays pending until the sessions have loaded.
+    LaunchedEffect(autoStartSessionId, allSessions) {
+        val target = autoStartSessionId ?: return@LaunchedEffect
+        val session = allSessions.firstOrNull { it.id == target } ?: return@LaunchedEffect
+        val date = runCatching { LocalDate.parse(session.scheduledDate.take(10)) }.getOrNull()
+        if (date != null) {
+            val monday = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            val weeks = java.time.temporal.ChronoUnit.WEEKS.between(monday, date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)))
+            trainingPageOffset = Math.floorDiv(weeks, 2L).toInt()
+        }
+        selectedSessionId = session.id
+        workoutMode = session.completedAt == null &&
+            session.exercisePrescriptionData?.exercises?.isNotEmpty() == true &&
+            (activeDraft == null || activeDraft.sessionId == session.id)
+        onAutoStartConsumed()
+    }
     LaunchedEffect(selectedSessionId) {
         if (selectedSessionId != null) sessionTopRequester.bringIntoView()
     }
@@ -312,7 +319,13 @@ internal fun TrainingFeedbackContent(
                 TrainingExerciseProgressionGuidance(
                     envelope.exerciseProgressionRecommendations.orEmpty().filter { it.sessionId == selectedSession.id }
                 )
-                TrainingSessionCard(session = selectedSession, busy = busy, onRecord = onRecord)
+                TrainingSessionCard(
+                    session = selectedSession, busy = busy, onRecord = onRecord,
+                    swapEnabled = selectedSession.completedAt == null &&
+                        (activeDraft == null || activeDraft.sessionId != selectedSession.id) &&
+                        selectedSession.scheduledDate.take(10) >= LocalDate.now().toString(),
+                    onSwapped = onRetry
+                )
             }
         } else {
             envelope.adaptationRecommendation?.let { recommendation ->
@@ -479,8 +492,20 @@ private fun trainingProgressionLabel(rule: Int?): String = when (rule) {
 private fun TrainingSessionCard(
     session: TrainingSession,
     busy: Boolean,
-    onRecord: (TrainingSession, PatientTrainingRecordRequest) -> Unit
+    onRecord: (TrainingSession, PatientTrainingRecordRequest) -> Unit,
+    swapEnabled: Boolean = false,
+    onSwapped: () -> Unit = {}
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Pictures come from OUR backend with the session cookie of the authenticated client.
+    val imageLoader = remember(context) {
+        ImageLoader.Builder(context).okHttpClient(com.dietoexpress.mobile.data.PortalService.authenticatedClient()).build()
+    }
+    val imageSlots by produceState<Map<String, List<Int>>>(emptyMap(), session.id) {
+        value = runCatching { com.dietoexpress.mobile.data.PortalService.api.sessionExerciseImages(session.id) }
+            .getOrNull()?.exercises?.associate { it.exerciseId to it.slots }.orEmpty()
+    }
+    var swapTarget by remember(session.id) { mutableStateOf<com.dietoexpress.mobile.data.StructuredTrainingExercise?>(null) }
     var outcome by remember(session.id, session.outcome) { mutableStateOf(session.outcome ?: "") }
     var reason by remember(session.id, session.nonCompletionReason) { mutableStateOf(session.nonCompletionReason ?: "none") }
     var recovery by remember(session.id, session.recoveryRating) { mutableStateOf(session.recoveryRating ?: "unknown") }
@@ -549,17 +574,18 @@ private fun TrainingSessionCard(
                     ) {
                         Text("${exercise.order ?: index + 1}. ${exercise.exerciseNameSnapshot ?: "Ejercicio"}",
                             fontWeight = FontWeight.SemiBold)
-                        val imageUrls = repDbExerciseImageUrls(exercise.catalogVersion, exercise.exerciseId)
-                        if (imageUrls.isNotEmpty()) {
+                        val slots = exercise.exerciseId?.let { imageSlots[it] }.orEmpty()
+                        if (slots.isNotEmpty()) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                imageUrls.forEachIndexed { imageIndex, imageUrl ->
+                                slots.forEachIndexed { imageIndex, slot ->
                                     AsyncImage(
-                                        model = imageUrl,
+                                        model = exerciseImageUrl(BuildConfig.API_BASE_URL, exercise.exerciseId.orEmpty(), slot),
+                                        imageLoader = imageLoader,
                                         contentDescription = when {
-                                            imageUrls.size == 1 -> "Ejecución de ${exercise.exerciseNameSnapshot ?: "ejercicio"}"
+                                            slots.size == 1 -> "Ejecución de ${exercise.exerciseNameSnapshot ?: "ejercicio"}"
                                             imageIndex == 0 -> "Posición inicial de ${exercise.exerciseNameSnapshot ?: "ejercicio"}"
                                             else -> "Posición final de ${exercise.exerciseNameSnapshot ?: "ejercicio"}"
                                         },
@@ -571,6 +597,9 @@ private fun TrainingSessionCard(
                                     )
                                 }
                             }
+                        }
+                        if (swapEnabled && exercise.exerciseId != null) {
+                            TextButton(onClick = { swapTarget = exercise }, enabled = !busy) { Text("Cambiar ejercicio") }
                         }
                         Text("${exercise.sets ?: "—"} series × ${exercise.minRepetitions ?: "—"}–${exercise.maxRepetitions ?: "—"} repeticiones")
                         exercise.targetLoadKg?.let { load ->
@@ -622,13 +651,20 @@ private fun TrainingSessionCard(
                             )) { skippedReasons[key] = it }
                         }
                     }
-                    if (structuredPrescription.exercises.any {
-                            repDbExerciseImageUrls(it.catalogVersion, it.exerciseId).isNotEmpty()
-                        }) {
+                    if (imageSlots.values.any { it.isNotEmpty() }) {
                         Text(
-                            "Imágenes de ejercicios: Exercise data by RepDB.",
+                            "Imágenes de ejercicios: Exercise data by RepDB (repdb.co).",
                             color = TrainingMuted,
                             style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    swapTarget?.let { target ->
+                        ExerciseSwapDialog(
+                            sessionId = session.id,
+                            exerciseId = target.exerciseId.orEmpty(),
+                            exerciseName = target.exerciseNameSnapshot ?: "ejercicio",
+                            onDismiss = { swapTarget = null },
+                            onSwapped = { swapTarget = null; onSwapped() }
                         )
                     }
                 }

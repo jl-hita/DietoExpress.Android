@@ -114,6 +114,8 @@ data class PortalUiState(
     val training: TrainingEnvelope? = null,
     val trainingLoaded: Boolean = false,
     val trainingDraft: TrainingWorkoutDraft? = null,
+    // Set by the home shortcut: the training screen opens this session and starts the workout.
+    val trainingAutoStartSessionId: Int? = null,
     val checkinEligibility: CheckinEligibility? = null,
     val currentCheckin: PatientCheckin? = null,
     val checkinHistory: List<PatientCheckin> = emptyList(),
@@ -238,6 +240,15 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             "profile" -> { refreshProfile(); refreshOfflineOperations() }
             "video" -> Unit
         }
+    }
+
+    fun openTrainingSession(sessionId: Int) {
+        _state.value = _state.value.copy(trainingAutoStartSessionId = sessionId)
+        openSection("training")
+    }
+
+    fun consumeTrainingAutoStart() {
+        _state.value = _state.value.copy(trainingAutoStartSessionId = null)
     }
 
     fun openVideoAppointment(appointmentId: Int) {

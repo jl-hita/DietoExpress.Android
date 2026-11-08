@@ -474,6 +474,22 @@ interface PortalApi {
         @Body request: PatientTrainingRecordRequest
     ): Map<String, Long>
 
+    @GET("portal/training/sessions/{sessionId}/exercise-images")
+    suspend fun sessionExerciseImages(@Path("sessionId") sessionId: Int): SessionExerciseImages
+
+    @GET("portal/training/sessions/{sessionId}/exercises/{exerciseId}/alternatives")
+    suspend fun exerciseAlternatives(
+        @Path("sessionId") sessionId: Int,
+        @Path("exerciseId") exerciseId: String
+    ): ExerciseAlternativesResponse
+
+    @POST("portal/training/sessions/{sessionId}/exercises/{exerciseId}/swap")
+    suspend fun swapExercise(
+        @Path("sessionId") sessionId: Int,
+        @Path("exerciseId") exerciseId: String,
+        @Body request: SwapExerciseRequest
+    ): Map<String, Any?>
+
     @GET("portal/biometrics")
     suspend fun biometricHistory(): List<PatientBiometricMeasurement>
 
@@ -616,3 +632,28 @@ object PortalService {
     fun authenticatedClient(): OkHttpClient = client
     fun clearSessionCookies() = cookieJar.clear()
 }
+
+data class ExerciseImageSlots(val exerciseId: String, val slots: List<Int> = emptyList())
+
+data class SessionExerciseImages(
+    val attribution: String? = null,
+    val exercises: List<ExerciseImageSlots> = emptyList()
+)
+
+data class ExerciseAlternative(
+    val exerciseId: String,
+    val name: String,
+    val movementPattern: String? = null,
+    val primaryMuscleGroups: List<String> = emptyList(),
+    val requiredEquipment: List<String> = emptyList(),
+    val matchLevel: String = "pattern",
+    val inRotationPool: Boolean = false
+)
+
+data class ExerciseAlternativesResponse(
+    val exerciseId: String,
+    val alternatives: List<ExerciseAlternative> = emptyList(),
+    val message: String? = null
+)
+
+data class SwapExerciseRequest(val replacementExerciseId: String)
