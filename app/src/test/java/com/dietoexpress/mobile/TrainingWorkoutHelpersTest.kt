@@ -67,3 +67,19 @@ class WeeklyMuscleSetsTest {
         assertEquals(listOf("Chest" to 9, "Triceps" to 2), result)
     }
 }
+
+class DeriveWarmupSetsTest {
+    private fun ex(vararg muscles: String) =
+        com.dietoexpress.mobile.data.StructuredTrainingExercise(primaryMuscleGroups = muscles.toList())
+
+    @Test
+    fun bench_fly_lateralRaise_warmsOnlyColdMuscles() {
+        val result = deriveWarmupSets(listOf(ex("Chest"), ex("Chest"), ex("Deltoids")))
+        assertEquals(mapOf(0 to 2, 2 to 1), result)
+    }
+
+    @Test
+    fun coreOnlyExercisesAndAlreadyWarmMusclesGetNone() {
+        assertEquals(mapOf(0 to 2), deriveWarmupSets(listOf(ex("Quadriceps", "Glutes"), ex("Glutes"), ex("Abdominals"))))
+    }
+}

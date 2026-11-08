@@ -61,6 +61,16 @@ internal fun TrainingWorkoutScreen(
     val planned = draft.exercises.sumOf { it.plannedSets }
     val done = draft.exercises.sumOf { e -> e.sets.count { it.kind == "working" && it.completed } }
     val validationMessages = workoutValidationMessages(draft)
+    val liveContext = androidx.compose.ui.platform.LocalContext.current
+    // Pictures come from OUR backend with the patient's session cookie.
+    val imageLoader = remember(liveContext) {
+        coil.ImageLoader.Builder(liveContext).okHttpClient(PortalService.authenticatedClient()).build()
+    }
+    val imageSlots by produceState<Map<String, List<Int>>>(emptyMap(), session.id) {
+        value = runCatching { PortalService.api.sessionExerciseImages(session.id) }
+            .getOrNull()?.exercises?.associate { it.exerciseId to it.slots }.orEmpty()
+    }
+    var answersTarget by remember(session.id) { mutableStateOf<Int?>(null) }
 
     Column(Modifier.fillMaxWidth().background(TrainingPalette.Graphite, RoundedCornerShape(24.dp)).padding(horizontal = 10.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -102,6 +112,22 @@ internal fun TrainingWorkoutScreen(
                         }
                         Text("${exercise.sets.count { it.kind == "working" && it.completed }}/${exercise.plannedSets}", color = WorkoutAccent, fontWeight = FontWeight.Bold)
                     }
+                    val liveSlots = exercise.exerciseId?.let { imageSlots[it] }.orEmpty()
+                    if (liveSlots.isNotEmpty()) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            liveSlots.forEachIndexed { imageIndex, slot ->
+                                coil.compose.AsyncImage(
+                                    model = exerciseImageUrl(BuildConfig.API_BASE_URL, exercise.exerciseId.orEmpty(), slot),
+                                    imageLoader = imageLoader,
+                                    contentDescription = if (liveSlots.size == 1) "Técnica de ${exercise.exerciseName}"
+                                        else if (imageIndex == 0) "Posición inicial de ${exercise.exerciseName}" else "Posición final de ${exercise.exerciseName}",
+                                    modifier = Modifier.weight(1f).height(96.dp)
+                                        .background(Color.White, RoundedCornerShape(10.dp)),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                                )
+                            }
+                        }
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("SERIE", Modifier.weight(0.8f), color = WorkoutMuted)
                         Text("KG", Modifier.weight(1f), color = WorkoutMuted)
@@ -111,7 +137,7 @@ internal fun TrainingWorkoutScreen(
                     }
                     exercise.sets.forEachIndexed { setIndex, set ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(if (set.kind == "warmup") "Cal." else set.setNumber.toString(),
+                            Text(if (set.kind == "warmup") "Cal ${set.setNumber + 1}" else set.setNumber.toString(),
                                 Modifier.weight(0.8f), color = if (set.kind == "warmup") WorkoutMuted else WorkoutAccent, fontWeight = FontWeight.Bold)
                             WorkoutSetField(
                                 value = set.weightKg?.let(::formatWorkoutNumber).orEmpty(),
@@ -139,80 +165,79 @@ internal fun TrainingWorkoutScreen(
                             }, enabled = !busy)
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        TextButton(onClick = {
-                            updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
-                                if (i == exerciseIndex) item.copy(sets = listOf(TrainingSetRecord(item.sets.count { it.kind == "warmup" }, "warmup")) + item.sets) else item
-                            }))
-                        }, enabled = !busy && exercise.sets.count { it.kind == "warmup" } < 50, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("+ Calentamiento") }
+                    val workingDone = exercise.sets.count { it.kind == "working" && it.completed }
+                    var menuOpen by remember(timerKey) { mutableStateOf(false) }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         TextButton(onClick = {
                             updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
                                 if (i == exerciseIndex) item.copy(plannedSets = item.plannedSets + 1,
                                     sets = item.sets + TrainingSetRecord(item.sets.count { it.kind == "working" } + 1,
+                                        weightKg = item.sets.lastOrNull { it.kind == "working" }?.weightKg,
                                         repetitions = item.minRepetitions, rir = item.targetRir)) else item
                             }))
-                        }, enabled = !busy && exercise.plannedSets < 50, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutAccent)) { Text("+ Añadir serie") }
-                    }
-                    TextButton(onClick = {
-                        updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
-                            if (i == exerciseIndex) {
-                                val lastWorking = item.sets.indexOfLast { it.kind == "working" }
-                                if (lastWorking < 0) item else item.copy(
-                                    plannedSets = (item.plannedSets - 1).coerceAtLeast(1),
-                                    sets = item.sets.filterIndexed { index, _ -> index != lastWorking }.let { remaining ->
-                                        var workingNumber = 0
-                                        var warmupNumber = 0
-                                        remaining.map { set ->
-                                            if (set.kind == "working") set.copy(setNumber = ++workingNumber)
-                                            else set.copy(setNumber = warmupNumber++)
-                                        }
+                        }, enabled = !busy && exercise.plannedSets < 50, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutAccent)) { Text("+ Serie") }
+                        Box {
+                            TextButton(onClick = { menuOpen = true }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("Más ⋯") }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("+ Calentamiento") },
+                                    enabled = exercise.sets.count { it.kind == "warmup" } < 50,
+                                    onClick = {
+                                        menuOpen = false
+                                        updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
+                                            if (i == exerciseIndex) item.copy(sets = listOf(TrainingSetRecord(item.sets.count { it.kind == "warmup" }, "warmup")) + item.sets) else item
+                                        }))
                                     }
                                 )
-                            } else item
-                        }))
-                    }, enabled = !busy && exercise.plannedSets > 1,
-                        colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("− Quitar última serie") }
-                    // Post-exercise answers (optional): they let the app adjust future sessions by itself.
-                    val answered = exercise.sets.any { it.kind == "working" && it.completed }
-                    if (answered) {
-                        Text("¿Cómo fue este ejercicio?", color = WorkoutText, fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.labelLarge)
-                        Text("Estímulo en el músculo", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            listOf("low" to "Poco", "adequate" to "Adecuado", "high" to "Mucho").forEach { (value, label) ->
-                                Choice(label, exercise.stimulus == value) {
-                                    updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
-                                        if (i == exerciseIndex) item.copy(stimulus = value) else item }))
-                                }
-                            }
-                        }
-                        Text("Molestias en articulaciones o tendones", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            listOf("none" to "Ninguna", "mild" to "Leves", "strong" to "Fuertes").forEach { (value, label) ->
-                                Choice(label, exercise.discomfort == value) {
-                                    updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
-                                        if (i == exerciseIndex) item.copy(discomfort = value) else item }))
-                                }
-                            }
-                        }
-                        Text("Al empezar, el músculo estaba", color = WorkoutMuted, style = MaterialTheme.typography.labelSmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            listOf("recovered" to "Recuperado", "loaded" to "Aún cargado").forEach { (value, label) ->
-                                Choice(label, exercise.preFatigue == value) {
-                                    updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
-                                        if (i == exerciseIndex) item.copy(preFatigue = value) else item }))
-                                }
+                                DropdownMenuItem(
+                                    text = { Text("− Quitar última serie") },
+                                    enabled = exercise.plannedSets > 1,
+                                    onClick = {
+                                        menuOpen = false
+                                        updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
+                                            if (i == exerciseIndex) {
+                                                val lastWorking = item.sets.indexOfLast { it.kind == "working" }
+                                                if (lastWorking < 0) item else item.copy(
+                                                    plannedSets = (item.plannedSets - 1).coerceAtLeast(1),
+                                                    sets = item.sets.filterIndexed { index, _ -> index != lastWorking }.let { remaining ->
+                                                        var workingNumber = 0
+                                                        var warmupNumber = 0
+                                                        remaining.map { set ->
+                                                            if (set.kind == "working") set.copy(setNumber = ++workingNumber)
+                                                            else set.copy(setNumber = warmupNumber++)
+                                                        }
+                                                    }
+                                                )
+                                            } else item
+                                        }))
+                                    }
+                                )
                             }
                         }
                     }
-                    if (exercise.sets.count { it.kind == "working" && it.completed } < exercise.plannedSets) {
-                        Text("¿Por qué no completaste todas las series?", color = WorkoutMuted, style = MaterialTheme.typography.labelMedium)
-                        listOf("load_too_heavy" to "Peso demasiado alto", "fatigue" to "Fatiga", "time" to "Tiempo",
-                            "equipment" to "Material", "pain" to "Dolor").chunked(2).forEach { pair ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                pair.forEach { (value, label) ->
-                                    Choice(label, draft.exerciseSkipReasons[timerKey] == value) {
-                                        updateDraft(draft.copy(exerciseSkipReasons = draft.exerciseSkipReasons + (timerKey to value)))
+                    // One compact footer: rate the exercise (after at least one set) and, if sets were skipped, why.
+                    if (workingDone > 0 || workingDone < exercise.plannedSets) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (workingDone > 0) {
+                                OutlinedButton(onClick = { answersTarget = exerciseIndex }, enabled = !busy, modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WorkoutAccent)) {
+                                    Text(if (exercise.stimulus != null || exercise.discomfort != null || exercise.preFatigue != null) "Valoración ✓" else "Valorar ejercicio")
+                                }
+                            }
+                            if (workingDone < exercise.plannedSets) {
+                                var reasonMenu by remember(timerKey) { mutableStateOf(false) }
+                                Box(Modifier.weight(1f)) {
+                                    OutlinedButton(onClick = { reasonMenu = true }, enabled = !busy, modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = WorkoutText)) {
+                                        Text(workoutSkipReasons.toMap()[draft.exerciseSkipReasons[timerKey]] ?: "Motivo ▾", maxLines = 1)
+                                    }
+                                    DropdownMenu(expanded = reasonMenu, onDismissRequest = { reasonMenu = false }) {
+                                        workoutSkipReasons.forEach { (value, label) ->
+                                            DropdownMenuItem(text = { Text(label) }, onClick = {
+                                                reasonMenu = false
+                                                updateDraft(draft.copy(exerciseSkipReasons = draft.exerciseSkipReasons + (timerKey to value)))
+                                            })
+                                        }
                                     }
                                 }
                             }
@@ -248,6 +273,33 @@ internal fun TrainingWorkoutScreen(
                     }
                 }
             }
+            }
+        }
+        answersTarget?.let { index ->
+            val target = draft.exercises.getOrNull(index)
+            if (target != null) {
+                AlertDialog(
+                    onDismissRequest = { answersTarget = null },
+                    containerColor = TrainingPalette.GraphiteSurface,
+                    titleContentColor = WorkoutText,
+                    textContentColor = WorkoutText,
+                    title = { Text("¿Cómo fue ${target.exerciseName}?") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            AnswerRow("Estímulo en el músculo", listOf("low" to "Poco", "adequate" to "Adecuado", "high" to "Mucho"), target.stimulus) { value ->
+                                updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item -> if (i == index) item.copy(stimulus = value) else item }))
+                            }
+                            AnswerRow("Molestias en articulaciones o tendones", listOf("none" to "Ninguna", "mild" to "Leves", "strong" to "Fuertes"), target.discomfort) { value ->
+                                updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item -> if (i == index) item.copy(discomfort = value) else item }))
+                            }
+                            AnswerRow("Al empezar, el músculo estaba", listOf("recovered" to "Recuperado", "loaded" to "Aún cargado"), target.preFatigue) { value ->
+                                updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item -> if (i == index) item.copy(preFatigue = value) else item }))
+                            }
+                            Text("Opcional. Con estas respuestas la app ajusta tus próximas sesiones.", color = WorkoutMuted, style = MaterialTheme.typography.bodySmall)
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { answersTarget = null }) { Text("Listo", color = WorkoutAccent) } }
+                )
             }
         }
         Card(colors = CardDefaults.cardColors(containerColor = WorkoutSurface), shape = RoundedCornerShape(20.dp)) {
@@ -418,14 +470,19 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 private fun newWorkoutDraft(session: TrainingSession, history: List<TrainingSession>): TrainingWorkoutDraft {
-    val exercises = session.exercisePrescriptionData?.exercises.orEmpty().map { exercise ->
+    val prescribed = session.exercisePrescriptionData?.exercises.orEmpty()
+    // Plans generated before warm-up guidance existed carry none: derive it with the same rule.
+    val derivedWarmups = if (prescribed.none { it.warmupSets != null }) deriveWarmupSets(prescribed) else emptyMap()
+    val exercises = prescribed.mapIndexed { exerciseIndex, exercise ->
+        val warmupCount = exercise.warmupSets ?: derivedWarmups[exerciseIndex]
+        val warmupNote = exercise.warmupNote ?: warmupCount?.let { "Haz $it serie(s) de aproximación muy fáciles y lejos del fallo antes de las series de trabajo. No cuentan como series de trabajo." }
         val count = (exercise.sets ?: 0).coerceIn(0, 50)
         // Warm-up rows are created from the prescription (very easy approach sets, not counted as working sets).
-        val warmups = (0 until (exercise.warmupSets ?: 0).coerceIn(0, 3)).map { TrainingSetRecord(it, "warmup", repetitions = exercise.maxRepetitions) }
+        val warmups = (0 until (warmupCount ?: 0).coerceIn(0, 3)).map { TrainingSetRecord(it, "warmup", repetitions = exercise.maxRepetitions) }
         val sets = warmups + (1..count).map { n -> TrainingSetRecord(n, weightKg = exercise.targetLoadKg ?: lastWorkingSet(history, session.id, exercise.exerciseId)?.weightKg, repetitions = exercise.minRepetitions, rir = exercise.targetRepetitionsInReserve) }
         TrainingExerciseDraft(exercise.exerciseId, exercise.exerciseNameSnapshot ?: "Ejercicio", count,
             exercise.minRepetitions, exercise.maxRepetitions, exercise.targetRepetitionsInReserve, exercise.restSeconds, sets,
-            targetLoadKg = exercise.targetLoadKg, warmupSets = exercise.warmupSets, warmupNote = exercise.warmupNote, loadBasis = exercise.loadBasis)
+            targetLoadKg = exercise.targetLoadKg, warmupSets = warmupCount, warmupNote = warmupNote, loadBasis = exercise.loadBasis)
     }
     return TrainingWorkoutDraft(session.id, System.currentTimeMillis(), exercises)
 }
@@ -460,4 +517,41 @@ internal fun sessionReasonFrom(reasons: Collection<String>, fallback: String): S
     val mapped = reasons.map { if (it == "load_too_heavy" || it == "pain") "other" else it }
         .filter { it in setOf("time", "fatigue", "equipment", "motivation", "illness", "other") }
     return mapped.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: fallback
+}
+
+private val workoutSkipReasons = listOf(
+    "load_too_heavy" to "Peso demasiado alto", "fatigue" to "Fatiga", "time" to "Falta de tiempo",
+    "equipment" to "Falta de material", "pain" to "Dolor"
+)
+
+@Composable
+private fun AnswerRow(label: String, options: List<Pair<String, String>>, selected: String?, onSelect: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, color = WorkoutMuted, style = MaterialTheme.typography.labelMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            options.forEach { (value, text) -> Choice(text, selected == value) { onSelect(value) } }
+        }
+    }
+}
+
+/**
+ * Warm-up rule used when the prescription does not carry warm-up sets (plans generated before they
+ * existed): an exercise gets one or two very easy approach sets (two for the session's first) only if
+ * one of its primary muscles was not yet a primary muscle of an earlier exercise of the session.
+ * Core-only exercises are skipped. Same rule as the server's generator.
+ */
+internal fun deriveWarmupSets(exercises: List<StructuredTrainingExercise>): Map<Int, Int> {
+    val warmed = mutableSetOf<String>()
+    var first = true
+    val result = mutableMapOf<Int, Int>()
+    exercises.forEachIndexed { index, exercise ->
+        val coreOnly = exercise.primaryMuscleGroups.all { it == "Abdominals" || it == "Obliques" }
+        val cold = exercise.primaryMuscleGroups.filter { it !in warmed }
+        warmed += exercise.primaryMuscleGroups
+        if (!coreOnly && cold.isNotEmpty()) {
+            result[index] = if (first) 2 else 1
+            first = false
+        }
+    }
+    return result
 }
