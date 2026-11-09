@@ -259,6 +259,8 @@ internal fun TrainingFeedbackContent(
             fontWeight = FontWeight.Bold
         )
 
+        if (envelope?.enabled == true && !workoutMode && selectedSession == null) TrainingReviewRequestSection()
+
         if (!loaded && busy) {
             Box(modifier = Modifier.fillMaxWidth().padding(28.dp)) { CircularProgressIndicator() }
         } else if (envelope?.enabled != true) {

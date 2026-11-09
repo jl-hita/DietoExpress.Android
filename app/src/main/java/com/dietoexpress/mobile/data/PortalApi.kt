@@ -501,6 +501,15 @@ interface PortalApi {
         @Body request: SwapExerciseRequest
     ): Map<String, Any?>
 
+    @GET("portal/training/review-requests")
+    suspend fun trainingReviewRequests(): TrainingReviewPlansResponse
+
+    @POST("portal/training/plans/{planId}/review-request")
+    suspend fun requestTrainingReview(
+        @Path("planId") planId: Int,
+        @Body request: TrainingReviewRequestBody
+    ): Map<String, Any?>
+
     @GET("portal/biometrics")
     suspend fun biometricHistory(): List<PatientBiometricMeasurement>
 
@@ -668,3 +677,23 @@ data class ExerciseAlternativesResponse(
 )
 
 data class SwapExerciseRequest(val replacementExerciseId: String)
+
+data class TrainingReviewRequestState(
+    val id: Long,
+    val status: String,
+    val createdAt: String,
+    val resolvedAt: String? = null,
+    val resolutionNotes: String? = null
+)
+
+data class TrainingReviewPlan(
+    val planId: Int,
+    val name: String,
+    val version: Int = 1,
+    val planStatus: String = "active",
+    val reviewRequest: TrainingReviewRequestState? = null
+)
+
+data class TrainingReviewPlansResponse(val plans: List<TrainingReviewPlan> = emptyList())
+
+data class TrainingReviewRequestBody(val note: String? = null)
