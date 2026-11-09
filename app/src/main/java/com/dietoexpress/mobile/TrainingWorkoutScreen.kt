@@ -229,7 +229,7 @@ internal fun TrainingWorkoutScreen(
                                 Box(Modifier.weight(1f)) {
                                     OutlinedButton(onClick = { reasonMenu = true }, enabled = !busy, modifier = Modifier.fillMaxWidth(),
                                         colors = ButtonDefaults.outlinedButtonColors(contentColor = WorkoutText)) {
-                                        Text(workoutSkipReasons.toMap()[draft.exerciseSkipReasons[timerKey]] ?: "¿Por qué no lo completaste? ▾", maxLines = 1)
+                                        Text(workoutSkipReasons.toMap()[draft.exerciseSkipReasons[timerKey]] ?: "¿Por qué no se completó? ▾", maxLines = 1)
                                     }
                                     DropdownMenu(expanded = reasonMenu, onDismissRequest = { reasonMenu = false }) {
                                         workoutSkipReasons.forEach { (value, label) ->
