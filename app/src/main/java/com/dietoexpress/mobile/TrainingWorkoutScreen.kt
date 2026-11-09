@@ -61,11 +61,6 @@ internal fun TrainingWorkoutScreen(
     val planned = draft.exercises.sumOf { it.plannedSets }
     val done = draft.exercises.sumOf { e -> e.sets.count { it.kind == "working" && it.completed } }
     val validationMessages = workoutValidationMessages(draft)
-    val liveContext = androidx.compose.ui.platform.LocalContext.current
-    // Pictures come from OUR backend with the patient's session cookie.
-    val imageLoader = remember(liveContext) {
-        coil.ImageLoader.Builder(liveContext).okHttpClient(PortalService.authenticatedClient()).build()
-    }
     val imageSlots by produceState<Map<String, List<Int>>>(emptyMap(), session.id) {
         value = runCatching { PortalService.api.sessionExerciseImages(session.id) }
             .getOrNull()?.exercises?.associate { it.exerciseId to it.slots }.orEmpty()
@@ -118,7 +113,7 @@ internal fun TrainingWorkoutScreen(
                             liveSlots.forEachIndexed { imageIndex, slot ->
                                 coil.compose.AsyncImage(
                                     model = exerciseImageUrl(BuildConfig.API_BASE_URL, exercise.exerciseId.orEmpty(), slot),
-                                    imageLoader = imageLoader,
+                                    imageLoader = TrainingImageLoader.get(androidx.compose.ui.platform.LocalContext.current),
                                     contentDescription = if (liveSlots.size == 1) "Técnica de ${exercise.exerciseName}"
                                         else if (imageIndex == 0) "Posición inicial de ${exercise.exerciseName}" else "Posición final de ${exercise.exerciseName}",
                                     modifier = Modifier.weight(1f).height(96.dp)
