@@ -26,6 +26,9 @@ La lista anterior describe funcionalidad presente en el código; no significa qu
 
 Las escrituras sin contrato seguro siguen siendo online. Ver [la auditoría de brechas](docs/ANDROID_GAP_AUDIT.md) y la política offline en [docs/OFFLINE_ENDPOINT_AUDIT.md](docs/OFFLINE_ENDPOINT_AUDIT.md).
 
+## Manual de uso y documentación de configuración
+- [Manual de uso de Android para pacientes](docs/MANUAL_USUARIO_ANDROID.md): acceso, dieta, lista de la compra, entrenamiento, citas, documentos, mensajes, progreso y resolución de problemas.
+
 ## Documentación de configuración y publicación
 - [Configuración, Firebase y firma](docs/ANDROID_SETUP.md).
 - [Guía para publicar en Google Play y crear la prueba cerrada](docs/GOOGLE_PLAY_CLOSED_TEST.md).
