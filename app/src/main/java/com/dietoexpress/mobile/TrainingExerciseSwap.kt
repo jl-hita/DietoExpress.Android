@@ -57,7 +57,7 @@ internal fun ExerciseSwapDialog(
     exerciseId: String,
     exerciseName: String,
     onDismiss: () -> Unit,
-    onSwapped: () -> Unit
+    onSwapped: (ExerciseAlternative) -> Unit
 ) {
     var loading by remember { mutableStateOf(true) }
     var alternatives by remember { mutableStateOf<List<ExerciseAlternative>>(emptyList()) }
@@ -129,7 +129,7 @@ internal fun ExerciseSwapDialog(
                     scope.launch {
                         try {
                             PortalService.api.swapExercise(sessionId, exerciseId, SwapExerciseRequest(replacement))
-                            onSwapped()
+                            onSwapped(alternatives.first { it.exerciseId == replacement })
                         } catch (error: Exception) {
                             message = swapErrorMessage(error)
                             saving = false

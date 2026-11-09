@@ -36,7 +36,8 @@ internal fun TrainingWorkoutScreen(
     onDraftChanged: (TrainingWorkoutDraft) -> Unit,
     onFinish: (TrainingSession, PatientTrainingRecordRequest) -> Unit,
     onBack: () -> Unit,
-    history: List<TrainingSession> = emptyList()
+    history: List<TrainingSession> = emptyList(),
+    onSwapped: () -> Unit = {}
 ) {
     val initial = remember(session.id) { initialDraft?.takeIf { it.sessionId == session.id } ?: newWorkoutDraft(session, history) }
     var draft by remember(session.id) { mutableStateOf(initial) }
@@ -67,6 +68,9 @@ internal fun TrainingWorkoutScreen(
             .getOrNull()?.exercises?.associate { it.exerciseId to it.slots }.orEmpty()
     }
     var answersTarget by remember(session.id) { mutableStateOf<Int?>(null) }
+    var swapTargetIndex by remember(session.id) { mutableStateOf<Int?>(null) }
+    // A started session can still change an exercise nothing has been logged on yet (server enforces date/record rules).
+    val swapAllowed = session.completedAt == null && session.scheduledDate.take(10) >= LocalDate.now().toString()
 
     Column(Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -175,6 +179,14 @@ internal fun TrainingWorkoutScreen(
                         Box {
                             TextButton(onClick = { menuOpen = true }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("Más ⋯") }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                if (swapAllowed) DropdownMenuItem(
+                                    text = { Text(if (canSwapWorkoutExercise(exercise)) "Cambiar ejercicio" else "Cambiar ejercicio (ya registrado)") },
+                                    enabled = canSwapWorkoutExercise(exercise),
+                                    onClick = {
+                                        menuOpen = false
+                                        swapTargetIndex = exerciseIndex
+                                    }
+                                )
                                 DropdownMenuItem(
                                     text = { Text("+ Calentamiento") },
                                     enabled = exercise.sets.count { it.kind == "warmup" } < 50,
@@ -270,6 +282,25 @@ internal fun TrainingWorkoutScreen(
                 }
             }
             }
+        }
+        swapTargetIndex?.let { index ->
+            val target = draft.exercises.getOrNull(index)
+            val targetId = target?.exerciseId
+            if (target != null && targetId != null && canSwapWorkoutExercise(target)) {
+                ExerciseSwapDialog(
+                    sessionId = session.id,
+                    exerciseId = targetId,
+                    exerciseName = target.exerciseName,
+                    onDismiss = { swapTargetIndex = null },
+                    onSwapped = { replacement ->
+                        swapTargetIndex = null
+                        updateDraft(swapWorkoutExercise(draft, index, replacement.exerciseId, replacement.name, history, session.id))
+                        restRemainingByExercise = restRemainingByExercise - targetId
+                        activeRestExerciseIds = activeRestExerciseIds - targetId
+                        onSwapped()
+                    }
+                )
+            } else swapTargetIndex = null
         }
         answersTarget?.let { index ->
             val target = draft.exercises.getOrNull(index)
@@ -481,6 +512,37 @@ private fun newWorkoutDraft(session: TrainingSession, history: List<TrainingSess
             targetLoadKg = exercise.targetLoadKg, warmupSets = warmupCount, warmupNote = warmupNote, loadBasis = exercise.loadBasis)
     }
     return TrainingWorkoutDraft(session.id, System.currentTimeMillis(), exercises)
+}
+
+/** An exercise can be replaced only while nothing has been logged on it (no completed set, no answers). */
+internal fun canSwapWorkoutExercise(exercise: TrainingExerciseDraft): Boolean =
+    exercise.exerciseId != null && exercise.sets.none { it.completed } &&
+        exercise.stimulus == null && exercise.discomfort == null && exercise.preFatigue == null
+
+/**
+ * Replaces one exercise of a started workout by its swap. Series, repetitions, RIR and rest are kept;
+ * weights are reset because the prescribed load belonged to the previous exercise.
+ */
+internal fun swapWorkoutExercise(
+    draft: TrainingWorkoutDraft,
+    exerciseIndex: Int,
+    replacementId: String,
+    replacementName: String,
+    history: List<TrainingSession>,
+    sessionId: Int
+): TrainingWorkoutDraft {
+    val old = draft.exercises.getOrNull(exerciseIndex) ?: return draft
+    if (!canSwapWorkoutExercise(old)) return draft
+    val lastWeight = lastWorkingSet(history, sessionId, replacementId)?.weightKg
+    val sets = old.sets.map { set -> set.copy(weightKg = if (set.kind == "working") lastWeight else null) }
+    val swapped = old.copy(
+        exerciseId = replacementId, exerciseName = replacementName, sets = sets,
+        targetLoadKg = null, loadBasis = null
+    )
+    return draft.copy(
+        exercises = draft.exercises.mapIndexed { i, item -> if (i == exerciseIndex) swapped else item },
+        exerciseSkipReasons = draft.exerciseSkipReasons - (old.exerciseId ?: "exercise-$exerciseIndex")
+    )
 }
 
 private fun updateWorkoutSet(draft: TrainingWorkoutDraft, exerciseIndex: Int, setIndex: Int, set: TrainingSetRecord, update: (TrainingWorkoutDraft) -> Unit) {
