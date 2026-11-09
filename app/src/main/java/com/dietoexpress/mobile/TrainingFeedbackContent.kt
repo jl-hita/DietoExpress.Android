@@ -278,7 +278,8 @@ internal fun TrainingFeedbackContent(
                     onDraftChanged = onDraftChanged,
                     onFinish = onRecord,
                     onBack = { workoutMode = false },
-                    history = allSessions
+                    history = allSessions,
+                    onSwapped = onRetry
                 )
             } else {
                 Row(
