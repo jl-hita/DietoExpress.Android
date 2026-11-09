@@ -167,24 +167,46 @@ internal fun TrainingWorkoutScreen(
                     }
                     val workingDone = exercise.sets.count { it.kind == "working" && it.completed }
                     var menuOpen by remember(timerKey) { mutableStateOf(false) }
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        TextButton(onClick = {
-                            updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
-                                if (i == exerciseIndex) item.copy(plannedSets = item.plannedSets + 1,
-                                    sets = item.sets + TrainingSetRecord(item.sets.count { it.kind == "working" } + 1,
-                                        weightKg = item.sets.lastOrNull { it.kind == "working" }?.weightKg,
-                                        repetitions = item.minRepetitions, rir = item.targetRir)) else item
-                            }))
-                        }, enabled = !busy && exercise.plannedSets < 50, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutAccent)) { Text("+ Serie") }
-                        Box {
-                            TextButton(onClick = { menuOpen = true }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = WorkoutMuted)) { Text("Más ⋯") }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { swapTargetIndex = exerciseIndex },
+                            enabled = !busy && swapAllowed && canSwapWorkoutExercise(exercise),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, WorkoutAccent.copy(alpha = 0.65f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color(0xFFEAF3EE),
+                                contentColor = WorkoutAccent,
+                                disabledContainerColor = Color(0xFFF1F3F2),
+                                disabledContentColor = WorkoutMuted
+                            )
+                        ) {
+                            Text("Cambiar ejercicio", fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                        Box(Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { menuOpen = true },
+                                enabled = !busy,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, WorkoutAccent.copy(alpha = 0.65f)),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = Color(0xFFEAF3EE),
+                                    contentColor = WorkoutAccent
+                                )
+                            ) { Text("Más…", fontWeight = FontWeight.SemiBold) }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                if (swapAllowed) DropdownMenuItem(
-                                    text = { Text(if (canSwapWorkoutExercise(exercise)) "Cambiar ejercicio" else "Cambiar ejercicio (ya registrado)") },
-                                    enabled = canSwapWorkoutExercise(exercise),
+                                DropdownMenuItem(
+                                    text = { Text("+ Añadir serie") },
+                                    enabled = exercise.plannedSets < 50,
                                     onClick = {
                                         menuOpen = false
-                                        swapTargetIndex = exerciseIndex
+                                        updateDraft(draft.copy(exercises = draft.exercises.mapIndexed { i, item ->
+                                            if (i == exerciseIndex) item.copy(plannedSets = item.plannedSets + 1,
+                                                sets = item.sets + TrainingSetRecord(item.sets.count { it.kind == "working" } + 1,
+                                                    weightKg = item.sets.lastOrNull { it.kind == "working" }?.weightKg,
+                                                    repetitions = item.minRepetitions, rir = item.targetRir)) else item
+                                        }))
                                     }
                                 )
                                 DropdownMenuItem(
