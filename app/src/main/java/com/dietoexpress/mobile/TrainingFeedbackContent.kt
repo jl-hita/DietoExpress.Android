@@ -41,7 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import coil.ImageLoader
 import coil.compose.AsyncImage
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.text.font.FontWeight
@@ -497,11 +496,8 @@ private fun TrainingSessionCard(
     onSwapped: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    // Pictures come from OUR backend with the session cookie of the authenticated client.
-    val imageLoader = remember(context) {
-        ImageLoader.Builder(context).okHttpClient(com.dietoexpress.mobile.data.PortalService.authenticatedClient()).build()
-    }
-    val imageSlots by produceState<Map<String, List<Int>>>(emptyMap(), session.id) {
+    val imageSlots by produceState<Map<String, List<Int>>>(emptyMap(), session.id,
+        session.exercisePrescriptionData?.exercises?.map { it.exerciseId }) {
         value = runCatching { com.dietoexpress.mobile.data.PortalService.api.sessionExerciseImages(session.id) }
             .getOrNull()?.exercises?.associate { it.exerciseId to it.slots }.orEmpty()
     }
@@ -583,7 +579,7 @@ private fun TrainingSessionCard(
                                 slots.forEachIndexed { imageIndex, slot ->
                                     AsyncImage(
                                         model = exerciseImageUrl(BuildConfig.API_BASE_URL, exercise.exerciseId.orEmpty(), slot),
-                                        imageLoader = imageLoader,
+                                        imageLoader = TrainingImageLoader.get(context),
                                         contentDescription = when {
                                             slots.size == 1 -> "Ejecución de ${exercise.exerciseNameSnapshot ?: "ejercicio"}"
                                             imageIndex == 0 -> "Posición inicial de ${exercise.exerciseNameSnapshot ?: "ejercicio"}"

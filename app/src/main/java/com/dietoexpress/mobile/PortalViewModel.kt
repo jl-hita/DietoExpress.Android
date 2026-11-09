@@ -714,6 +714,13 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         return storedDraft
     }
 
+    /** Force a server refresh after a patient changes an exercise in a session. */
+    fun refreshTraining() {
+        if (_state.value.busy) return
+        _state.value = _state.value.copy(trainingLoaded = false)
+        loadTraining()
+    }
+
     fun loadTraining() {
         if (_state.value.busy || _state.value.trainingLoaded) return
         runRequest {
