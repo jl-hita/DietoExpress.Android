@@ -374,7 +374,7 @@ class MainActivity : ComponentActivity() {
                                         loaded = state.trainingLoaded,
                                         busy = state.busy,
                                         onRecord = vm::recordTrainingSession,
-                                        onRetry = { vm.openSection("training") },
+                                        onRetry = vm::refreshTraining,
                                         activeDraft = state.trainingDraft,
                                         onDraftChanged = vm::saveTrainingDraft,
                                         autoStartSessionId = state.trainingAutoStartSessionId,
