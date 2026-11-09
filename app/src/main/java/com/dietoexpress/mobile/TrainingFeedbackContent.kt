@@ -41,7 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import coil.ImageLoader
 import coil.compose.AsyncImage
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.text.font.FontWeight
