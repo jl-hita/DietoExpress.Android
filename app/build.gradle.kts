@@ -76,6 +76,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.11.0")
     // Override legacy transitive fragment versions flagged by Google Play.
     implementation("androidx.fragment:fragment:1.8.9")
+    // Acceso biométrico (BiometricPrompt con clave del Keystore). Requiere FragmentActivity.
+    implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.core:core-splashscreen:1.2.0")
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")

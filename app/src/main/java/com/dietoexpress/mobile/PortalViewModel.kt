@@ -7,6 +7,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.core.content.FileProvider
 import com.dietoexpress.mobile.data.AccessLinkRequest
+import com.dietoexpress.mobile.data.BiometricChallengeRequest
+import com.dietoexpress.mobile.data.BiometricLoginRequest
+import com.dietoexpress.mobile.data.BiometricRegisterRequest
 import com.dietoexpress.mobile.data.CheckinEligibility
 import com.dietoexpress.mobile.data.DietDetail
 import com.dietoexpress.mobile.data.PatientAppointment
@@ -44,6 +47,9 @@ import retrofit2.HttpException
 import java.io.IOException
 import java.io.File
 import java.util.UUID
+import java.security.Signature
+import android.os.Build
+import android.util.Base64
 import java.security.MessageDigest
 
 internal fun trainingDraftIsConfirmedComplete(
@@ -88,6 +94,8 @@ data class OfflineOperationSummary(
 
 data class PortalUiState(
     val initializing: Boolean = true,
+    val biometricAvailable: Boolean = false,
+    val biometricEnrolled: Boolean = false,
     val emailOrPhone: String = "",
     val passcode: String = "",
     val linkEmail: String = "",
@@ -134,12 +142,17 @@ data class PortalUiState(
 
 class PortalViewModel(application: Application) : AndroidViewModel(application) {
     private val offline = OfflineRepository(application)
+    private val biometricStore = BiometricEnrollmentStore(application)
     private val trainingDraftSaveMutex = Mutex()
     private val _state = MutableStateFlow(PortalUiState())
     val state: StateFlow<PortalUiState> = _state.asStateFlow()
 
     init {
         PortalService.initialize(application)
+        _state.value = _state.value.copy(
+            biometricAvailable = BiometricKeys.isAvailable(application),
+            biometricEnrolled = biometricStore.read() != null
+        )
         viewModelScope.launch {
             try {
                 val cachedProfile = offline.restoreLastProfile()
@@ -175,24 +188,105 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 PortalService.api.authenticate(
                     PatientAuthRequest(emailOrPhone = current.emailOrPhone.trim(), passcode = current.passcode)
                 )
-                val profile = PortalService.api.profile()
-                val relationship = runCatching { PortalService.api.nutritionistRelationship() }.getOrNull()
-                val transfer = runCatching { PortalService.api.nutritionistTransfer() }.getOrNull()
-                offline.cacheValue(profile.clientId, "profile", profile)
-                offline.setActiveAccountId(profile.clientId)
-                offline.scheduleSync(profile.clientId)
-                _state.value = _state.value.copy(
-                    profile = profile, nutritionistRelationship = relationship, nutritionistTransfer = transfer?.takeIf { it.pending },
-                    transferConsentChecked = false, passcode = "", diet = null, dietLoaded = false,
-                    appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
-                    messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
-                    checkinDraft = PatientCheckinDraft(), checkinSubmissionPending = false,
-                    offlineOperations = emptyList(),
-                    section = "home", videoAppointmentId = null, message = null, error = false
-                )
-                PushNotifications.registerCurrentToken(getApplication<Application>(), profile.clientId)
+                loadPortalAfterAuthentication()
             }
         }
+    }
+
+    // Tramo común a todos los accesos (PIN, enlace y biometría): carga el perfil y prepara la caché y las notificaciones.
+    private suspend fun loadPortalAfterAuthentication() {
+        val profile = PortalService.api.profile()
+        val relationship = runCatching { PortalService.api.nutritionistRelationship() }.getOrNull()
+        val transfer = runCatching { PortalService.api.nutritionistTransfer() }.getOrNull()
+        offline.cacheValue(profile.clientId, "profile", profile)
+        offline.setActiveAccountId(profile.clientId)
+        offline.scheduleSync(profile.clientId)
+        _state.value = _state.value.copy(
+            profile = profile, nutritionistRelationship = relationship, nutritionistTransfer = transfer?.takeIf { it.pending },
+            transferConsentChecked = false, passcode = "", diet = null, dietLoaded = false,
+            appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
+            messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
+            checkinDraft = PatientCheckinDraft(), checkinSubmissionPending = false,
+            offlineOperations = emptyList(),
+            section = "home", videoAppointmentId = null, message = null, error = false
+        )
+        PushNotifications.registerCurrentToken(getApplication<Application>(), profile.clientId)
+    }
+
+    /** Pide un desafío al servidor y prepara la firma; la interfaz muestra después el diálogo biométrico. */
+    fun prepareBiometricLogin(onReady: (Signature, String, String) -> Unit) = runRequest {
+        val enrollment = biometricStore.read()
+        if (enrollment == null) {
+            _state.value = _state.value.copy(biometricEnrolled = false)
+            showMessage("El acceso con huella o rostro no está activado en este dispositivo.", true)
+            return@runRequest
+        }
+        val signature = BiometricKeys.prepareSignature(enrollment.keyAlias)
+        if (signature == null) {
+            // La clave se invalidó (p. ej. al añadir otra huella): hay que entrar con el PIN y volver a activarlo.
+            clearBiometricEnrollment()
+            showMessage("Tus datos biométricos han cambiado. Entra con tu código y vuelve a activar el acceso biométrico.", true)
+            return@runRequest
+        }
+        val challenge = PortalService.api.biometricChallenge(BiometricChallengeRequest(enrollment.deviceId)).challenge
+        onReady(signature, enrollment.deviceId, challenge)
+    }
+
+    fun completeBiometricLogin(signature: Signature, deviceId: String, challenge: String) = runRequest {
+        val signed = signature.apply { update(biometricSignedMessage(deviceId, challenge)) }.sign()
+        SessionOperationLock.withLock {
+            try {
+                PortalService.api.biometricLogin(
+                    BiometricLoginRequest(deviceId, challenge, Base64.encodeToString(signed, Base64.NO_WRAP))
+                )
+            } catch (ex: HttpException) {
+                if (ex.code() == 401) {
+                    // El servidor ya no reconoce el dispositivo (revocado o PIN cambiado): se retira la activación local.
+                    clearBiometricEnrollment()
+                    showMessage("El acceso biométrico ya no es válido. Entra con tu código y vuelve a activarlo.", true)
+                    return@withLock
+                }
+                throw ex
+            }
+            loadPortalAfterAuthentication()
+        }
+    }
+
+    fun showBiometricError(message: String) = showMessage(message, true)
+
+    fun enableBiometric() = runRequest {
+        val clientId = _state.value.profile?.clientId
+        if (clientId == null || !BiometricKeys.isAvailable(getApplication())) {
+            showMessage("Este dispositivo no tiene huella o rostro configurados.", true)
+            return@runRequest
+        }
+        clearBiometricEnrollment(revokeOnServer = true)
+        val alias = "dietoexpress_biometric_" + UUID.randomUUID().toString().replace("-", "")
+        val publicKey = BiometricKeys.createKey(alias)
+        try {
+            val deviceName = (Build.MANUFACTURER + " " + Build.MODEL).trim().take(100)
+            val registered = PortalService.api.biometricRegister(BiometricRegisterRequest(publicKey, deviceName))
+            biometricStore.save(BiometricEnrollment(registered.deviceId, alias, clientId))
+            _state.value = _state.value.copy(biometricEnrolled = true)
+            showMessage("Acceso con huella o rostro activado en este dispositivo.", false)
+        } catch (ex: Exception) {
+            BiometricKeys.delete(alias)
+            throw ex
+        }
+    }
+
+    fun disableBiometric() = runRequest {
+        clearBiometricEnrollment(revokeOnServer = true)
+        showMessage("Acceso con huella o rostro desactivado.", false)
+    }
+
+    private suspend fun clearBiometricEnrollment(revokeOnServer: Boolean = false) {
+        biometricStore.read()?.let { enrollment ->
+            if (revokeOnServer) runCatching { PortalService.api.biometricRevoke(enrollment.deviceId) }
+            BiometricKeys.delete(enrollment.keyAlias)
+        }
+        biometricStore.clear()
+        _state.value = _state.value.copy(biometricEnrolled = false)
     }
 
     fun requestAccessLink() {
@@ -1067,7 +1161,8 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     offline.clearActiveAccountId(accountId)
                     offline.clearAccountCache(accountId)
                 }
-                _state.value = PortalUiState(message = "Sesión cerrada.", error = false)
+                // El acceso biométrico se conserva al cerrar sesión: es la forma rápida de volver a entrar.
+                _state.value = PortalUiState(initializing = false, biometricAvailable = _state.value.biometricAvailable, biometricEnrolled = biometricStore.read() != null, message = "Sesión cerrada.", error = false)
             }
         }
     }

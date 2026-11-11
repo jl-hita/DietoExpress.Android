@@ -12,11 +12,18 @@ import okhttp3.ResponseBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Headers
 import retrofit2.http.POST
 import retrofit2.http.Path
+
+data class BiometricRegisterRequest(val publicKey: String, val deviceName: String)
+data class BiometricRegisterResponse(val deviceId: String)
+data class BiometricChallengeRequest(val deviceId: String)
+data class BiometricChallengeResponse(val challenge: String)
+data class BiometricLoginRequest(val deviceId: String, val challenge: String, val signature: String)
 
 data class PatientAuthRequest(
     val token: String? = null,
@@ -536,6 +543,18 @@ interface PortalApi {
 
     @POST("portal/logout")
     suspend fun logout()
+
+    @POST("portal/biometric/register")
+    suspend fun biometricRegister(@Body request: BiometricRegisterRequest): BiometricRegisterResponse
+
+    @POST("portal/biometric/challenge")
+    suspend fun biometricChallenge(@Body request: BiometricChallengeRequest): BiometricChallengeResponse
+
+    @POST("portal/biometric/login")
+    suspend fun biometricLogin(@Body request: BiometricLoginRequest): PatientAuthResponse
+
+    @DELETE("portal/biometric/devices/{deviceId}")
+    suspend fun biometricRevoke(@Path("deviceId") deviceId: String)
 }
 
 /**
