@@ -82,3 +82,21 @@ La caché cifrada aplica TTL por familia, conserva snapshots vencidos durante un
 El check-in de `POST /api/portal/training/sessions/{sessionId}/record` puede incluir `exerciseFeedback`, una lista con `exerciseId`, nombre de referencia, series planificadas, series completadas y motivo de las series omitidas. Se valida que los recuentos estén dentro de rango, que no haya ejercicios duplicados y que cada omisión tenga motivo. El backend conserva este detalle en JSONB y lo devuelve en `GET /api/portal/training/sessions`; los clientes antiguos pueden omitir el campo sin borrar el registro previo.
 
 La recomendación conservadora mantiene prioridad para el dolor nuevo o creciente. Si el volumen real registrado es inferior al 80 % del planificado, se recomienda pausar la progresión y revisar el contexto con el profesional. No se cambia el plan automáticamente ni se encola este registro para reintento offline: requiere conexión y respuesta confirmada del backend.
+
+## Acceso biométrico (huella o rostro)
+
+Contrato con el backend (`PatientBiometricController`, ruta `api/portal/biometric`):
+
+| Método y ruta | Auth | Uso |
+|---|---|---|
+| `POST /biometric/register` `{publicKey, deviceName}` → `{deviceId}` | sesión de paciente | Registra la clave pública EC P-256 (X.509 SPKI en Base64) creada en el Keystore. Máx. 5 dispositivos activos; el paciente recibe un email. |
+| `POST /biometric/challenge` `{deviceId}` → `{challenge}` | anónimo | Desafío HMAC de 2 minutos y un solo uso. |
+| `POST /biometric/login` `{deviceId, challenge, signature}` → igual que `portal/auth` | anónimo | Firma `SHA256withECDSA` (DER) del texto `dietoexpress-biometric-v1\|{deviceId}\|{challenge}`. Emite la misma cookie de sesión que el PIN. 401 genérico si algo falla. |
+| `DELETE /biometric/devices/{deviceId}` | sesión de paciente | Revoca el dispositivo. |
+
+Reglas de la app:
+- La clave privada exige autenticación biométrica fuerte en cada uso (`BIOMETRIC_STRONG`) y se invalida si cambian las huellas o rostros registrados.
+- Ante un 401 en `biometric/login` o una clave invalidada, la app borra la activación local y pide entrar con el PIN.
+- El acceso biométrico se conserva al cerrar sesión. Si el profesional cambia el PIN del paciente, el servidor revoca todos sus dispositivos.
+- El texto firmado debe mantenerse idéntico en `biometricSignedMessage` (app) y `PatientBiometricCrypto.BuildSignedMessage` (backend); hay un test en cada lado.
+

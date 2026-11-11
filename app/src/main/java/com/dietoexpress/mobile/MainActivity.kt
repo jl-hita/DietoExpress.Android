@@ -5,7 +5,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -54,6 +54,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -104,7 +105,7 @@ private val Muted = Color(0xFF687970)
 private val Line = Color(0xFFE2EAE5)
 private val Amber = Color(0xFF94651B)
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     private val notificationTarget = MutableStateFlow<String?>(null)
 
     override fun onNewIntent(intent: Intent) {
@@ -194,7 +195,20 @@ class MainActivity : ComponentActivity() {
                             onLinkEmailChange = vm::updateLinkEmail,
                             onLogin = vm::login,
                             onRequestLink = vm::requestAccessLink,
-                            onOpenDirectory = { publicRoute = "directory" }
+                            onOpenDirectory = { publicRoute = "directory" },
+                            biometricEnrolled = state.biometricEnrolled && state.biometricAvailable,
+                            onBiometricLogin = {
+                                vm.prepareBiometricLogin { signature, deviceId, challenge ->
+                                    showBiometricSignPrompt(
+                                        activity = this@MainActivity,
+                                        signature = signature,
+                                        title = "Entrar en DietoExpress",
+                                        subtitle = "Confirma con tu huella o rostro",
+                                        onSigned = { signed -> vm.completeBiometricLogin(signed, deviceId, challenge) },
+                                        onFailure = { cancelled, message -> if (!cancelled) vm.showBiometricError(message) }
+                                    )
+                                }
+                            }
                         )
                     } else {
                         Scaffold(
@@ -407,6 +421,9 @@ class MainActivity : ComponentActivity() {
                                         offlineOperations = state.offlineOperations,
                                         onRefresh = vm::refreshProfile,
                                         onLogout = vm::logout,
+                                        biometricAvailable = state.biometricAvailable,
+                                        biometricEnrolled = state.biometricEnrolled,
+                                        onToggleBiometric = { enable -> if (enable) vm.enableBiometric() else vm.disableBiometric() },
                                         onRefreshOfflineOperations = vm::refreshOfflineOperations,
                                         onRetryPendingSync = vm::retryPendingSync,
                                         onDiscardOfflineOperation = vm::discardOfflineOperation
@@ -493,7 +510,9 @@ private fun LoginScreen(
     onLinkEmailChange: (String) -> Unit,
     onLogin: () -> Unit,
     onRequestLink: () -> Unit,
-    onOpenDirectory: () -> Unit
+    onOpenDirectory: () -> Unit,
+    biometricEnrolled: Boolean,
+    onBiometricLogin: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -547,6 +566,16 @@ private fun LoginScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Forest)
                 ) {
                     Text(if (busy) "Conectando…" else "Entrar en mi cuenta", fontWeight = FontWeight.SemiBold)
+                }
+                if (biometricEnrolled) {
+                    OutlinedButton(
+                        onClick = onBiometricLogin,
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Entrar con huella o rostro", fontWeight = FontWeight.SemiBold)
+                    }
                 }
                 message?.let { InfoBanner(it, error) }
                 HorizontalDivider(color = Line)
@@ -1389,6 +1418,9 @@ private fun ProfileContent(
     offlineOperations: List<OfflineOperationSummary>,
     onRefresh: () -> Unit,
     onLogout: () -> Unit,
+    biometricAvailable: Boolean,
+    biometricEnrolled: Boolean,
+    onToggleBiometric: (Boolean) -> Unit,
     onRefreshOfflineOperations: () -> Unit,
     onRetryPendingSync: () -> Unit,
     onDiscardOfflineOperation: (String) -> Unit
@@ -1410,6 +1442,20 @@ private fun ProfileContent(
             nutritionist?.takeIf { it.isNotBlank() }?.let { ProfileRow("Profesional", it) }
             Button(onClick = onRefresh, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Actualizar información") }
             TextButton(onClick = onLogout, enabled = !busy) { Text("Cerrar sesión", color = Muted) }
+        }
+    }
+    if (biometricAvailable || biometricEnrolled) {
+        Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Entrar con huella o rostro", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
+                    Text(
+                        "Accede sin escribir tu código. Tu huella o rostro no salen de este dispositivo y puedes desactivarlo cuando quieras.",
+                        color = Muted, style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Switch(checked = biometricEnrolled, onCheckedChange = onToggleBiometric, enabled = !busy)
+            }
         }
     }
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
