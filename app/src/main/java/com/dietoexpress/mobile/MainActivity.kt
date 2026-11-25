@@ -1,5 +1,8 @@
 package com.dietoexpress.mobile
 
+import com.dietoexpress.mobile.data.DietHistoryEntry
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.activity.compose.BackHandler
 import android.os.Bundle
 import android.Manifest
 import android.content.Intent
@@ -136,10 +139,12 @@ class MainActivity : FragmentActivity() {
                 Surface(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing), color = Canvas) {
                     val vm: PortalViewModel = viewModel()
                     val state by vm.state.collectAsStateWithLifecycle()
+                    // Se conserva si Android recrea la actividad mientras está abierto el selector de archivos.
+                    var pdfAssignmentId by rememberSaveable { mutableStateOf<Int?>(null) }
                     val dietPdfLauncher = rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.CreateDocument("application/pdf")
                     ) { uri ->
-                        if (uri != null) vm.saveActiveDietPdf(uri)
+                        if (uri != null) vm.saveDietPdf(uri, pdfAssignmentId)
                     }
                     val notificationDestination by notificationTarget.collectAsStateWithLifecycle()
                     LaunchedEffect(notificationDestination, state.profile?.clientId) {
@@ -234,9 +239,12 @@ class MainActivity : FragmentActivity() {
                                 }
                             }
                         ) { padding ->
+                            val contentScroll = rememberScrollState()
+                            // Al abrir o cerrar un plan anterior se vuelve al principio de la pantalla.
+                            LaunchedEffect(state.openPastDiet?.assignmentId) { contentScroll.scrollTo(0) }
                             Column(
                                 modifier = Modifier.fillMaxSize().padding(padding)
-                                    .verticalScroll(rememberScrollState())
+                                    .verticalScroll(contentScroll)
                                     .padding(
                                         horizontal = if (state.section == "training") 8.dp else 20.dp,
                                         vertical = if (state.section == "training") 12.dp else 18.dp
@@ -332,14 +340,37 @@ class MainActivity : FragmentActivity() {
                                         onOpenMessages = { showingNotifications = false; vm.openSection("messages") }
                                     )
                                 } else when (state.section) {
-                                    "diet" -> DietContent(
-                                        diet = state.diet,
-                                        loaded = state.dietLoaded,
-                                        busy = state.busy,
-                                        onRetry = vm::loadDiet,
-                                        onDownloadPdf = { dietPdfLauncher.launch("Dieta_DietoExpress.pdf") },
-                                        pdfEnabled = !state.busy
-                                    )
+                                    "diet" -> {
+                                        val downloadPdf: (Int?) -> Unit = { assignmentId ->
+                                            pdfAssignmentId = assignmentId
+                                            dietPdfLauncher.launch("Dieta_DietoExpress.pdf")
+                                        }
+                                        val past = state.openPastDiet
+                                        if (past == null) {
+                                            DietContent(
+                                                diet = state.diet,
+                                                loaded = state.dietLoaded,
+                                                busy = state.busy,
+                                                onRetry = vm::loadDiet,
+                                                onDownloadPdf = { downloadPdf(null) },
+                                                pdfEnabled = !state.busy
+                                            )
+                                            DietHistoryList(
+                                                entries = state.dietHistory.filterNot { it.isActive },
+                                                enabled = !state.busy,
+                                                onOpen = vm::openPastDiet
+                                            )
+                                        } else {
+                                            PastDietContent(
+                                                entry = past,
+                                                diet = state.pastDiet,
+                                                busy = state.busy,
+                                                onBack = vm::closePastDiet,
+                                                onRetry = { vm.openPastDiet(past) },
+                                                onDownloadPdf = { downloadPdf(past.assignmentId) }
+                                            )
+                                        }
+                                    }
                                     "video" -> VideoConsultationScreen(
                                         appointmentId = state.videoAppointmentId,
                                         onExit = { vm.openSection("appointments") }
@@ -797,6 +828,70 @@ private fun DietContent(
                 DietDayCard(day, Modifier.bringIntoViewRequester(dayRequesters[index]))
             }
         }
+    }
+}
+
+private fun dietPeriodLabel(entry: DietHistoryEntry): String =
+    "Desde el ${formatDateLabel(entry.startDate)}" + (entry.endDate?.let { " hasta el ${formatDateLabel(it)}" } ?: "")
+
+@Composable
+private fun DietHistoryList(entries: List<DietHistoryEntry>, enabled: Boolean, onOpen: (DietHistoryEntry) -> Unit) {
+    if (entries.isEmpty()) return
+    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Planes anteriores", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
+            entries.forEachIndexed { index, entry ->
+                if (index > 0) HorizontalDivider(color = Line)
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable(enabled = enabled, onClickLabel = "Ver plan") { onOpen(entry) }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(entry.dietName, color = Ink, fontWeight = FontWeight.SemiBold)
+                        Text(dietPeriodLabel(entry), color = Muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text("Ver ›", color = Forest, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+/** Un plan anterior se consulta con la misma vista que el actual: objetivos, días, comidas y PDF. */
+@Composable
+private fun PastDietContent(
+    entry: DietHistoryEntry,
+    diet: DietDetail?,
+    busy: Boolean,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onDownloadPdf: () -> Unit
+) {
+    BackHandler(onBack = onBack)
+    TextButton(onClick = onBack) { Text("‹ Volver al plan actual", color = Forest, fontWeight = FontWeight.SemiBold) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("PLAN ANTERIOR", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Text(entry.dietName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+        Text(dietPeriodLabel(entry), color = Muted, style = MaterialTheme.typography.bodySmall)
+    }
+    when {
+        diet != null -> DietContent(
+            diet = diet,
+            loaded = true,
+            busy = busy,
+            onRetry = onRetry,
+            onDownloadPdf = onDownloadPdf,
+            pdfEnabled = !busy
+        )
+        busy -> LoadingCard("Estamos recuperando este plan")
+        else -> EmptyCard(
+            title = "No se ha podido abrir el plan",
+            body = "Comprueba tu conexión e inténtalo de nuevo.",
+            action = "Reintentar",
+            onAction = onRetry
+        )
     }
 }
 
