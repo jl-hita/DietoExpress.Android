@@ -60,7 +60,7 @@ No es necesario configurar Firebase en el equipo: los valores de cliente están 
 
 Los cuatro valores Firebase identifican la aplicación cliente; no son credenciales administrativas. Aun así, restringe la API key a las APIs y aplicaciones necesarias cuando sea posible. **Nunca** guardes en el repositorio credenciales de servidor, service-account JSON, contraseñas, tokens, cookies ni el keystore de firma.
 
-Para generar el AAB de Google Play, configura las cuatro propiedades `androidSigning*` en tu archivo personal de Gradle siguiendo [la guía de firma y publicación](docs/ANDROID_SETUP.md). El AAB se genera desde Android Studio en tu PC; GitHub Actions no recibe la clave ni genera paquetes de publicación.
+Para generar el AAB de Google Play, configura las cuatro propiedades `androidSigning*` en tu archivo personal de Gradle siguiendo [la guía de firma y publicación](docs/ANDROID_SETUP.md). Cada merge a `main` que cambie la app [publica automáticamente un AAB firmado](docs/GOOGLE_PLAY_AUTOMATED_RELEASE.md) en las pruebas cerradas de Google Play.
 
 ## Compatibilidad obligatoria con el backend
 Cada PR que cambie endpoints, DTO, cookies, permisos, estados HTTP, formatos de fecha o reglas de negocio debe revisar el impacto en Android y registrar la conclusión. Ver [docs/API_COMPATIBILITY.md](docs/API_COMPATIBILITY.md).

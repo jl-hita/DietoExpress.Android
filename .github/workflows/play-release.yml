@@ -1,0 +1,143 @@
+name: Google Play release
+
+# Cada merge a main que cambie la app genera un AAB firmado con un versionCode nuevo
+# y lo publica en Google Play. Los cambios solo de documentación o de CI no publican.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+  workflow_dispatch:
+
+# Las publicaciones van en serie y nunca se cancela una subida en curso.
+concurrency:
+  group: google-play-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # versionCode = VERSION_CODE_BASE + número de ejecución de este workflow.
+  # versionName = VERSION_NAME_PREFIX.(versionCode - VERSION_NAME_PATCH_OFFSET)
+  # Si se renombra este archivo, GitHub reinicia el contador: sube entonces VERSION_CODE_BASE
+  # al último versionCode publicado.
+  VERSION_CODE_BASE: "10"
+  VERSION_NAME_PREFIX: "0.1"
+  VERSION_NAME_PATCH_OFFSET: "2"
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check required secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          missing=0
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD PLAY_SERVICE_ACCOUNT_JSON; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Falta el secreto correspondiente a $name (ver docs/GOOGLE_PLAY_AUTOMATED_RELEASE.md)"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.8.1"
+
+      - name: Compute version
+        run: |
+          code=$((VERSION_CODE_BASE + GITHUB_RUN_NUMBER))
+          name="${VERSION_NAME_PREFIX}.$((code - VERSION_NAME_PATCH_OFFSET))"
+          echo "ORG_GRADLE_PROJECT_dietoexpressVersionCode=$code" >> "$GITHUB_ENV"
+          echo "ORG_GRADLE_PROJECT_dietoexpressVersionName=$name" >> "$GITHUB_ENV"
+          echo "Versión $name (versionCode $code)" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Run unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
+
+      - name: Restore upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+        run: |
+          keystore="$RUNNER_TEMP/upload.keystore"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          keytool -list -keystore "$keystore" -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" > /dev/null
+
+      - name: Build signed App Bundle
+        env:
+          ORG_GRADLE_PROJECT_androidSigningKeystorePath: ${{ runner.temp }}/upload.keystore
+          ORG_GRADLE_PROJECT_androidSigningKeystorePassword: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_androidSigningKeyAlias: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_androidSigningKeyPassword: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          # Identificadores de cliente Firebase. Si están vacíos, la app se publica sin notificaciones push.
+          FIREBASE_ApiKey: ${{ vars.DIETOEXPRESS_FIREBASE_API_KEY }}
+          FIREBASE_ApplicationId: ${{ vars.DIETOEXPRESS_FIREBASE_APPLICATION_ID }}
+          FIREBASE_ProjectId: ${{ vars.DIETOEXPRESS_FIREBASE_PROJECT_ID }}
+          FIREBASE_SenderId: ${{ vars.DIETOEXPRESS_FIREBASE_SENDER_ID }}
+        run: |
+          # Solo se sobrescriben las propiedades con valor, para no vaciar las de gradle.properties.
+          for name in ApiKey ApplicationId ProjectId SenderId; do
+            var="FIREBASE_$name"
+            if [ -n "${!var}" ]; then
+              export "ORG_GRADLE_PROJECT_dietoexpressFirebase$name=${!var}"
+            else
+              echo "::warning::Variable Firebase $name vacía: la versión publicada puede quedarse sin notificaciones push"
+            fi
+          done
+          gradle --no-daemon :app:bundleRelease
+
+      # Sin las cuatro propiedades de firma Gradle genera un AAB sin firmar sin fallar.
+      - name: Verify bundle signature
+        run: |
+          jarsigner -verify app/build/outputs/bundle/release/app-release.aab | tee "$RUNNER_TEMP/verify.txt"
+          grep -q "jar verified" "$RUNNER_TEMP/verify.txt"
+
+      - name: Keep signed bundle and mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: DietoExpress-release-${{ env.ORG_GRADLE_PROJECT_dietoexpressVersionCode }}
+          path: |
+            app/build/outputs/bundle/release/app-release.aab
+            app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.dietoexpress.mobile
+          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          mappingFile: app/build/outputs/mapping/release/mapping.txt
+          # "alpha" es la pista de pruebas cerradas inicial.
+          tracks: ${{ vars.PLAY_TRACK || 'alpha' }}
+          status: ${{ vars.PLAY_RELEASE_STATUS || 'completed' }}
+
+      - name: Remove upload keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.keystore"
