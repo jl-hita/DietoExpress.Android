@@ -87,7 +87,7 @@ class OfflineRepository(context: Context) {
 
     private fun freshnessTtlMs(key: String): Long = when {
         key == "profile" -> PROFILE_TTL_MS
-        key == "diet" -> DIET_TTL_MS
+        key == "diet" || key.startsWith("diet-") -> DIET_TTL_MS
         key == "appointments" -> APPOINTMENTS_TTL_MS
         key == "documents" -> DOCUMENTS_TTL_MS
         key == "shopping" || key == "shopping-list" -> SHOPPING_TTL_MS

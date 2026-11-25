@@ -83,6 +83,16 @@ El check-in de `POST /api/portal/training/sessions/{sessionId}/record` puede inc
 
 La recomendación conservadora mantiene prioridad para el dolor nuevo o creciente. Si el volumen real registrado es inferior al 80 % del planificado, se recomienda pausar la progresión y revisar el contexto con el profesional. No se cambia el plan automáticamente ni se encola este registro para reintento offline: requiere conexión y respuesta confirmada del backend.
 
+## Historial de planes alimentarios
+
+| Método y ruta | Auth | Uso |
+|---|---|---|
+| `GET /api/portal/diet/history` → `[{assignmentId, dietName, startDate, endDate, isActive}]` | sesión de paciente | Planes actual y anteriores, del más reciente al más antiguo. Fechas `yyyy-MM-dd`. |
+| `GET /api/portal/diet/history/{assignmentId}` → mismo DTO que `portal/diet` | sesión de paciente | Contenido de un plan propio; 404 si no existe o es de otro paciente. |
+| `GET /api/portal/diet/history/{assignmentId}/pdf` → `application/pdf` | sesión de paciente y licencia `PDF_EXPORT` | PDF del plan. |
+
+Orden de despliegue: primero el backend. Con un backend sin estas rutas, la app recibe 404 y no muestra la lista de planes anteriores. Editar una dieta en el backend sobrescribe su contenido, así que un plan anterior refleja su última edición.
+
 ## Acceso biométrico (huella o rostro)
 
 Contrato con el backend (`PatientBiometricController`, ruta `api/portal/biometric`):

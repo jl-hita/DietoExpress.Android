@@ -12,6 +12,7 @@ import com.dietoexpress.mobile.data.BiometricLoginRequest
 import com.dietoexpress.mobile.data.BiometricRegisterRequest
 import com.dietoexpress.mobile.data.CheckinEligibility
 import com.dietoexpress.mobile.data.DietDetail
+import com.dietoexpress.mobile.data.DietHistoryEntry
 import com.dietoexpress.mobile.data.PatientAppointment
 import com.dietoexpress.mobile.data.AppointmentSlot
 import com.dietoexpress.mobile.data.CreatePatientAppointmentRequest
@@ -105,6 +106,10 @@ data class PortalUiState(
     val transferConsentChecked: Boolean = false,
     val diet: DietDetail? = null,
     val dietLoaded: Boolean = false,
+    val dietHistory: List<DietHistoryEntry> = emptyList(),
+    /** Plan anterior abierto; nulo mientras se muestra el plan actual. */
+    val openPastDiet: DietHistoryEntry? = null,
+    val pastDiet: DietDetail? = null,
     val appointments: List<PatientAppointment> = emptyList(),
     val appointmentsLoaded: Boolean = false,
     val appointmentSlots: List<AppointmentSlot> = emptyList(),
@@ -204,6 +209,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         _state.value = _state.value.copy(
             profile = profile, nutritionistRelationship = relationship, nutritionistTransfer = transfer?.takeIf { it.pending },
             transferConsentChecked = false, passcode = "", diet = null, dietLoaded = false,
+            dietHistory = emptyList(), openPastDiet = null, pastDiet = null,
             appointmentsLoaded = false, documentsLoaded = false, shoppingLoaded = false,
             messagesLoaded = false, trainingLoaded = false, checkinLoaded = false,
             checkinDraft = PatientCheckinDraft(), checkinSubmissionPending = false,
@@ -318,6 +324,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
     fun openSection(section: String) {
         _state.value = _state.value.copy(
             section = section, videoAppointmentId = if (section == "video") _state.value.videoAppointmentId else null,
+            openPastDiet = null, pastDiet = null,
             message = null, error = false,
             unreadMessagesCount = if (section == "messages") 0 else _state.value.unreadMessagesCount
         )
@@ -403,9 +410,11 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
     fun loadDiet() {
         if (_state.value.busy) return
         runRequest {
-            _state.value = _state.value.copy(section = "diet")
+            _state.value = _state.value.copy(section = "diet", openPastDiet = null, pastDiet = null)
             try {
                 val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+                // Antes que el plan actual: los anteriores deben verse aunque hoy no haya ninguno activo.
+                refreshDietHistory(accountId)
                 val result = offline.readThrough(accountId, "diet", DietDetail::class.java) { PortalService.api.activeDiet() }
                 _state.value = _state.value.copy(diet = result.value, dietLoaded = true,
                     message = if (result.fromCache) "Sin conexión: se muestra la última dieta guardada. Comprueba su vigencia antes de seguirla." else null, error = false)
@@ -422,11 +431,57 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun saveActiveDietPdf(destination: Uri) {
+    /** Un fallo del historial nunca impide consultar el plan actual. */
+    private suspend fun refreshDietHistory(accountId: Int) {
+        val history = try {
+            val type = TypeToken.getParameterized(List::class.java, DietHistoryEntry::class.java).type
+            offline.readThrough<List<DietHistoryEntry>>(accountId, "diet-history", type) { PortalService.api.dietHistory() }.value
+        } catch (ex: CancellationException) {
+            throw ex
+        } catch (ex: HttpException) {
+            // 403 o 404 son respuestas autoritativas (o un backend sin historial): no se conserva la copia.
+            if (ex.code() == 403 || ex.code() == 404) offline.invalidate(accountId, "diet-history")
+            emptyList()
+        } catch (_: Exception) {
+            _state.value.dietHistory
+        }
+        _state.value = _state.value.copy(dietHistory = history)
+    }
+
+    fun openPastDiet(entry: DietHistoryEntry) {
+        if (_state.value.busy) return
+        runRequest {
+            val accountId = _state.value.profile?.clientId ?: throw IOException("No hay una sesión activa.")
+            val cacheKey = "diet-history-${entry.assignmentId}"
+            _state.value = _state.value.copy(openPastDiet = entry, pastDiet = null)
+            try {
+                val result = offline.readThrough(accountId, cacheKey, DietDetail::class.java) {
+                    PortalService.api.pastDiet(entry.assignmentId)
+                }
+                // El paciente puede haber vuelto atrás mientras se cargaba.
+                if (_state.value.openPastDiet?.assignmentId != entry.assignmentId) return@runRequest
+                _state.value = _state.value.copy(pastDiet = result.value,
+                    message = if (result.fromCache) "Sin conexión: se muestra una copia guardada de este plan." else null, error = false)
+            } catch (ex: HttpException) {
+                if (ex.code() != 404) throw ex
+                offline.invalidate(accountId, cacheKey)
+                _state.value = _state.value.copy(openPastDiet = null, message = "Este plan ya no está disponible.", error = true)
+            }
+        }
+    }
+
+    fun closePastDiet() {
+        _state.value = _state.value.copy(openPastDiet = null, pastDiet = null, message = null, error = false)
+    }
+
+    /** @param pastAssignmentId asignación del historial; nulo para el plan activo. */
+    fun saveDietPdf(destination: Uri, pastAssignmentId: Int? = null) {
         runRequest {
             val context = getApplication<Application>()
             try {
-                PortalService.api.activeDietPdf().use { body ->
+                val response = if (pastAssignmentId == null) PortalService.api.activeDietPdf()
+                else PortalService.api.pastDietPdf(pastAssignmentId)
+                response.use { body ->
                     val length = body.contentLength()
                     if (length > 25L * 1024L * 1024L) throw IOException("El PDF supera el tamaño permitido.")
                     val input = body.byteStream().buffered()
@@ -1194,6 +1249,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     _state.value.profile?.clientId?.let(offline::clearActiveAccountId)
                     _state.value = _state.value.copy(
                         profile = null, diet = null, dietLoaded = false,
+                        dietHistory = emptyList(), openPastDiet = null, pastDiet = null,
                         appointments = emptyList(), appointmentsLoaded = false,
                         documents = emptyList(), documentsLoaded = false,
                         shoppingList = emptyList(), shoppingLoaded = false,

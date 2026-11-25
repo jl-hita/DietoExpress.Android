@@ -101,6 +101,15 @@ data class DietDetail(
     val days: List<DietDay> = emptyList()
 )
 
+/** Asignación del historial de planes; las fechas llegan como yyyy-MM-dd. */
+data class DietHistoryEntry(
+    val assignmentId: Int,
+    val dietName: String,
+    val startDate: String,
+    val endDate: String? = null,
+    val isActive: Boolean = false
+)
+
 data class DietDay(
     val id: Int,
     val dayIndex: Int,
@@ -435,6 +444,15 @@ interface PortalApi {
 
     @GET("portal/diet/pdf")
     suspend fun activeDietPdf(): ResponseBody
+
+    @GET("portal/diet/history")
+    suspend fun dietHistory(): List<DietHistoryEntry>
+
+    @GET("portal/diet/history/{assignmentId}")
+    suspend fun pastDiet(@Path("assignmentId") assignmentId: Int): DietDetail
+
+    @GET("portal/diet/history/{assignmentId}/pdf")
+    suspend fun pastDietPdf(@Path("assignmentId") assignmentId: Int): ResponseBody
 
     @GET("appointments/mine")
     suspend fun appointments(): List<PatientAppointment>
