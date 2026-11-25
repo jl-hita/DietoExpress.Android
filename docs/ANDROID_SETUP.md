@@ -70,7 +70,7 @@ Alternativamente, copia el APK a un dispositivo e instálalo; Android puede pedi
 
 ## 4. Configurar la firma estable en tu PC
 
-El AAB de Google Play se genera **localmente desde Android Studio**. GitHub Actions no genera el AAB ni necesita acceso a la clave de carga.
+La publicación habitual es [automática desde GitHub Actions](GOOGLE_PLAY_AUTOMATED_RELEASE.md). Esta sección solo es necesaria para generar un AAB **localmente desde Android Studio**.
 
 Guarda la configuración de firma en el archivo personal de Gradle:
 
@@ -115,7 +115,7 @@ Si activas Play App Signing, Google gestiona la clave con la que firma la app di
 
 ## 5. GitHub Actions
 
-GitHub Actions ejecuta las pruebas unitarias, compila las pruebas instrumentadas y compila el APK debug. En pushes a `main` puede conservar un APK debug como artefacto de diagnóstico. **No genera AAB, no firma lanzamientos y no necesita los secretos de firma.** El AAB publicable se genera en tu propio Android Studio siguiendo el apartado anterior.
+El workflow de validación ejecuta las pruebas unitarias, compila las pruebas instrumentadas y compila el APK debug; en pushes a `main` puede conservarlo como artefacto de diagnóstico. El workflow [Google Play release](GOOGLE_PLAY_AUTOMATED_RELEASE.md) genera, firma y publica el AAB usando los secretos del repositorio.
 
 ## 6. Compatibilidad con el backend
 

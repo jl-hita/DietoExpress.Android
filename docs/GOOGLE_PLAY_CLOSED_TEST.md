@@ -7,7 +7,7 @@ Fecha de preparación: 26/10/2026.
 - Identificador fijo: `com.dietoexpress.mobile`.
 - `minSdk = 26`, `targetSdk = 36`.
 - Versión inicial configurada: `versionCode = 1`, `versionName = 0.1.0`. Si ya se ha subido un AAB a Play Console, incrementar `versionCode` antes de la siguiente subida.
-- **El AAB firmado se genera en Android Studio en tu propio PC.** GitHub Actions no genera AAB ni necesita secretos de firma; valida el código y conserva un APK debug de diagnóstico desde `main`.
+- **Cada merge a `main` que cambie la app publica el AAB firmado** mediante [la publicación automática](GOOGLE_PLAY_AUTOMATED_RELEASE.md). Los pasos manuales de esta guía sirven para la primera subida o como alternativa.
 - El AAB debe firmarse con tu clave de carga (upload key). Si activas Play App Signing, Google gestiona la clave de firma de distribución y tú conservas la clave de carga.
 - La generación del artefacto no demuestra que la ficha, las declaraciones ni la revisión de Play estén completas.
 
