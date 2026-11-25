@@ -3,34 +3,49 @@ package com.dietoexpress.mobile
 import java.math.RoundingMode
 import java.text.NumberFormat
 import java.time.LocalDate
-import java.time.LocalTime
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
-import java.time.temporal.TemporalAccessor
 import java.util.Locale
 import com.dietoexpress.mobile.data.DietMealItem
 
 private val spanishDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("dd/MM/uuuu", Locale("es", "ES"))
+private val timeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
+
+/**
+ * Wall-clock date and time of a server value in the device time zone. The API sends instants in UTC; values without an
+ * offset are already local. Returns null for date-only or invalid values.
+ */
+internal fun toDeviceDateTime(value: String, zone: ZoneId = ZoneId.systemDefault()): LocalDateTime? =
+    runCatching { OffsetDateTime.parse(value).atZoneSameInstant(zone).toLocalDateTime() }
+        .recoverCatching { LocalDateTime.parse(value) }
+        .getOrNull()
+
+/** Calendar day (yyyy-MM-dd) of a server value as seen on the device. */
+internal fun localIsoDate(value: String, zone: ZoneId = ZoneId.systemDefault()): String =
+    toDeviceDateTime(value, zone)?.toLocalDate()?.toString() ?: value.take(10)
 
 /** Formats ISO dates as DD/MM/YYYY while preserving unknown server values. */
-internal fun formatDateLabel(value: String): String {
-    val rawDate = value.take(10)
+internal fun formatDateLabel(value: String, zone: ZoneId = ZoneId.systemDefault()): String {
     return try {
-        LocalDate.parse(rawDate, DateTimeFormatter.ISO_LOCAL_DATE).format(spanishDateFormatter)
+        LocalDate.parse(localIsoDate(value, zone), DateTimeFormatter.ISO_LOCAL_DATE).format(spanishDateFormatter)
     } catch (_: DateTimeParseException) {
         value
     }
 }
 
 /** Shows a time only when the complete ISO date-time value is valid. */
-internal fun formatTimeLabel(value: String): String {
-    return try {
-        val parsed: TemporalAccessor = DateTimeFormatter.ISO_DATE_TIME.parse(value)
-        LocalTime.from(parsed).format(DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT))
-    } catch (_: java.time.DateTimeException) {
-        "Hora pendiente"
-    }
+internal fun formatTimeLabel(value: String, zone: ZoneId = ZoneId.systemDefault()): String =
+    toDeviceDateTime(value, zone)?.format(timeFormatter) ?: "Hora pendiente"
+
+/** Date and time in the device time zone; only the date when the value carries no time. */
+internal fun formatDateTimeLabel(value: String, zone: ZoneId = ZoneId.systemDefault()): String {
+    val date = formatDateLabel(value, zone)
+    val time = toDeviceDateTime(value, zone)?.format(timeFormatter) ?: return date
+    return "$date $time"
 }
 
 /** Uses the device locale, avoids grouping, and keeps at most one decimal place. */

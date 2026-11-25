@@ -221,6 +221,12 @@ class OfflineRepository(context: Context) {
     suspend fun clearAccountCache(accountId: Int) {
         dao.clearCachedPayloads(accountId)
         clearTrainingDraftImmediately(accountId)
+        clearDownloadedDocuments()
+    }
+
+    /** Los PDF clínicos abiertos desde el portal no deben sobrevivir a la sesión. */
+    fun clearDownloadedDocuments() {
+        java.io.File(appContext.cacheDir, "patient-documents").deleteRecursively()
     }
 
     fun setActiveAccountId(accountId: Int) {

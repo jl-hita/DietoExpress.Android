@@ -479,8 +479,10 @@ interface PortalApi {
     @POST("appointments")
     suspend fun requestAppointment(@Body request: CreatePatientAppointmentRequest): PatientAppointment
 
+    /** Devuelve Unit para que un rechazo del servidor llegue como HttpException y no se confunda con un éxito. */
+    @Headers("X-DietoExpress-Patient-Portal: 1")
     @POST("appointments/{id}/cancel")
-    suspend fun cancelPatientAppointment(@Path("id") id: Int): retrofit2.Response<Unit>
+    suspend fun cancelPatientAppointment(@Path("id") id: Int)
 
     @GET("portal/documents")
     suspend fun documents(): List<PatientDocument>

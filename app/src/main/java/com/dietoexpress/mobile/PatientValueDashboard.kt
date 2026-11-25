@@ -57,7 +57,8 @@ private fun weightTrend(entries: List<WeightEntry>): WeightTrend? {
 }
 
 private fun dashboardDate(value: String): String {
-    val date = runCatching { LocalDate.parse(value.take(10)) }.getOrNull() ?: return value.take(10)
+    val day = localIsoDate(value)
+    val date = runCatching { LocalDate.parse(day) }.getOrNull() ?: return day
     return date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale("es", "ES")))
 }
 
@@ -174,7 +175,7 @@ internal fun PatientValueDashboard(
                         Text("Tu próxima consulta", color = Color(0xFFC8E4D4), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Text(dashboardDate(appointment.startsAt), color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "${appointment.startsAt.substringAfter("T", "").take(5).ifBlank { "Hora por confirmar" }} · ${appointment.modality?.takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() } ?: "Consulta"}",
+                            "${formatTimeLabel(appointment.startsAt)} · ${appointment.modality?.takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() } ?: "Consulta"}",
                             color = Color(0xFFE2F0E8),
                             style = MaterialTheme.typography.bodySmall
                         )

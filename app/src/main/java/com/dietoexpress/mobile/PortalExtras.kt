@@ -126,7 +126,7 @@ internal fun PatientMessagesContent(
                     ) {
                         Text(if (mine) "Tú" else "Tu profesional", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
                         Text(message.body)
-                        Text(formatPortalDateTime(message.createdAt), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                        Text(formatDateTimeLabel(message.createdAt), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -228,12 +228,5 @@ internal fun TrainingPortalContent(training: TrainingEnvelope?, loaded: Boolean,
     }
 }
 
-private fun formatPortalDateTime(value: String): String {
-    val rawDate = value.take(10)
-    val parts = rawDate.split("-")
-    val date = if (parts.size == 3) parts.reversed().joinToString("/") else rawDate
-    val time = value.substringAfter("T", "").take(5)
-    return listOf(date, time).filter { it.isNotBlank() }.joinToString(" ")
-}
-
-private fun formatPortalDate(value: String): String = formatPortalDateTime(value).substringBefore(" ")
+/** Fechas de calendario (sin hora): no se convierten de zona. */
+private fun formatPortalDate(value: String): String = formatDateLabel(value.take(10))

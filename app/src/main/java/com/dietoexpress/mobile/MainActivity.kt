@@ -660,7 +660,7 @@ private fun NotificationCenterContent(
                             Text("Nuevo mensaje de tu profesional", color = Ink, fontWeight = FontWeight.Bold)
                         }
                         Text(item.body, color = Muted, maxLines = 2, style = MaterialTheme.typography.bodyMedium)
-                        Text(item.createdAt.replace("T", " ").take(16), color = Muted, style = MaterialTheme.typography.bodySmall)
+                        Text(formatDateTimeLabel(item.createdAt), color = Muted, style = MaterialTheme.typography.bodySmall)
                         Text("Abrir conversación →", color = Forest, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
                     }
                 }
@@ -994,11 +994,11 @@ private fun AppointmentsContent(
     onLeaveNutritionist: () -> Unit,
     onRequestClinicReassignment: () -> Unit
 ) {
-    var selectedDate by remember(slots) { mutableStateOf(slots.firstOrNull()?.startsAt?.take(10)) }
+    var selectedDate by remember(slots) { mutableStateOf(slots.firstOrNull()?.startsAt?.let { localIsoDate(it) }) }
     var selectedSlotStart by remember(slots) { mutableStateOf<String?>(null) }
     var showingHistory by remember { mutableStateOf(false) }
     var historyLimit by remember { mutableStateOf(10) }
-    val slotsByDate = slots.groupBy { it.startsAt.take(10) }.toSortedMap()
+    val slotsByDate = slots.groupBy { localIsoDate(it.startsAt) }.toSortedMap()
     val activeDate = selectedDate?.takeIf { slotsByDate.containsKey(it) } ?: slotsByDate.keys.firstOrNull()
     val daySlots = activeDate?.let { slotsByDate[it] }.orEmpty()
     val selectedSlot = daySlots.firstOrNull { it.startsAt == selectedSlotStart }
@@ -1428,7 +1428,7 @@ private fun BiometricEvolutionChart(
         } else {
             checkins.filter { it.weight != null }
                 .sortedBy { it.weekStart ?: it.submittedAt.orEmpty() }.takeLast(12)
-                .map { (it.weekStart ?: it.submittedAt?.take(10).orEmpty()) to it.weight!! }
+                .map { (it.weekStart ?: it.submittedAt?.let { value -> localIsoDate(value) }.orEmpty()) to it.weight!! }
         }
     } else {
         biometricHistory.mapNotNull { entry -> metricValue(entry, activeMetric)?.let { entry.date to it } }
@@ -1488,7 +1488,7 @@ private fun BiometricEvolutionChart(
 private fun CheckinCard(item: PatientCheckin) {
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text(item.weekStart?.let(::formatDateLabel) ?: item.submittedAt?.take(10)?.let(::formatDateLabel) ?: "Revisión", color = Forest, fontWeight = FontWeight.Bold)
+            Text(item.weekStart?.let { formatDateLabel(it) } ?: item.submittedAt?.let { formatDateLabel(it) } ?: "Revisión", color = Forest, fontWeight = FontWeight.Bold)
             item.weight?.let { ProfileRow("Peso", "${formatNumber(it)} kg") }
             item.adherence?.let { ProfileRow("Adherencia", "$it %") }
             item.hunger?.let { ProfileRow("Hambre", "$it / 10") }
