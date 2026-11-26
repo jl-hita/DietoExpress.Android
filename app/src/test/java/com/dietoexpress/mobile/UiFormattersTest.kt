@@ -21,8 +21,15 @@ class UiFormattersTest {
 
     @Test
     fun formatsOnlyCompleteValidIsoDateTimes() {
-        assertEquals("14:05", formatTimeLabel("2026-10-29T14:05:00+02:00"))
-        assertEquals("14:05", formatTimeLabel("2026-10-29T14:05:00Z"))
+        val madrid = java.time.ZoneId.of("Europe/Madrid")
+        assertEquals("14:05", formatTimeLabel("2026-10-29T14:05:00+01:00", madrid))
+        // El servidor envía UTC: en Madrid se suma una hora en invierno y dos en verano.
+        assertEquals("15:05", formatTimeLabel("2026-10-29T14:05:00Z", madrid))
+        assertEquals("16:05", formatTimeLabel("2026-07-29T14:05:00.000Z", madrid))
+        assertEquals("14:05", formatTimeLabel("2026-10-29T14:05:00", madrid))
+        assertEquals("2026-10-30", localIsoDate("2026-10-29T23:30:00Z", madrid))
+        assertEquals("30/10/2026", formatDateLabel("2026-10-29T23:30:00Z", madrid))
+        assertEquals("30/10/2026 00:30", formatDateTimeLabel("2026-10-29T23:30:00Z", madrid))
         assertEquals("Hora pendiente", formatTimeLabel(""))
         assertEquals("Hora pendiente", formatTimeLabel("2026-10-29"))
         assertEquals("Hora pendiente", formatTimeLabel("2026-10-29T29:99:00"))

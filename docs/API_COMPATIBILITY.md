@@ -110,3 +110,12 @@ Reglas de la app:
 - El acceso biométrico se conserva al cerrar sesión. Si el profesional cambia el PIN del paciente, el servidor revoca todos sus dispositivos.
 - El texto firmado debe mantenerse idéntico en `biometricSignedMessage` (app) y `PatientBiometricCrypto.BuildSignedMessage` (backend); hay un test en cada lado.
 
+
+## Sesión, citas y horas (noviembre de 2026)
+
+- Emitir un enlace de acceso por email ya no revoca las sesiones del paciente ni sus tokens push. Se revocan al cerrar sesión, cambiar el PIN, regenerar el acceso desde la ficha o archivar al paciente.
+- `POST appointments/{id}/cancel` envía `X-DietoExpress-Patient-Portal: 1`. El backend usa la cookie de paciente en esa ruta aunque falte la cabecera, para las versiones ya instaladas. La app trata 400 y 404 como "ya no se puede cancelar" y cualquier otro error como fallo.
+- `appointments/mine` y `POST appointments` ya no devuelven `professionalNotes` (la app no lo usaba).
+- Las líneas de dieta con receta incluyen `recipeId`, `recipeName` y `recipeServings`.
+- El servidor envía instantes en UTC: la app los convierte a la zona del dispositivo antes de mostrarlos. Las fechas sin hora no se convierten.
+- La reserva pública desde el directorio queda siempre `requested` hasta que el profesional la confirma.

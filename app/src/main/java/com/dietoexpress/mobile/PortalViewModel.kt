@@ -988,11 +988,19 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
     fun cancelAppointment(appointmentId: Int) {
         if (_state.value.busy) return
         runRequest {
-            PortalService.api.cancelPatientAppointment(appointmentId)
+            var rejected = false
+            try {
+                PortalService.api.cancelPatientAppointment(appointmentId)
+            } catch (ex: HttpException) {
+                // 400 y 404: la cita ya no admite cancelación. El resto sigue el tratamiento común de errores.
+                if (ex.code() != 400 && ex.code() != 404) throw ex
+                rejected = true
+            }
             val accountId = _state.value.profile?.clientId
             val updated = PortalService.api.appointments()
             _state.value = _state.value.copy(appointments = updated, appointmentsLoaded = true,
-                message = "Cita cancelada correctamente.", error = false)
+                message = if (rejected) "Esta cita ya no se puede cancelar." else "Cita cancelada correctamente.",
+                error = rejected)
             if (accountId != null) offline.cacheValue(accountId, "appointments", updated)
         }
     }
@@ -1246,6 +1254,7 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                 _state.value = _state.value.copy(message = message, error = true)
                 if (ex.code() == 401) {
                     PortalService.clearSessionCookies()
+                    offline.clearDownloadedDocuments()
                     _state.value.profile?.clientId?.let(offline::clearActiveAccountId)
                     _state.value = _state.value.copy(
                         profile = null, diet = null, dietLoaded = false,
